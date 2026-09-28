@@ -1,0 +1,12 @@
+[
+  {
+    "did": "did:fixture:acme-university",
+    "name": "ACME University",
+    "trust_level": "accredited"
+  },
+  {
+    "did": "did:fixture:globex-academy",
+    "name": "Globex Academy",
+    "trust_level": "known"
+  }
+]
