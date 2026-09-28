@@ -1,0 +1,749 @@
+openapi: 3.1.0
+info:
+  title: VC AI Career Agent — BE Mock API
+  version: 0.1.0
+  description: |
+    BE 파트의 OpenAPI 명세. VC 파트의 `docs/openapi.yaml` 스키마를 그대로 참조하여 이중 정의를 방지한다.
+    논문 기간(~10/23) 동안은 Prism mock 서버로 AI/FE 팀에 제공하며,
+    논문 이후 NestJS 실 비즈니스 로직으로 교체한다.
+
+    핵심 원칙: `status` 쿼리 파라미터를 생략하면 항상 `verified` 자격증명만 반환한다.
+    "근거 없는 스펙 기재 원천 차단" 요구사항을 API 기본값으로 강제하기 위함이다.
+  contact:
+    name: BE 파트
+
+servers:
+  - url: http://localhost:4010
+    description: Prism Mock 서버 (논문 기간)
+  - url: http://localhost:4000
+    description: VC 지갑 코어 실서버 (fixture 모드)
+
+tags:
+  - name: health
+    description: 서버 상태 확인
+  - name: credentials
+    description: 자격증명(CredentialRecord) 조회
+  - name: skills
+    description: 정규화된 공통 역량(SkillClaim) 조회
+  - name: verify
+    description: 온디맨드 재검증
+
+paths:
+  /health:
+    get:
+      tags: [health]
+      summary: 서버 상태 및 로드된 레코드 수 확인
+      operationId: getHealth
+      responses:
+        "200":
+          description: 정상
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: ok
+                mode: fixture
+                recordCount: 9
+
+  /v1/subjects/{did}/credentials:
+    get:
+      tags: [credentials]
+      summary: 특정 subject(사용자/학생)의 자격증명 목록 조회
+      description: |
+        `status` 쿼리를 생략하면 **항상 verified만** 반환한다.
+        미검증 데이터를 받으려면 `?status=all` 또는 `?status=invalid,revoked`처럼 명시적으로 요청해야 한다.
+      operationId: listCredentialsBySubject
+      parameters:
+        - $ref: "#/components/parameters/SubjectDid"
+        - name: status
+          in: query
+          required: false
+          description: |
+            쉼표로 구분된 상태 목록, 또는 `all`(전체). 생략 시 기본값은 `verified`.
+          schema:
+            type: string
+            examples: ["verified", "all", "invalid,revoked"]
+      responses:
+        "200":
+          description: 자격증명 목록 (요약 필드만 포함, 전체 내용은 /v1/records/{id} 참조)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CredentialListResponse"
+              example:
+                subject_did: "did:fixture:student-001"
+                status_filter: ["verified"]
+                count: 4
+                records:
+                  - record_id: "3f444a85-191b-51a4-83a6-73fad567c272"
+                    format: "OB2.0"
+                    achievement_name: "백엔드 개발 기초"
+                    issuer_name: "ACME University"
+                    status: "verified"
+                    issued_at: "2026-03-01T00:00:00Z"
+                  - record_id: "a1b2c3d4-e5f6-5a7b-8c9d-0e1f2a3b4c5d"
+                    format: "OB2.0"
+                    achievement_name: "데이터베이스 설계 인증"
+                    issuer_name: "ACME University"
+                    status: "verified"
+                    issued_at: "2026-05-15T00:00:00Z"
+                  - record_id: "b2c3d4e5-f6a7-5b8c-9d0e-1f2a3b4c5d6e"
+                    format: "OB3.0"
+                    achievement_name: "머신러닝 프로젝트 수료"
+                    issuer_name: "Globex Academy"
+                    status: "verified"
+                    issued_at: "2026-06-01T00:00:00Z"
+                  - record_id: "c3d4e5f6-a7b8-5c9d-0e1f-2a3b4c5d6e7f"
+                    format: "OB3.0"
+                    achievement_name: "블록체인 응용 캡스톤"
+                    issuer_name: "ACME University"
+                    status: "verified"
+                    issued_at: "2026-04-20T00:00:00Z"
+
+  /v1/records/{id}:
+    get:
+      tags: [credentials]
+      summary: 단일 CredentialRecord 전체 조회
+      description: |
+        status 필터가 적용되지 않는다.
+        record_id만 알면 상태와 무관하게 조회된다 (기업용 원클릭 검증 뷰 등 근거 확인 용도).
+      operationId: getRecordById
+      parameters:
+        - $ref: "#/components/parameters/RecordId"
+      responses:
+        "200":
+          description: CredentialRecord 전체
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CredentialRecord"
+              example:
+                record_id: "3f444a85-191b-51a4-83a6-73fad567c272"
+                subject_did: "did:fixture:student-001"
+                schema_version: "0.1.0"
+                normalized_at: "2026-09-28T11:00:00.000Z"
+                source:
+                  provider: "hosted_url"
+                  external_id: "cred-ob2-hosted-001"
+                  fetched_at: "2026-09-28T11:00:00.000Z"
+                format: "OB2.0"
+                issuer:
+                  did: "did:fixture:acme-university"
+                  name: "ACME University"
+                  url: "https://acme-university.example.com"
+                  trust_level: "accredited"
+                achievement:
+                  id: "https://acme-university.example.com/badges/backend-basics"
+                  name: "백엔드 개발 기초"
+                  description: "백엔드 개발의 기초를 다루는 과정 수료"
+                  achievement_type: "Completion"
+                evidence: []
+                issued_at: "2026-03-01T00:00:00Z"
+                expires_at: null
+                awarded_date: "2026-03-01"
+                skills:
+                  - skill_id: "SK.DEV.BACKEND"
+                    label_ko: "백엔드 개발"
+                    label_en: "Backend Development"
+                    taxonomy:
+                      source: "NCS"
+                      code: "2001010401"
+                      version: "2024"
+                    level: null
+                    level_basis: "completion"
+                    confidence: 1
+                    mapping_method: "alias_dict"
+                    source_record_ids:
+                      - "3f444a85-191b-51a4-83a6-73fad567c272"
+                verification:
+                  status: "verified"
+                  checks:
+                    - check: "schema"
+                      result: "pass"
+                      checked_at: "2026-09-28T11:00:00.000Z"
+                    - check: "did_resolution"
+                      result: "pass"
+                      checked_at: "2026-09-28T11:00:00.000Z"
+                    - check: "signature"
+                      result: "skip"
+                      detail: "OB2.0 Hosted 방식은 서명 없음"
+                      checked_at: "2026-09-28T11:00:00.000Z"
+                    - check: "issuer_trust"
+                      result: "pass"
+                      checked_at: "2026-09-28T11:00:00.000Z"
+                    - check: "revocation"
+                      result: "pass"
+                      checked_at: "2026-09-28T11:00:00.000Z"
+                    - check: "anchor_match"
+                      result: "skip"
+                      detail: "DX Ledger Builder API 미연동 (논문 기간 skip)"
+                      checked_at: "2026-09-28T11:00:00.000Z"
+                    - check: "expiration"
+                      result: "pass"
+                      checked_at: "2026-09-28T11:00:00.000Z"
+                  proof:
+                    type: "HostedVerification"
+                  anchor:
+                    chain: null
+                    tx_id: null
+                    block_no: null
+                    anchored_hash: null
+                    computed_hash: null
+                    match: null
+                  verified_at: "2026-09-28T11:00:00.000Z"
+                  verifier_version: "vc-core-mock/0.1.0"
+                raw_hash: "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/records/{id}/verification:
+    get:
+      tags: [credentials]
+      summary: 특정 레코드의 VerificationResult만 조회
+      description: |
+        7개 체크(schema/did_resolution/signature/issuer_trust/revocation/anchor_match/expiration)가
+        항상 전부 포함된다.
+      operationId: getVerificationByRecordId
+      parameters:
+        - $ref: "#/components/parameters/RecordId"
+      responses:
+        "200":
+          description: VerificationResult
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerificationResult"
+              example:
+                status: "verified"
+                checks:
+                  - check: "schema"
+                    result: "pass"
+                    checked_at: "2026-09-28T11:00:00.000Z"
+                  - check: "did_resolution"
+                    result: "pass"
+                    checked_at: "2026-09-28T11:00:00.000Z"
+                  - check: "signature"
+                    result: "pass"
+                    checked_at: "2026-09-28T11:00:00.000Z"
+                  - check: "issuer_trust"
+                    result: "pass"
+                    checked_at: "2026-09-28T11:00:00.000Z"
+                  - check: "revocation"
+                    result: "pass"
+                    checked_at: "2026-09-28T11:00:00.000Z"
+                  - check: "anchor_match"
+                    result: "skip"
+                    detail: "DX Ledger Builder API 미연동 (논문 기간 skip)"
+                    checked_at: "2026-09-28T11:00:00.000Z"
+                  - check: "expiration"
+                    result: "pass"
+                    checked_at: "2026-09-28T11:00:00.000Z"
+                proof:
+                  type: "VC-JWT"
+                  alg: "EdDSA"
+                  verification_method: "did:fixture:acme-university#key-1"
+                anchor:
+                  chain: null
+                  tx_id: null
+                  block_no: null
+                  anchored_hash: null
+                  computed_hash: null
+                  match: null
+                verified_at: "2026-09-28T11:00:00.000Z"
+                verifier_version: "vc-core-mock/0.1.0"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/subjects/{did}/skills:
+    get:
+      tags: [skills]
+      summary: subject의 정규화된 공통 역량(SkillClaim) 목록 조회
+      description: |
+        `verified` 상태 레코드에서 나온 스킬만 집계한다 (미검증 데이터 기반 스킬은 절대 노출되지 않음).
+        같은 skill_id가 여러 자격증명에서 나오면 하나로 합치고 `source_record_ids`에 근거를 모두 남긴다.
+      operationId: listSkillsBySubject
+      parameters:
+        - $ref: "#/components/parameters/SubjectDid"
+      responses:
+        "200":
+          description: SkillClaim 목록
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SkillListResponse"
+              example:
+                subject_did: "did:fixture:student-001"
+                count: 4
+                skills:
+                  - skill_id: "SK.DEV.BACKEND"
+                    label_ko: "백엔드 개발"
+                    label_en: "Backend Development"
+                    taxonomy:
+                      source: "NCS"
+                      code: "2001010401"
+                      version: "2024"
+                    level: null
+                    level_basis: "completion"
+                    confidence: 1
+                    mapping_method: "alias_dict"
+                    source_record_ids:
+                      - "3f444a85-191b-51a4-83a6-73fad567c272"
+                  - skill_id: "SK.DEV.DATABASE"
+                    label_ko: "데이터베이스 설계"
+                    label_en: "Database Design"
+                    taxonomy:
+                      source: "NCS"
+                      code: "2001010305"
+                      version: "2024"
+                    level: null
+                    level_basis: "completion"
+                    confidence: 1
+                    mapping_method: "alias_dict"
+                    source_record_ids:
+                      - "a1b2c3d4-e5f6-5a7b-8c9d-0e1f2a3b4c5d"
+                  - skill_id: "SK.AI.MACHINE_LEARNING"
+                    label_ko: "머신러닝"
+                    label_en: "Machine Learning"
+                    taxonomy:
+                      source: "ESCO"
+                      code: "S1.2.1"
+                      version: "1.2.0"
+                    level: null
+                    level_basis: "completion"
+                    confidence: 1
+                    mapping_method: "alias_dict"
+                    source_record_ids:
+                      - "b2c3d4e5-f6a7-5b8c-9d0e-1f2a3b4c5d6e"
+                  - skill_id: "SK.SEC.BLOCKCHAIN"
+                    label_ko: "블록체인 응용"
+                    label_en: "Blockchain Application"
+                    taxonomy:
+                      source: "NCS"
+                      code: "2003020104"
+                      version: "2024"
+                    level: null
+                    level_basis: "completion"
+                    confidence: 1
+                    mapping_method: "alias_dict"
+                    source_record_ids:
+                      - "c3d4e5f6-a7b8-5c9d-0e1f-2a3b4c5d6e7f"
+
+  /v1/verify:
+    post:
+      tags: [verify]
+      summary: external_id로 지정한 원본 자격증명을 그 자리에서 재검증
+      description: |
+        캐시된 값이 아니라 파이프라인을 즉시 재실행한다.
+        AI 팀 MCP `wallet.verify_credential` 툴이 감쌀 엔드포인트이며, 데모/디버깅 목적으로도 쓴다.
+      operationId: verifyCredentialOnDemand
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyRequest"
+            example:
+              external_id: "cred-ob2-hosted-001"
+      responses:
+        "200":
+          description: 재검증된 CredentialRecord
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CredentialRecord"
+        "400":
+          description: external_id 누락 등 잘못된 요청
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          description: "파이프라인 실행 중 처리 불가능한 오류 (예: 알 수 없는 자격증명 포맷)"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  parameters:
+    SubjectDid:
+      name: did
+      in: path
+      required: true
+      description: 조회 대상 subject의 DID
+      schema:
+        type: string
+      example: "did:fixture:student-001"
+    RecordId:
+      name: id
+      in: path
+      required: true
+      description: CredentialRecord.record_id (externalId 기반 결정적 UUID)
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    NotFound:
+      description: 대상을 찾을 수 없음
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    # ── 공통 응답 ──────────────────────────────────────────────
+    ErrorResponse:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          enum: [not_found, bad_request, verification_failed]
+        message:
+          type: string
+
+    HealthResponse:
+      type: object
+      required: [status, mode, recordCount]
+      properties:
+        status:
+          type: string
+          enum: [ok, starting]
+        mode:
+          type: string
+          enum: [fixture, dxledger]
+        recordCount:
+          type: integer
+
+    VerifyRequest:
+      type: object
+      required: [external_id]
+      properties:
+        external_id:
+          type: string
+
+    # ── 목록 응답 봉투(envelope) ────────────────────────────────
+    CredentialListItem:
+      type: object
+      required: [record_id, format, issuer_name, status, issued_at]
+      properties:
+        record_id:
+          type: string
+          format: uuid
+        format:
+          $ref: "#/components/schemas/CredentialFormat"
+        achievement_name:
+          type: string
+        issuer_name:
+          type: string
+        status:
+          $ref: "#/components/schemas/VerificationStatus"
+        issued_at:
+          type: string
+          format: date-time
+
+    CredentialListResponse:
+      type: object
+      required: [subject_did, status_filter, count, records]
+      properties:
+        subject_did:
+          type: string
+        status_filter:
+          type: array
+          items:
+            $ref: "#/components/schemas/VerificationStatus"
+        count:
+          type: integer
+        records:
+          type: array
+          items:
+            $ref: "#/components/schemas/CredentialListItem"
+
+    SkillListResponse:
+      type: object
+      required: [subject_did, count, skills]
+      properties:
+        subject_did:
+          type: string
+        count:
+          type: integer
+        skills:
+          type: array
+          items:
+            $ref: "#/components/schemas/SkillClaim"
+
+    # ── 열거형 타입 (VC 파트와 동일) ──────────────────────────
+    CredentialFormat:
+      type: string
+      enum: ["OB2.0", "OB3.0", "VC1.1", "VC2.0"]
+
+    CredentialProvider:
+      type: string
+      enum: [dx_ledger_wallet, dx_ledger_badge, hosted_url, upload]
+
+    IssuerTrustLevel:
+      type: string
+      enum: [accredited, known, unknown]
+
+    VerificationStatus:
+      type: string
+      enum: [verified, invalid, revoked, expired, unverifiable, pending]
+
+    VerificationCheckName:
+      type: string
+      enum: [schema, did_resolution, signature, issuer_trust, revocation, anchor_match, expiration]
+
+    VerificationCheckResult:
+      type: string
+      enum: [pass, fail, warn, skip]
+
+    ProofType:
+      type: string
+      enum: ["VC-JWT", "DataIntegrityProof", "HostedVerification"]
+
+    SkillMappingMethod:
+      type: string
+      enum: [exact_alignment, alias_dict, embedding_knn, manual]
+
+    SkillLevelBasis:
+      type: string
+      enum: [assessed, completion, participation, declared]
+
+    # ── 도메인 스키마 (VC 파트 credential-record.schema.json과 1:1 일치) ──
+    Source:
+      type: object
+      required: [provider, external_id, fetched_at]
+      properties:
+        provider:
+          $ref: "#/components/schemas/CredentialProvider"
+        external_id:
+          type: string
+        fetched_at:
+          type: string
+          format: date-time
+
+    IssuerProfile:
+      type: object
+      required: [did, name, trust_level]
+      properties:
+        did:
+          type: string
+        name:
+          type: string
+        url:
+          type: string
+          format: uri
+        trust_level:
+          $ref: "#/components/schemas/IssuerTrustLevel"
+
+    Alignment:
+      type: object
+      properties:
+        framework:
+          type: string
+        code:
+          type: string
+        name:
+          type: string
+        url:
+          type: string
+          format: uri
+
+    Achievement:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        criteria_narrative:
+          type: string
+        achievement_type:
+          type: string
+        image_url:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        alignments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Alignment"
+
+    Evidence:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        url:
+          type: string
+          format: uri
+
+    SkillTaxonomyRef:
+      type: object
+      required: [source, code, version]
+      properties:
+        source:
+          type: string
+          enum: [NCS, ESCO, internal]
+        code:
+          type: string
+        version:
+          type: string
+
+    SkillClaim:
+      type: object
+      required: [skill_id, label_ko, taxonomy, confidence, mapping_method, source_record_ids]
+      properties:
+        skill_id:
+          type: string
+        label_ko:
+          type: string
+        label_en:
+          type: string
+        taxonomy:
+          $ref: "#/components/schemas/SkillTaxonomyRef"
+        level:
+          type: ["integer", "null"]
+          minimum: 1
+          maximum: 5
+        level_basis:
+          $ref: "#/components/schemas/SkillLevelBasis"
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        mapping_method:
+          $ref: "#/components/schemas/SkillMappingMethod"
+        source_record_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+
+    VerificationCheck:
+      type: object
+      required: [check, result, checked_at]
+      properties:
+        check:
+          $ref: "#/components/schemas/VerificationCheckName"
+        result:
+          $ref: "#/components/schemas/VerificationCheckResult"
+        detail:
+          type: string
+        checked_at:
+          type: string
+          format: date-time
+
+    Proof:
+      type: object
+      properties:
+        type:
+          $ref: "#/components/schemas/ProofType"
+        alg:
+          type: string
+        verification_method:
+          type: string
+
+    Anchor:
+      type: object
+      properties:
+        chain:
+          type: ["string", "null"]
+        tx_id:
+          type: ["string", "null"]
+        block_no:
+          type: ["integer", "null"]
+        anchored_hash:
+          type: ["string", "null"]
+        computed_hash:
+          type: ["string", "null"]
+        match:
+          type: ["boolean", "null"]
+
+    VerificationResult:
+      type: object
+      required: [status, checks, verified_at, verifier_version]
+      properties:
+        status:
+          $ref: "#/components/schemas/VerificationStatus"
+        checks:
+          type: array
+          minItems: 7
+          maxItems: 7
+          items:
+            $ref: "#/components/schemas/VerificationCheck"
+        proof:
+          $ref: "#/components/schemas/Proof"
+        anchor:
+          $ref: "#/components/schemas/Anchor"
+        verified_at:
+          type: string
+          format: date-time
+        verifier_version:
+          type: string
+
+    CredentialRecord:
+      type: object
+      required:
+        - record_id
+        - subject_did
+        - schema_version
+        - normalized_at
+        - source
+        - format
+        - issuer
+        - achievement
+        - verification
+        - raw_hash
+      properties:
+        record_id:
+          type: string
+          format: uuid
+        subject_did:
+          type: string
+        schema_version:
+          type: string
+        normalized_at:
+          type: string
+          format: date-time
+        source:
+          $ref: "#/components/schemas/Source"
+        format:
+          $ref: "#/components/schemas/CredentialFormat"
+        issuer:
+          $ref: "#/components/schemas/IssuerProfile"
+        achievement:
+          $ref: "#/components/schemas/Achievement"
+        evidence:
+          type: array
+          items:
+            $ref: "#/components/schemas/Evidence"
+        issued_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: ["string", "null"]
+          format: date-time
+        awarded_date:
+          type: ["string", "null"]
+        skills:
+          type: array
+          items:
+            $ref: "#/components/schemas/SkillClaim"
+        verification:
+          $ref: "#/components/schemas/VerificationResult"
+        raw_hash:
+          type: string
+          pattern: "^[a-f0-9]{64}$"
