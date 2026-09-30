@@ -4,7 +4,13 @@ info:
   version: 0.1.0
   description: |
     BE 파트의 OpenAPI 명세. VC 파트의 `docs/openapi.yaml` 스키마를 그대로 참조하여 이중 정의를 방지한다.
-    논문 기간(~10/23) 동안은 Prism mock 서버로 AI/FE 팀에 제공하며,
+
+    ## 아키텍처: BFF (Backend For Frontend) 방식 채택
+    BE는 VC 지갑 서버(`localhost:4000`)를 단순히 통과시키는 프록시(Proxy)가 아닌,
+    VC 서버를 내부에서 직접 호출(Axios/Fetch)하고 자체 DB(PostgreSQL) 데이터와 조립하여
+    FE/AI에게 완성된 단일 응답을 제공하는 BFF 패턴을 채택한다.
+
+    논문 기간(~10/23) 동안은 Prism mock 서버(`localhost:4010`)로 AI/FE 팀에 제공하며,
     논문 이후 NestJS 실 비즈니스 로직으로 교체한다.
 
     핵심 원칙: `status` 쿼리 파라미터를 생략하면 항상 `verified` 자격증명만 반환한다.
