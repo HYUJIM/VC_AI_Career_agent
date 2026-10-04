@@ -1,0 +1,18 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: vc-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: vc_career_agent
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./DB/schema/schema_PostgreSQL.sql:/docker-entrypoint-initdb.d/01_schema.sql
+      - ./DB/schema/schema_pgvector.sql:/docker-entrypoint-initdb.d/02_pgvector.sql
+
+volumes:
+  postgres_data:
