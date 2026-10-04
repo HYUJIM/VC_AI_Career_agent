@@ -1,0 +1,15 @@
+{
+  "usersDB": {},
+  "careersDB": {
+    "urn:uuid:a00cafad-2d79-4c5f-aed1-4b48ab3df64f": {
+      "badge_id": "urn:uuid:a00cafad-2d79-4c5f-aed1-4b48ab3df64f",
+      "user_id": "did:key:z6MkTestStudent12345",
+      "issuer_name": "경북대학교",
+      "badge_name": "KNU Career Demo Badge",
+      "description": "산학협력 프로젝트용 가상 교육 수료 배지입니다. 실제 학위나 자격을 증명하지 않습니다.",
+      "criteria": "테스트 과정의 실습을 완료한 가상 사용자에게 발급합니다.",
+      "status": "VALID",
+      "verified_at": "2026-10-04T12:46:02.513Z"
+    }
+  }
+}
