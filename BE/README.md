@@ -83,6 +83,31 @@ python -m uvicorn main:app --host 0.0.0.0 --port 3000
 
 포스트맨(Postman) 등에서 아래 순서대로 호출하며 메인 시나리오를 테스트할 수 있습니다.
 
+### [Step 0] 웹 기반 유저 회원가입 및 로그인 (DID 자동 부여)
+지갑 앱 없이 프론트엔드에서 회원가입하고 DID를 발급받아 세션에 저장하는 용도입니다.
+
+**회원가입**
+- **Method:** `POST`
+- **URL:** `http://localhost:3000/api/v1/users/register`
+- **Body (JSON):**
+  ```json
+  {
+    "name": "홍길동",
+    "email": "hong@test.com"
+  }
+  ```
+
+**로그인**
+- **Method:** `POST`
+- **URL:** `http://localhost:3000/api/v1/users/login`
+- **Body (JSON):**
+  ```json
+  {
+    "email": "hong@test.com"
+  }
+  ```
+> **Tip:** 위 API를 호출하면 응답 결과의 `data.did` 항목에 가짜 DID(예: `did:key:z6MkMock...`)가 반환됩니다. 이후 Step 1~3에서 이 DID를 사용하세요.
+
 ### [Step 1] 논문 테스트용 임시 발급 서버 (Mock Issuer)
 - **Method:** `POST`
 - **URL:** `http://localhost:3000/api/mock-issuer/issue`
@@ -90,7 +115,7 @@ python -m uvicorn main:app --host 0.0.0.0 --port 3000
   ```json
   {
     "templateId": "f9499c5f-6611-45c6-b5a8-683a99040aab", 
-    "holderDid": "did:key:z6MkTestStudent12345"
+    "holderDid": "Step 0에서 가입/로그인으로 발급받은 DID 입력"
   }
   ```
 - **결과:** DXWorks 발급 API를 찔러서 생성된 서명된 JWT 문자열이 리턴됩니다. (이 값을 변수로 저장하세요.)
@@ -109,15 +134,15 @@ python -m uvicorn main:app --host 0.0.0.0 --port 3000
 
 ### [Step 3] AI가 이력서 작성을 위해 유저 스펙 조회하기
 - **Method:** `GET`
-- **URL:** `http://localhost:3000/api/v1/subjects/did:key:z6MkTestStudent12345/careers`
+- **URL:** `http://localhost:3000/api/v1/subjects/{Step 0에서 발급받은 DID}/careers`
 - **결과:** 방금 저장된 데이터가 DB 작업자의 새로운 스키마 규격에 맞게 정제되어 출력됩니다.
   ```json
   {
     "user_profile": {
       "id": "uuid...",
-      "did": "did:key:z6MkTestStudent12345",
-      "email": "unknown@test.com",
-      "name": "Unknown (신원 미인증)"
+      "did": "did:key:...",
+      "email": "hong@test.com",
+      "name": "홍길동"
     },
     "verified_credentials": [
       {
