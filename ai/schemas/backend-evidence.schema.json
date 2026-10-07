@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BE evidence, not a verified CredentialRecord",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "record_id",
+    "subject_did",
+    "issuer",
+    "achievement",
+    "issued_at",
+    "expires_at",
+    "backend_status",
+    "provenance"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "be-evidence/1.0"
+    },
+    "record_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "subject_did": {
+      "type": "string",
+      "pattern": "^did:"
+    },
+    "issuer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "did": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        }
+      }
+    },
+    "achievement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "id": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "criteria_narrative": {
+          "type": "string"
+        },
+        "achievement_type": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "awarded_date": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date"
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      }
+    },
+    "backend_status": {
+      "enum": [
+        "verified",
+        "invalid",
+        "revoked",
+        "expired",
+        "unverifiable",
+        "pending"
+      ]
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "raw_shape",
+        "verification_basis",
+        "cryptographic_verification_performed",
+        "raw_data_sha256"
+      ],
+      "properties": {
+        "source": {
+          "const": "backend_careers"
+        },
+        "raw_shape": {
+          "enum": [
+            "vc_payload",
+            "summary_object"
+          ]
+        },
+        "verification_basis": {
+          "const": "backend_status_only"
+        },
+        "cryptographic_verification_performed": {
+          "const": false
+        },
+        "raw_data_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    }
+  }
+}

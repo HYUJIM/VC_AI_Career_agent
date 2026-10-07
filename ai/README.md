@@ -56,3 +56,9 @@ python -m pytest -q
 Judge 및 평가 산식, 실제 임베딩 검색은 구현하지 않았습니다.
 JudgeEvaluation 스키마는 점수를 필수 숫자로 요구하므로 산식 없이 가짜 0점 결과를 저장하지 않습니다.
 실제 모델을 사용한 A/B/C 실행은 남아 있습니다.
+# BE 데이터 연결 (2026-10-06 추가)
+
+FastAPI 백엔드의 `/api/v1/subjects/{did}/careers`를 받는 별도 경로가 추가되었습니다.
+실행법과 입력 규칙은 [BACKEND_INTEGRATION.md](BACKEND_INTEGRATION.md)를 참고하세요.
+`export_backend_credentials.py`로 수집하고 `run_backend_preview.py`로 GPU 없이 확인합니다.
+BE 응답의 상태값만으로 실제 VC 검증을 가정하지 않으며 기존 연구용 A/B/C 경로는 유지합니다.

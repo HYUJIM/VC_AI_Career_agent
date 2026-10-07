@@ -1,0 +1,15 @@
+{
+  "version": "stage1-v0.1",
+  "split": "development_only",
+  "verification_mode": "simulated_policy_labels",
+  "retriever": "hand_selected_cases_no_semantic_search",
+  "subjects": 2,
+  "credentials": 12,
+  "queries": 12,
+  "source": "Original synthetic fixtures; no resume_data.csv rows copied",
+  "limitations": [
+    "Not a benchmark",
+    "Not cryptographically verified",
+    "Not compatible proof of old AI runner behavior"
+  ]
+}
