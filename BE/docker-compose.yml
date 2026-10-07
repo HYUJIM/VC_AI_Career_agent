@@ -4,16 +4,40 @@ services:
     container_name: vc-postgres
     restart: always
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: vc_career_agent
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_DB: ${DB_NAME:-vc_career_agent}
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./DB/schema/schema_PostgreSQL.sql:/docker-entrypoint-initdb.d/01_schema.sql
       - ./DB/schema/schema_pgvector.sql:/docker-entrypoint-initdb.d/02_pgvector.sql
       - ./DB/seeds/03_seed_data.sql:/docker-entrypoint-initdb.d/03_seed_data.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-vc_career_agent}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vc-backend
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    env_file:
+      - .env
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+    volumes:
+      - ./:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   postgres_data:

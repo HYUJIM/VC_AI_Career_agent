@@ -35,51 +35,58 @@ sequenceDiagram
     end
 ```
 
-## 2. 요구 사항 및 초기 설정
+## 2. 원클릭 개발 환경 구축 (Docker 기반 권장 ⭐️)
 
-- Python 3.9 이상 권장
-- PostgreSQL 15 이상 (로컬 도커 활용 권장)
+로컬에 파이썬(Python)이나 PostgreSQL을 직접 설치할 필요가 없습니다. Docker Desktop만 켜져 있다면, **단 두 줄의 명령어**로 파이썬 패키지 설치, DB 세팅, 440여 개 테스트 데이터 시딩, FastAPI 서버 실행까지 모든 환경이 자동으로 한 번에 구축됩니다.
 
-처음 레포지토리를 클론받은 직후 아래 명령어들을 실행하세요.
-
+### 🚀 최초 1회 실행 방법
 ```bash
+# 1. BE 디렉터리 이동 및 환경변수 예시 복사
 cd BE
-pip install -r requirements.txt
-cp .env.example .env
+cp -n .env.example .env
+
+# 2. 도커로 전체 환경 자동 빌드 및 백그라운드 실행
+docker compose up --build -d
 ```
-> **주의:** `.env` 파일 안의 `DXWORKS_API_KEY` 값은 발급받은 실제 API 키를 입력해야 검증 및 발급이 정상 작동합니다.
+> **⚠️ 주의 (API 키 설정):** 
+> 실제 발급/검증 테스트(Step 1, Step 2)를 수행하려면 `.env` 파일의 `DXWORKS_API_KEY` 항목에 발급받은 실제 API 키를 입력해야 합니다. (더미 조회 테스트는 키 없이도 즉시 가능합니다.)
 
+> **💡 이 명령어 하나로 자동 완료되는 항목들:**
+> 1. **Python 3.11 런타임 & 의존성(`requirements.txt`)** 도커 컨테이너 내 자동 설치 (로컬 파이썬 버전 충돌 0%)
+> 2. **PostgreSQL 16 + pgvector** 컨테이너 자동 구동
+> 3. **440여 개 논문 테스트 데이터(`03_seed_data.sql`)** DB에 자동 시딩
+> 4. **FastAPI 백엔드 서버(포트 3000)** 자동 실행
+> 5. **핫 리로드(Hot Reload)** 연동: 로컬 소스 코드(`BE/`)를 수정하고 저장하면 컨테이너 내부 서버가 즉시 자동 반영됩니다.
 
-## 3. 실행 방법 (DB 및 서버 켜기)
+---
 
-이 프로젝트는 PostgreSQL DB를 도커(Docker) 컨테이너로 손쉽게 실행할 수 있습니다.
+## 3. 컨테이너 관리 명령어
 
-### 1) 로컬 DB (Docker) 켜기 및 끄기
 ```bash
-# 1. DB 켜기 (백그라운드 실행, 최초 실행 시 테이블 자동 생성)
-docker compose up -d
+# 실행 상태 확인
+docker compose ps
 
-# 2. DB 단순 종료 (데이터는 로컬 볼륨에 안전하게 보존됨)
+# 백엔드 서버 실시간 로그 확인
+docker compose logs -f backend
+
+# 서버 및 DB 일시 종료 (데이터는 보존됨)
 docker compose down
 
-# 3. DB 완전 초기화 (데이터 싹 삭제, 빈 DB로 리셋하고 싶을 때)
+# DB 및 데이터 완전 초기화 (초기 시드 상태로 깨끗하게 리셋할 때)
 docker compose down -v
+docker compose up -d
 ```
-> **💡 팀원 공통 테스트 데이터 자동 복원 안내**
-> 현재 깃허브에는 45명의 유저와 434개의 배지가 들어있는 데이터 파일(`03_seed_data.sql`)이 세팅되어 있습니다. 
-> 팀원 누구나 최신 코드를 `pull` 받은 뒤 `docker compose down -v`로 DB를 완전히 날리고 `docker compose up -d`로 다시 켜기만 하면, **모든 팀원의 DB에 동일한 434개의 테스트 데이터가 100% 똑같이 자동으로 쫙 깔리게 됩니다.** (당분간 파이썬 데이터 생성 스크립트를 따로 돌리실 필요가 없습니다.)
+* **API 문서 (Swagger UI):** [http://localhost:3000/docs](http://localhost:3000/docs)
+* **헬스 체크:** [http://localhost:3000/health](http://localhost:3000/health)
 
-### 2) 백엔드 서버 (FastAPI) 켜기
-코드를 수정할 때마다 자동으로 재시작되는 개발 모드를 권장합니다.
-```bash
-# 개발 모드 (포트 3000번 강제 지정)
-python -m uvicorn main:app --reload --port 3000
+<details>
+<summary><b>(선택) 도커 대신 로컬 파이썬 환경에서 직접 띄우고 싶을 때</b></summary>
 
-# 빌드 및 운영 모드
-python -m uvicorn main:app --host 0.0.0.0 --port 3000
-```
-- **기본 포트:** `3000` (Base URL: `http://localhost:3000`)
-- **API 문서 (Swagger UI):** 서버를 켜고 `http://localhost:3000/docs` 접속 시 FastAPI가 자동 생성한 인터랙티브 API 문서를 확인하고 직접 테스트해 볼 수 있습니다.
+로컬 IDE 디버거 등을 위해 호스트에서 직접 실행하려는 경우:
+1. DB만 도커로 켬: `docker compose up -d postgres`
+2. 의존성 설치: `pip install -r requirements.txt` (Mac/Linux는 `python3 -m pip install -r requirements.txt`)
+3. 서버 실행: `python -m uvicorn main:app --reload --port 3000`
+</details>
 
 
 ## 4. API 시나리오 및 Postman 연동 테스트
@@ -163,11 +170,14 @@ python -m uvicorn main:app --host 0.0.0.0 --port 3000
 
 ## 5. [논문 테스트용] 대량의 더미 데이터 생성 스크립트
 
-논문 및 AI 테스트를 위해 한 번에 수십 명의 유저와 수백 개의 자격증명(배지)을 DB에 삽입하고 싶다면, 내장된 데이터 시딩(Seeding) 스크립트를 사용하세요.
+> **💡 참고:** 현재 도커 최초 실행 시 `03_seed_data.sql`에 의해 **45명의 유저와 440여 개의 배지 데이터가 이미 DB에 자동 탑재**되어 있습니다. 새로운 무작위 데이터로 다시 생성하고 싶을 때만 아래 명령어를 실행하세요.
 
 ```bash
-# BE 폴더 내부에서 실행 (DB 도커가 켜져 있어야 합니다)
-python generate_test_data.py
+# 1) 도커 컨테이너를 통해 실행하는 경우 (로컬 파이썬 불필요, 권장 ⭐️)
+docker compose exec backend python generate_test_data.py
+
+# 2) 로컬 파이썬 환경에서 직접 실행하는 경우
+python3 generate_test_data.py  # 또는 python generate_test_data.py
 ```
 - **동작 방식:** 이 스크립트는 실제 발급/검증 서버(DXWorks API)를 거치지 않습니다! 수백 번의 통신을 하면 네트워크 시간이 너무 오래 걸리기 때문에, "이미 검증이 끝난 완벽한 데이터"로 위장(Mocking)하여 PostgreSQL DB에 직접(Direct Insert) 밀어 넣습니다.
 - **결과:** 
