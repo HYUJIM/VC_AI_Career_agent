@@ -1,0 +1,3 @@
+# Preserve exact frozen bytes; cases.json was frozen with CRLF.
+data/backend_education_v1/cases.json -text whitespace=trailing-space,space-before-tab,cr-at-eol
+docs/backend_education_contract.md -text

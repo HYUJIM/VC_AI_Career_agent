@@ -1,0 +1,9 @@
+{
+  "version": "be-education-lock-v1",
+  "phase": "before implementation and model execution",
+  "human_adjudication": false,
+  "files": {
+    "data/backend_education_v1/cases.json": "30fcb43f7dc80511109341f402042e8445c27f46ba5d871a0e2446bc33c0acc5",
+    "docs/backend_education_contract.md": "d9f82c81ea2f7dae8960632d0cc4903358bfabda1c87bc6acb7d40ace33ec67c"
+  }
+}
