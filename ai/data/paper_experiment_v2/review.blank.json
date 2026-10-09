@@ -1,0 +1,14 @@
+{
+  "version": "paper-review/2.0",
+  "result_sha256": null,
+  "status": "pending",
+  "reviewers": [],
+  "segmentation_complete": false,
+  "issues": [],
+  "adjudication_rationale": "",
+  "behavior": null,
+  "task_correct": "unknown",
+  "abstention_correct": "unknown",
+  "covered_required_fact_ids": [],
+  "claims": []
+}

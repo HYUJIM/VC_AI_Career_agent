@@ -1,0 +1,35 @@
+{
+  "version": "paper-case/2.0",
+  "case_id": null,
+  "family_id": null,
+  "split": null,
+  "synthetic": true,
+  "profile": {
+    "subject_did": null,
+    "text": null
+  },
+  "jd": {
+    "jd_id": null,
+    "text": null,
+    "sha256": null
+  },
+  "request": null,
+  "records": [],
+  "eligible_record_ids": [],
+  "reference_facts": [],
+  "allowed_fact_ids": [],
+  "required_fact_ids": [],
+  "closed_world": false,
+  "noise": {
+    "kind": null,
+    "target_ratio": null,
+    "raw_record_ids": []
+  },
+  "candidate_record_ids": [],
+  "expected_behavior": {
+    "A_no_rag": null,
+    "B_naive_rag": null,
+    "C_verified_rag": null
+  },
+  "gold_status": "pending"
+}

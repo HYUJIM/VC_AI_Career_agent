@@ -1,0 +1,80 @@
+{
+  "type": "object",
+  "properties": {
+    "version": {
+      "enum": [
+        "paper-result/2.0"
+      ]
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "case_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "condition": {
+      "enum": [
+        "A_no_rag",
+        "B_naive_rag",
+        "C_verified_rag"
+      ]
+    },
+    "seed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "status": {
+      "enum": [
+        "success",
+        "failed",
+        "missing"
+      ]
+    },
+    "finish_reason": {
+      "type": "string",
+      "minLength": 1
+    },
+    "answer": {
+      "type": "string"
+    },
+    "context_record_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "input_tokens": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "output_tokens": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    }
+  },
+  "required": [
+    "version",
+    "run_id",
+    "case_id",
+    "condition",
+    "seed",
+    "status",
+    "finish_reason",
+    "answer",
+    "context_record_ids",
+    "input_tokens",
+    "output_tokens"
+  ],
+  "additionalProperties": false,
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

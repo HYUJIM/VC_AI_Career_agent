@@ -1,0 +1,85 @@
+{
+  "type": "object",
+  "properties": {
+    "version": {
+      "enum": [
+        "paper-judge/2.0"
+      ]
+    },
+    "result_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "kind": {
+      "enum": [
+        "llm",
+        "agent"
+      ]
+    },
+    "status": {
+      "enum": [
+        "pending",
+        "completed",
+        "failed"
+      ]
+    },
+    "model_revision": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "package_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metric_class": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "prompt_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "raw_output": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "score": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "error": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "version",
+    "result_sha256",
+    "kind",
+    "status",
+    "model_revision",
+    "package_version",
+    "metric_class",
+    "prompt_sha256",
+    "raw_output",
+    "score",
+    "error"
+  ],
+  "additionalProperties": false,
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

@@ -1,0 +1,282 @@
+{
+  "type": "object",
+  "properties": {
+    "version": {
+      "enum": [
+        "paper-review/2.0"
+      ]
+    },
+    "result_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "status": {
+      "enum": [
+        "pending",
+        "disputed",
+        "human_approved"
+      ]
+    },
+    "reviewers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "enum": [
+              "human"
+            ]
+          },
+          "reviewer_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reviewed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "original_review_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "kind",
+          "reviewer_id",
+          "reviewed_at",
+          "original_review_sha256"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "segmentation_complete": {
+      "type": "boolean"
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "adjudication_rationale": {
+      "type": "string"
+    },
+    "behavior": {
+      "enum": [
+        "answer",
+        "abstain",
+        "mixed",
+        "unassessable"
+      ]
+    },
+    "task_correct": {
+      "enum": [
+        "yes",
+        "no",
+        "unknown",
+        "not_applicable"
+      ]
+    },
+    "abstention_correct": {
+      "enum": [
+        "yes",
+        "no",
+        "unknown",
+        "not_applicable"
+      ]
+    },
+    "covered_required_fact_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "claims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "claim_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "canonical_key": {
+            "type": "string",
+            "minLength": 1
+          },
+          "spans": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "start": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "end": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "text": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "start",
+                "end",
+                "text"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "entity_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "attribute": {
+            "type": "string",
+            "minLength": 1
+          },
+          "normalized_value": {},
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "time_scope": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "assertion_kind": {
+            "enum": [
+              "fact",
+              "recommendation"
+            ]
+          },
+          "factual_correctness": {
+            "enum": [
+              "yes",
+              "no",
+              "unknown",
+              "not_applicable"
+            ]
+          },
+          "context_support": {
+            "enum": [
+              "yes",
+              "no",
+              "unknown",
+              "not_applicable"
+            ]
+          },
+          "evidence_eligibility": {
+            "enum": [
+              "yes",
+              "no",
+              "unknown",
+              "not_applicable"
+            ]
+          },
+          "citation_correct": {
+            "enum": [
+              "yes",
+              "no",
+              "unknown",
+              "not_applicable"
+            ]
+          },
+          "error_type": {
+            "enum": [
+              "F",
+              "O",
+              "other",
+              "none",
+              "unknown"
+            ]
+          },
+          "upward": {
+            "enum": [
+              "yes",
+              "no",
+              "unknown",
+              "not_applicable"
+            ]
+          },
+          "jd_aligned": {
+            "enum": [
+              "yes",
+              "no",
+              "unknown",
+              "not_applicable"
+            ]
+          },
+          "supporting_record_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "reference_fact_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "claim_id",
+          "canonical_key",
+          "spans",
+          "entity_id",
+          "attribute",
+          "normalized_value",
+          "unit",
+          "time_scope",
+          "assertion_kind",
+          "factual_correctness",
+          "context_support",
+          "evidence_eligibility",
+          "citation_correct",
+          "error_type",
+          "upward",
+          "jd_aligned",
+          "supporting_record_ids",
+          "reference_fact_ids",
+          "rationale"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "version",
+    "result_sha256",
+    "status",
+    "reviewers",
+    "segmentation_complete",
+    "issues",
+    "adjudication_rationale",
+    "behavior",
+    "task_correct",
+    "abstention_correct",
+    "covered_required_fact_ids",
+    "claims"
+  ],
+  "additionalProperties": false,
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}
