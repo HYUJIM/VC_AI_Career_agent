@@ -5,6 +5,31 @@ from time import perf_counter
 MODEL_ID = 'Qwen/Qwen2.5-1.5B-Instruct'
 REVISION = '989aa7980e4cf806f80c7fef2b1adb7bc71aa306'
 
+def normalize_messages(prompt):
+    """Keep legacy string calls while preserving explicit chat roles."""
+    if isinstance(prompt, str):
+        prompt = [{'role': 'user', 'content': prompt}]
+    if not isinstance(prompt, list) or not prompt:
+        raise ValueError('Expected a nonempty prompt or message list')
+    roles = []
+    messages = []
+    for message in prompt:
+        if (not isinstance(message, dict) or set(message) != {'role', 'content'}
+                or not isinstance(message['content'], str) or not message['content'].strip()):
+            raise ValueError('Expected role/content text messages')
+        roles.append(message['role'])
+        messages.append(dict(message))
+    if roles not in (['user'], ['system', 'user']):
+        raise ValueError('Expected user or system/user messages for an independent run')
+    return messages
+
+
+def measure_messages(tokenizer, prompt):
+    messages = normalize_messages(prompt)
+    rendered = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    tokens = tokenizer([rendered], add_special_tokens=False)['input_ids'][0]
+    return rendered, len(tokens)
+
 def validate_settings(revision, max_new_tokens, max_input_tokens):
     if not re.fullmatch(r'[0-9a-f]{40}', revision):
         raise ValueError('An exact 40-character model commit is required')
@@ -57,14 +82,14 @@ class TransformersLLM:
             'quantization': 'none', 'seed': seed, 'local_files_only': local_files_only,
             'max_input_tokens': max_input_tokens, 'load_seconds': perf_counter()-started,
             'generation_config': self.generation_config.to_dict(),
-            'message_policy': 'pipeline prompt in single user message; tokenizer chat template applied',
+            'message_policy': 'string as user or explicit system/user messages; tokenizer chat template applied',
         }
 
     def generate(self, prompt):
         self.last_generation = None
         torch = self.torch
         # Each condition is an independent conversation, with no preceding answer.
-        messages = [{'role': 'user', 'content': prompt}]
+        messages = normalize_messages(prompt)
         rendered = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
         inputs = self.tokenizer([rendered], return_tensors='pt', add_special_tokens=False)
         n = inputs['input_ids'].shape[-1]
