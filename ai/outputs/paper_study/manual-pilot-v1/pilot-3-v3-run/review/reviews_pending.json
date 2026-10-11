@@ -1,0 +1,47 @@
+{
+  "b736b44b-e6bc-4287-a4e5-816640b29fdc": {
+    "version": "paper-review/2.1",
+    "result_sha256": "0aadf0df474dda95d8ba484275b8df2860e5ac780ab5b25a7bd2cfa7545a2d4d",
+    "status": "pending",
+    "reviewers": [],
+    "segmentation_complete": false,
+    "issues": [],
+    "adjudication_rationale": "",
+    "behavior": "unassessable",
+    "task_correct": "unknown",
+    "abstention_correct": "unknown",
+    "covered_required_fact_ids": [],
+    "claims": [],
+    "review_policy": "single_human_v1"
+  },
+  "db9efa5e-f32a-49ad-8838-254578143812": {
+    "version": "paper-review/2.1",
+    "result_sha256": "9007a86cccc3ce1c4d519904a571f3f3dc029b1509752d06d35898ab7cb7d195",
+    "status": "pending",
+    "reviewers": [],
+    "segmentation_complete": false,
+    "issues": [],
+    "adjudication_rationale": "",
+    "behavior": "unassessable",
+    "task_correct": "unknown",
+    "abstention_correct": "unknown",
+    "covered_required_fact_ids": [],
+    "claims": [],
+    "review_policy": "single_human_v1"
+  },
+  "afd5179c-db69-4fe4-9723-243a6777b170": {
+    "version": "paper-review/2.1",
+    "result_sha256": "ade214c2043784c4a69b704446807b2398121847999c18c62307d486887f2334",
+    "status": "pending",
+    "reviewers": [],
+    "segmentation_complete": false,
+    "issues": [],
+    "adjudication_rationale": "",
+    "behavior": "unassessable",
+    "task_correct": "unknown",
+    "abstention_correct": "unknown",
+    "covered_required_fact_ids": [],
+    "claims": [],
+    "review_policy": "single_human_v1"
+  }
+}

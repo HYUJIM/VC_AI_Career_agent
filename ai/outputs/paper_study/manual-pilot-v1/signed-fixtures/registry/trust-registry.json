@@ -1,0 +1,5 @@
+{
+  "did:fixture:study-east": "known",
+  "did:fixture:study-west": "known",
+  "did:fixture:study-north": "unknown"
+}

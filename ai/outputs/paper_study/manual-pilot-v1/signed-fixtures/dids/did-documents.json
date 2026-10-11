@@ -1,0 +1,65 @@
+{
+  "did:fixture:study-east": {
+    "@context": [
+      "https://www.w3.org/ns/did/v1"
+    ],
+    "id": "did:fixture:study-east",
+    "verificationMethod": [
+      {
+        "id": "did:fixture:study-east#key-1",
+        "type": "JsonWebKey2020",
+        "controller": "did:fixture:study-east",
+        "publicKeyJwk": {
+          "crv": "Ed25519",
+          "x": "okPDSH0AnGKiGeo-i1JYcYIxMqp_Jkg9A6tFQWIm1Jk",
+          "kty": "OKP"
+        }
+      }
+    ],
+    "assertionMethod": [
+      "did:fixture:study-east#key-1"
+    ]
+  },
+  "did:fixture:study-west": {
+    "@context": [
+      "https://www.w3.org/ns/did/v1"
+    ],
+    "id": "did:fixture:study-west",
+    "verificationMethod": [
+      {
+        "id": "did:fixture:study-west#key-1",
+        "type": "JsonWebKey2020",
+        "controller": "did:fixture:study-west",
+        "publicKeyJwk": {
+          "crv": "Ed25519",
+          "x": "3FShVO3tc-iLBaSmEiIX6BivQzejh0pHXmTDji4oZuE",
+          "kty": "OKP"
+        }
+      }
+    ],
+    "assertionMethod": [
+      "did:fixture:study-west#key-1"
+    ]
+  },
+  "did:fixture:study-north": {
+    "@context": [
+      "https://www.w3.org/ns/did/v1"
+    ],
+    "id": "did:fixture:study-north",
+    "verificationMethod": [
+      {
+        "id": "did:fixture:study-north#key-1",
+        "type": "JsonWebKey2020",
+        "controller": "did:fixture:study-north",
+        "publicKeyJwk": {
+          "crv": "Ed25519",
+          "x": "x3hKEDuVrjDpHAK8lGWPe7jbY8aFJVPOWJJWt3Up6p0",
+          "kty": "OKP"
+        }
+      }
+    ],
+    "assertionMethod": [
+      "did:fixture:study-north#key-1"
+    ]
+  }
+}

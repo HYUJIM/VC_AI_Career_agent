@@ -1,0 +1,16 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "d7d85855-8dd2-49a0-af68-ac51ca85796a",
+  "case_id": "dev-person-01-revoked",
+  "condition": "C_verified_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현한 기능: 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 6건이다.\n2. 점검 또는 검증 활동: 도서 대여 구현 기록에서 Java로 구현한 대여 상태 조회 기능의 총수는 3개다.\n3. 이수 교육: 확인 불가.\n\n해당 record_id: e73915d0-b593-55d0-9736-b38e1451b3a9\n\n해당 record_id: 0ec3d8ef-adb0-5815-96f0-42fbd87189ee",
+  "context_record_ids": [
+    "e73915d0-b593-55d0-9736-b38e1451b3a9",
+    "0ec3d8ef-adb0-5815-96f0-42fbd87189ee"
+  ],
+  "input_tokens": 923,
+  "output_tokens": 167
+}

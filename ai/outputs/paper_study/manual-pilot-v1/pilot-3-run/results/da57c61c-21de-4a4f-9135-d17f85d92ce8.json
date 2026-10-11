@@ -1,0 +1,16 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "da57c61c-21de-4a4f-9135-d17f85d92ce8",
+  "case_id": "dev-person-02-forged_signature",
+  "condition": "C_verified_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현한 기능·사용 기술·개수: 자전거 이용 프로젝트에서 작성한 데이터 정제 사례 9건, Python로 구현한 월별 이용량 기능 5개.\n\n2. 점검 또는 검증 활동·사례 수: 자전거 이용 프로젝트에서 작성한 데이터 정제 사례 9건, Python로 구현한 월별 이용량 기능 5개.\n\n3. 이수 교육·시간: 자전거 이용 프로젝트에서 작성한 데이터 정제 사례 9건, Python로 구현한 월별 이용량 기능 5개.",
+  "context_record_ids": [
+    "38dfd4b9-967e-5974-8ed2-631d888f02b8",
+    "377551cd-cc47-5555-99a1-a10d9220c3be"
+  ],
+  "input_tokens": 906,
+  "output_tokens": 149
+}

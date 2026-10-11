@@ -1,0 +1,218 @@
+{
+  "25f0a604-4277-4667-b2ec-eab59f86936e": {
+    "run_id": "f1c25173-8592-4bdf-96dc-060553132e03",
+    "result_sha256": "121fec345d8fea08e5f8b32c0fc36f6798b055441fd8d419d2decdcf3691e85e",
+    "case_id": "dev-person-02-forged_signature",
+    "family_id": "dev-person-02",
+    "condition": "A_no_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-02-f1",
+        "entity_id": "dev-person-02-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f2",
+        "entity_id": "dev-person-02-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f3",
+        "entity_id": "dev-person-02-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 18시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f4",
+        "entity_id": "dev-person-02-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 월별 이용량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3",
+      "dev-person-02-f4"
+    ],
+    "eligible_record_ids": [
+      "377551cd-cc47-5555-99a1-a10d9220c3be",
+      "38dfd4b9-967e-5974-8ed2-631d888f02b8"
+    ],
+    "expected_behavior": "abstain",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "353065a2-2fa9-4753-995f-10a7e4677cd7": {
+    "run_id": "da57c61c-21de-4a4f-9135-d17f85d92ce8",
+    "result_sha256": "28225a500fd9b7282d64ccaabfae9c6f8f9db7638e9864e8b166da3efad95a24",
+    "case_id": "dev-person-02-forged_signature",
+    "family_id": "dev-person-02",
+    "condition": "C_verified_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-02-f1",
+        "entity_id": "dev-person-02-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f2",
+        "entity_id": "dev-person-02-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f3",
+        "entity_id": "dev-person-02-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 18시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f4",
+        "entity_id": "dev-person-02-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 월별 이용량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3",
+      "dev-person-02-f4"
+    ],
+    "eligible_record_ids": [
+      "377551cd-cc47-5555-99a1-a10d9220c3be",
+      "38dfd4b9-967e-5974-8ed2-631d888f02b8"
+    ],
+    "expected_behavior": "mixed",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "88c78d37-9465-421d-b5af-428428220365": {
+    "run_id": "8d3cc9ac-2dc0-4668-bb45-9a1d37600043",
+    "result_sha256": "efc085c6dda3b2eb6c7570f417d787c49892b813c9d856894e413d7c930b6569",
+    "case_id": "dev-person-02-forged_signature",
+    "family_id": "dev-person-02",
+    "condition": "B_naive_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-02-f1",
+        "entity_id": "dev-person-02-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f2",
+        "entity_id": "dev-person-02-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f3",
+        "entity_id": "dev-person-02-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 18시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f4",
+        "entity_id": "dev-person-02-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 월별 이용량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3",
+      "dev-person-02-f4"
+    ],
+    "eligible_record_ids": [
+      "377551cd-cc47-5555-99a1-a10d9220c3be",
+      "38dfd4b9-967e-5974-8ed2-631d888f02b8"
+    ],
+    "expected_behavior": "mixed",
+    "gold_status": "pending",
+    "closed_world": true
+  }
+}

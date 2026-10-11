@@ -1,0 +1,337 @@
+{
+  "version": "paper-ledger/2.0",
+  "lock_sha256": "53e5ae29dc97604327b696ecf2ee7e72517f2f498b6f1c8715267702658d7d77",
+  "status": "development_partial",
+  "planned_runs": [
+    {
+      "run_id": "b736b44b-e6bc-4287-a4e5-816640b29fdc",
+      "case_id": "dev-person-02-forged_signature",
+      "family_id": "dev-person-02",
+      "condition": "A_no_rag",
+      "seed": 42,
+      "order_index": 0
+    },
+    {
+      "run_id": "db9efa5e-f32a-49ad-8838-254578143812",
+      "case_id": "dev-person-02-forged_signature",
+      "family_id": "dev-person-02",
+      "condition": "C_verified_rag",
+      "seed": 42,
+      "order_index": 1
+    },
+    {
+      "run_id": "afd5179c-db69-4fe4-9723-243a6777b170",
+      "case_id": "dev-person-02-forged_signature",
+      "family_id": "dev-person-02",
+      "condition": "B_naive_rag",
+      "seed": 42,
+      "order_index": 2
+    },
+    {
+      "run_id": "d495f6ef-821d-486f-8157-448e6e96cec9",
+      "case_id": "dev-person-01-valid_conflict",
+      "family_id": "dev-person-01",
+      "condition": "B_naive_rag",
+      "seed": 42,
+      "order_index": 3
+    },
+    {
+      "run_id": "ed782af3-dc1b-4a0b-a915-393f03ff6f27",
+      "case_id": "dev-person-01-valid_conflict",
+      "family_id": "dev-person-01",
+      "condition": "A_no_rag",
+      "seed": 42,
+      "order_index": 4
+    },
+    {
+      "run_id": "afa3087f-defe-4638-acec-3773d86b9caa",
+      "case_id": "dev-person-01-valid_conflict",
+      "family_id": "dev-person-01",
+      "condition": "C_verified_rag",
+      "seed": 42,
+      "order_index": 5
+    },
+    {
+      "run_id": "5eafe142-f4e2-43dc-ae44-f0f1e9c3e6be",
+      "case_id": "dev-person-01-revoked",
+      "family_id": "dev-person-01",
+      "condition": "B_naive_rag",
+      "seed": 42,
+      "order_index": 6
+    },
+    {
+      "run_id": "d7d85855-8dd2-49a0-af68-ac51ca85796a",
+      "case_id": "dev-person-01-revoked",
+      "family_id": "dev-person-01",
+      "condition": "C_verified_rag",
+      "seed": 42,
+      "order_index": 7
+    },
+    {
+      "run_id": "9132a57b-4480-4096-8e77-cde8beee37b9",
+      "case_id": "dev-person-01-revoked",
+      "family_id": "dev-person-01",
+      "condition": "A_no_rag",
+      "seed": 42,
+      "order_index": 8
+    },
+    {
+      "run_id": "49a88f98-edb3-436f-b9d1-f0fd1f039430",
+      "case_id": "dev-person-02-revoked",
+      "family_id": "dev-person-02",
+      "condition": "C_verified_rag",
+      "seed": 42,
+      "order_index": 9
+    },
+    {
+      "run_id": "35c71f6f-e4ea-46d6-82fa-85105bad5592",
+      "case_id": "dev-person-02-revoked",
+      "family_id": "dev-person-02",
+      "condition": "A_no_rag",
+      "seed": 42,
+      "order_index": 10
+    },
+    {
+      "run_id": "d28e53ba-e30d-47df-83bb-06bcb49e5d59",
+      "case_id": "dev-person-02-revoked",
+      "family_id": "dev-person-02",
+      "condition": "B_naive_rag",
+      "seed": 42,
+      "order_index": 11
+    },
+    {
+      "run_id": "f2fff3cf-4744-4ac7-ad79-7c37ce124dbc",
+      "case_id": "dev-person-02-expired",
+      "family_id": "dev-person-02",
+      "condition": "C_verified_rag",
+      "seed": 42,
+      "order_index": 12
+    },
+    {
+      "run_id": "4d67a590-cb20-4dea-9e79-a154ae193a5d",
+      "case_id": "dev-person-02-expired",
+      "family_id": "dev-person-02",
+      "condition": "B_naive_rag",
+      "seed": 42,
+      "order_index": 13
+    },
+    {
+      "run_id": "d2e5b894-93b8-4b72-944f-68c71d66437e",
+      "case_id": "dev-person-02-expired",
+      "family_id": "dev-person-02",
+      "condition": "A_no_rag",
+      "seed": 42,
+      "order_index": 14
+    },
+    {
+      "run_id": "d9ce83b8-2b74-4fda-a3b3-558612736000",
+      "case_id": "dev-person-02-none",
+      "family_id": "dev-person-02",
+      "condition": "A_no_rag",
+      "seed": 42,
+      "order_index": 15
+    },
+    {
+      "run_id": "bc4c66b1-8adb-44f1-8c74-6070ac4cc1c6",
+      "case_id": "dev-person-02-none",
+      "family_id": "dev-person-02",
+      "condition": "B_naive_rag",
+      "seed": 42,
+      "order_index": 16
+    },
+    {
+      "run_id": "c47d1ac4-05d3-48a9-a07f-3609a3775c1d",
+      "case_id": "dev-person-02-none",
+      "family_id": "dev-person-02",
+      "condition": "C_verified_rag",
+      "seed": 42,
+      "order_index": 17
+    },
+    {
+      "run_id": "97d61c76-0f12-4822-bea0-8a74d7cc0b9b",
+      "case_id": "dev-person-02-valid_conflict",
+      "family_id": "dev-person-02",
+      "condition": "A_no_rag",
+      "seed": 42,
+      "order_index": 18
+    },
+    {
+      "run_id": "c5a36bfd-6954-4b98-a685-af4b3913ca0d",
+      "case_id": "dev-person-02-valid_conflict",
+      "family_id": "dev-person-02",
+      "condition": "C_verified_rag",
+      "seed": 42,
+      "order_index": 19
+    },
+    {
+      "run_id": "35117da2-3b44-4716-84f8-54dcdaba744e",
+      "case_id": "dev-person-02-valid_conflict",
+      "family_id": "dev-person-02",
+      "condition": "B_naive_rag",
+      "seed": 42,
+      "order_index": 20
+    },
+    {
+      "run_id": "0aa7d3db-950c-42ea-8060-e6c798a8ef28",
+      "case_id": "dev-person-01-expired",
+      "family_id": "dev-person-01",
+      "condition": "B_naive_rag",
+      "seed": 42,
+      "order_index": 21
+    },
+    {
+      "run_id": "e0420769-25af-4ed2-9c03-3f02eba1208b",
+      "case_id": "dev-person-01-expired",
+      "family_id": "dev-person-01",
+      "condition": "A_no_rag",
+      "seed": 42,
+      "order_index": 22
+    },
+    {
+      "run_id": "77ca85d7-9b14-4b25-a29e-678a155cd9de",
+      "case_id": "dev-person-01-expired",
+      "family_id": "dev-person-01",
+      "condition": "C_verified_rag",
+      "seed": 42,
+      "order_index": 23
+    },
+    {
+      "run_id": "e190775d-28e2-42b1-8ce4-c23370c9abfa",
+      "case_id": "dev-person-01-untrusted_issuer",
+      "family_id": "dev-person-01",
+      "condition": "B_naive_rag",
+      "seed": 42,
+      "order_index": 24
+    },
+    {
+      "run_id": "4425bb9f-4a80-4564-a707-eadbbdbd0775",
+      "case_id": "dev-person-01-untrusted_issuer",
+      "family_id": "dev-person-01",
+      "condition": "C_verified_rag",
+      "seed": 42,
+      "order_index": 25
+    },
+    {
+      "run_id": "2ea99092-3365-468a-b210-3b3f8bd41508",
+      "case_id": "dev-person-01-untrusted_issuer",
+      "family_id": "dev-person-01",
+      "condition": "A_no_rag",
+      "seed": 42,
+      "order_index": 26
+    },
+    {
+      "run_id": "745fdd49-9675-46a1-97ef-1b7a4b32b3f4",
+      "case_id": "dev-person-01-none",
+      "family_id": "dev-person-01",
+      "condition": "C_verified_rag",
+      "seed": 42,
+      "order_index": 27
+    },
+    {
+      "run_id": "98952d77-d72d-4c1d-a96a-7aa6eca91bd7",
+      "case_id": "dev-person-01-none",
+      "family_id": "dev-person-01",
+      "condition": "A_no_rag",
+      "seed": 42,
+      "order_index": 28
+    },
+    {
+      "run_id": "03d2789c-7a3a-4dee-9d21-7643bfb5d9ae",
+      "case_id": "dev-person-01-none",
+      "family_id": "dev-person-01",
+      "condition": "B_naive_rag",
+      "seed": 42,
+      "order_index": 29
+    },
+    {
+      "run_id": "3c400c2a-84f0-4e1b-b5c1-56448b729250",
+      "case_id": "dev-person-01-forged_signature",
+      "family_id": "dev-person-01",
+      "condition": "C_verified_rag",
+      "seed": 42,
+      "order_index": 30
+    },
+    {
+      "run_id": "f748b794-275e-46fa-86ba-37ffe42201ea",
+      "case_id": "dev-person-01-forged_signature",
+      "family_id": "dev-person-01",
+      "condition": "B_naive_rag",
+      "seed": 42,
+      "order_index": 31
+    },
+    {
+      "run_id": "dbb10476-011f-404c-b514-11027685af9f",
+      "case_id": "dev-person-01-forged_signature",
+      "family_id": "dev-person-01",
+      "condition": "A_no_rag",
+      "seed": 42,
+      "order_index": 32
+    },
+    {
+      "run_id": "85ebd5f0-490d-4b3c-883f-536f6e8f620b",
+      "case_id": "dev-person-02-untrusted_issuer",
+      "family_id": "dev-person-02",
+      "condition": "A_no_rag",
+      "seed": 42,
+      "order_index": 33
+    },
+    {
+      "run_id": "f10fd76b-261a-42d5-9625-a23ec2f7d000",
+      "case_id": "dev-person-02-untrusted_issuer",
+      "family_id": "dev-person-02",
+      "condition": "B_naive_rag",
+      "seed": 42,
+      "order_index": 34
+    },
+    {
+      "run_id": "962fcf28-43d2-4aef-a156-be5e9f83e9b9",
+      "case_id": "dev-person-02-untrusted_issuer",
+      "family_id": "dev-person-02",
+      "condition": "C_verified_rag",
+      "seed": 42,
+      "order_index": 35
+    }
+  ],
+  "attempts": [
+    {
+      "run_id": "b736b44b-e6bc-4287-a4e5-816640b29fdc",
+      "attempt_id": "4495bdf0-dbc1-49de-ae0f-62ecbd6bbd3c",
+      "started_at": "2026-10-11T08:44:01.948022+00:00",
+      "status": "success",
+      "finished_at": "2026-10-11T08:44:05.452348+00:00",
+      "result_canonical_sha256": "0aadf0df474dda95d8ba484275b8df2860e5ac780ab5b25a7bd2cfa7545a2d4d",
+      "result_file_sha256": "ba77db0de7225b2f2e4a948f521e3f151babbeb5f95ba106a046cb8a66b812a2"
+    },
+    {
+      "run_id": "db9efa5e-f32a-49ad-8838-254578143812",
+      "attempt_id": "74ee4172-0910-400d-919e-1366bc169774",
+      "started_at": "2026-10-11T08:44:05.467926+00:00",
+      "status": "success",
+      "finished_at": "2026-10-11T08:44:08.258969+00:00",
+      "result_canonical_sha256": "9007a86cccc3ce1c4d519904a571f3f3dc029b1509752d06d35898ab7cb7d195",
+      "result_file_sha256": "6695f97792610f8dd081b0665b4c2b6960f83898ee93d6696338a79c7c0eba9f"
+    },
+    {
+      "run_id": "afd5179c-db69-4fe4-9723-243a6777b170",
+      "attempt_id": "5b8a7020-1264-4bb1-8cdc-f12601451528",
+      "started_at": "2026-10-11T08:44:08.270680+00:00",
+      "status": "success",
+      "finished_at": "2026-10-11T08:44:11.738938+00:00",
+      "result_canonical_sha256": "ade214c2043784c4a69b704446807b2398121847999c18c62307d486887f2334",
+      "result_file_sha256": "bfa18b3d4a9b5034c8fd3478c0cfd95e2e0dcfc955ad76ca1af5fb7dbd0db0b9"
+    }
+  ],
+  "quarantine": [],
+  "started_at": "2026-10-11T08:43:58.759524+00:00",
+  "paper_ready": false,
+  "requested_stop_after": 3,
+  "stop_reason": "requested_stop_after",
+  "finished_at": "2026-10-11T08:44:11.748972+00:00",
+  "counts": {
+    "planned": 36,
+    "success": 3,
+    "failed": 0,
+    "missing": 33,
+    "length": 0
+  }
+}

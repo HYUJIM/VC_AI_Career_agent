@@ -11,9 +11,10 @@ def digest(value):
                                     separators=(',', ':'), allow_nan=False).encode()).hexdigest()
 
 def validate_schema(value, kind):
-    if kind not in {'case','review','result','judge'}:
+    if kind not in {'case','review','result','judge','experiment'}:
         raise ValueError('Unknown contract')
-    schema = json.loads((SCHEMAS / f'{kind}.schema.json').read_text(encoding='utf-8'))
+    directory = SCHEMAS.parent / 'paper_experiment_v2_1' if value.get('version', '').endswith('/2.1') else SCHEMAS
+    schema = json.loads((directory / f'{kind}.schema.json').read_text(encoding='utf-8'))
     Draft202012Validator(schema, format_checker=FormatChecker()).validate(value)
 
 def _unique(rows, key):
@@ -37,6 +38,11 @@ def validate_case(case):
         if record['subject_did'] != case['profile']['subject_did']:
             raise ValueError('Cross-subject record')
         _unique(record['verification']['checks'], 'check')
+    if case['version'] == 'paper-case/2.1':
+        if not set(case['retained_fact_ids']) <= set(case['required_fact_ids']):
+            raise ValueError('Retained facts must be required facts')
+        if case['gold_status'] == 'human_approved' and not case['gold_review']:
+            raise ValueError('Approved gold needs an original human review')
     return True
 
 def rate(labels, positive='no'):
@@ -52,11 +58,18 @@ def exposure(record_ids, noise_ids):
     n = len(set(record_ids) & set(noise_ids))
     return dict(numerator=n, denominator=len(record_ids), value=n/len(record_ids) if record_ids else None)
 
-def summarize_response(case, result, review):
+def summarize_response(case, result, review, *, review_policy="dual_human_v2"):
     """Counts only. No run-level estimate, freeze gate or automatic approval."""
     validate_case(case)
     validate_schema(result, 'result')
     validate_schema(review, 'review')
+    modern = review['version'] == 'paper-review/2.1'
+    if review_policy not in {'dual_human_v2', 'single_human_v1'}:
+        raise ValueError('Unknown review policy')
+    if (modern and review['review_policy'] != review_policy) or (not modern and review_policy != 'dual_human_v2'):
+        raise ValueError('Review cannot weaken the experiment policy')
+    if modern and case['version'] != 'paper-case/2.1':
+        raise ValueError('Modern review needs a versioned gold case')
     if result['case_id'] != case['case_id'] or review['result_sha256'] != digest(result):
         raise ValueError('Case/result binding mismatch')
     expected = case['candidate_record_ids']
@@ -70,8 +83,9 @@ def summarize_response(case, result, review):
         return dict(metric_eligible=False, metrics=None, paper_ready=False)
     if result['status'] != 'success' or case['gold_status'] != 'human_approved':
         raise ValueError('Successful result and reviewed gold required')
-    if len(review['reviewers']) != 2 or len({r['reviewer_id'].strip() for r in review['reviewers']}) != 2 or any(not r['reviewer_id'].strip() for r in review['reviewers']):
-        raise ValueError('Two distinct humans required')
+    required_reviewers = 1 if review_policy == 'single_human_v1' else 2
+    if len(review['reviewers']) != required_reviewers or len({r['reviewer_id'].strip() for r in review['reviewers']}) != required_reviewers or any(not r['reviewer_id'].strip() for r in review['reviewers']):
+        raise ValueError('Review requires the declared number of distinct humans')
     if not review['segmentation_complete'] or review['issues'] or not review['adjudication_rationale'].strip():
         raise ValueError('Unresolved review')
     claims = review['claims']
@@ -94,6 +108,21 @@ def summarize_response(case, result, review):
             raise ValueError('Factual decision needs independent reference')
         if c['assertion_kind'] == 'recommendation' and (c['factual_correctness'] != 'not_applicable' or c['error_type'] not in {'none','unknown'}):
             raise ValueError('Recommendation must not masquerade as fact error')
+        if modern and c['assertion_kind'] == 'fact':
+            ineligible = set(expected) - set(case['eligible_record_ids'])
+            used = set(c['used_ineligible_record_ids'])
+            if not used <= ineligible or (used and not c['ineligible_use_rationale'].strip()):
+                raise ValueError('Ineligible use needs actual provided evidence and rationale')
+            if bool(used) != (c['evidence_eligibility'] == 'no'):
+                raise ValueError('Ineligible-use annotation mismatch')
+            if c['evidence_eligibility'] == 'yes' and (not c['supporting_record_ids'] or not set(c['supporting_record_ids']) <= set(case['eligible_record_ids'])):
+                raise ValueError('Eligible support required')
+            citations = set(c['cited_record_ids'])
+            if not citations or not citations <= set(expected):
+                if c['citation_correct'] != 'no':
+                    raise ValueError('Missing or invented citations must count as incorrect')
+            elif c['citation_correct'] == 'yes' and (c['context_support'] != 'yes' or not citations <= set(c['supporting_record_ids'])):
+                raise ValueError('Correct citation needs supporting evidence')
     covered = set(review['covered_required_fact_ids'])
     justified = {f for c in claims if c['factual_correctness']=='yes' for f in c['reference_fact_ids']}
     if not covered <= set(case['required_fact_ids']) or not covered <= justified:
@@ -102,6 +131,10 @@ def summarize_response(case, result, review):
     metrics = {axis: rate([c[axis] for c in factual], 'yes' if axis=='citation_correct' else 'no') for axis in ('factual_correctness','context_support','evidence_eligibility','citation_correct')}
     required = len(case['required_fact_ids'])
     metrics['coverage'] = dict(numerator=len(covered), denominator=required, value=len(covered)/required if required else None)
+    if modern:
+        retained = set(case['retained_fact_ids'])
+        metrics['coverage_retained'] = dict(numerator=len(covered & retained), denominator=len(retained),
+            value=len(covered & retained)/len(retained) if retained else None)
     return dict(metric_eligible=True, paper_ready=False, metrics=metrics,
                 fact_claims=len(factual), error_counts={k:sum(c['error_type']==k for c in factual) for k in ('F','O','other','none','unknown')},
                 D_JD_subset_of_F=sum(c['error_type']=='F' and c['jd_aligned']=='yes' for c in factual))

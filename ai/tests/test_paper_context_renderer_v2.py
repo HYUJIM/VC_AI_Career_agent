@@ -224,3 +224,19 @@ def test_total_generation_inputs():
         ).values()
     ]
     assert len(inputs) == len(FILES) * len(CONDITIONS) == 15
+
+
+@pytest.mark.parametrize("path", FILES)
+def test_study_prompt_change_preserves_inputs_and_condition_fairness(path):
+    draft = load_draft(path)
+    before = copy.deepcopy(draft)
+    legacy = render_abc(draft, max_new_tokens=256)
+    study = render_abc(draft, max_new_tokens=256, prompt_version="study-2.1")
+    assert len({g["messages"][0]["content"] for g in study.values()}) == 1
+    for condition in CONDITIONS:
+        assert study[condition]["messages"][1] == legacy[condition]["messages"][1]
+        assert study[condition]["max_new_tokens"] == 256
+    assert study["A_no_rag"]["messages"][0] != legacy["A_no_rag"]["messages"][0]
+    if draft["noise"]["kind"] == "none":
+        assert study["B_naive_rag"] == study["C_verified_rag"]
+    assert draft == before
