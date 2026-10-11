@@ -1,0 +1,2618 @@
+{
+  "2eb19af6-7c6f-47d8-9aa6-d8d9ce0f744f": {
+    "run_id": "a590647e-63c8-4ef4-b982-1f6512150b6a",
+    "result_sha256": "d1e8b15070e9444b04303b8208b44b92792e804bebd0be78a72196bb5bbc359c",
+    "case_id": "dev-person-02-forged_signature",
+    "family_id": "dev-person-02",
+    "condition": "A_no_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-02-f1",
+        "entity_id": "dev-person-02-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f2",
+        "entity_id": "dev-person-02-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f3",
+        "entity_id": "dev-person-02-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 18시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f4",
+        "entity_id": "dev-person-02-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 월별 이용량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3",
+      "dev-person-02-f4"
+    ],
+    "eligible_record_ids": [
+      "377551cd-cc47-5555-99a1-a10d9220c3be",
+      "38dfd4b9-967e-5974-8ed2-631d888f02b8"
+    ],
+    "expected_behavior": "abstain",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "604e6071-f0a2-4dc3-a692-d289c0d6bd0f": {
+    "run_id": "12d6f90f-8c9a-4ffe-9513-3ab65e1705eb",
+    "result_sha256": "4b771ec0928abf6fbc6174164e06dbf5a22f245ad45fe4055875d22426f6e651",
+    "case_id": "dev-person-02-forged_signature",
+    "family_id": "dev-person-02",
+    "condition": "C_verified_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-02-f1",
+        "entity_id": "dev-person-02-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f2",
+        "entity_id": "dev-person-02-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f3",
+        "entity_id": "dev-person-02-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 18시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f4",
+        "entity_id": "dev-person-02-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 월별 이용량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3",
+      "dev-person-02-f4"
+    ],
+    "eligible_record_ids": [
+      "377551cd-cc47-5555-99a1-a10d9220c3be",
+      "38dfd4b9-967e-5974-8ed2-631d888f02b8"
+    ],
+    "expected_behavior": "mixed",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "b1d71714-94e4-4ef0-8127-63bd1ac8427d": {
+    "run_id": "e7b6fe66-d475-478e-ac82-6572b82d1907",
+    "result_sha256": "dd9614d74fe4fd3ad97e3aba71f743104159ac1acbc7f20a97525523ee7b0050",
+    "case_id": "dev-person-02-forged_signature",
+    "family_id": "dev-person-02",
+    "condition": "B_naive_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-02-f1",
+        "entity_id": "dev-person-02-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f2",
+        "entity_id": "dev-person-02-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f3",
+        "entity_id": "dev-person-02-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 18시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f4",
+        "entity_id": "dev-person-02-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 월별 이용량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3",
+      "dev-person-02-f4"
+    ],
+    "eligible_record_ids": [
+      "377551cd-cc47-5555-99a1-a10d9220c3be",
+      "38dfd4b9-967e-5974-8ed2-631d888f02b8"
+    ],
+    "expected_behavior": "mixed",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "1188be55-876e-41f5-ab5a-88fdd6eeaed9": {
+    "run_id": "dbfeae31-3422-42fb-94c4-1f6124c59363",
+    "result_sha256": "9d61bc65f9db6f4db5ddd3bd4cebac7f69a24079d17cc5c50ccdbedf41612d7f",
+    "case_id": "dev-person-01-valid_conflict",
+    "family_id": "dev-person-01",
+    "condition": "B_naive_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-01-f1",
+        "entity_id": "dev-person-01-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f2",
+        "entity_id": "dev-person-01-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f3",
+        "entity_id": "dev-person-01-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f4",
+        "entity_id": "dev-person-01-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 대여 상태 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3",
+      "dev-person-01-f4"
+    ],
+    "eligible_record_ids": [
+      "f20b529e-1da1-54e3-9a48-2b633d3d6fe3",
+      "a682c39c-3086-5ac9-9cf1-fdfc7fc66d2e",
+      "00509923-2eb2-5cfa-88e4-1d6d5779fc30",
+      "0236a913-3397-5f11-85f8-dc22c1a059da"
+    ],
+    "expected_behavior": "mixed",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "9d9b5e2d-d72b-48e9-a723-e108525dd9eb": {
+    "run_id": "95d19809-0d3d-4306-b8b8-3fd62e2e6ef2",
+    "result_sha256": "d6de9db50265ff04871242bd6047e7d9044317f16505f23c2ce35cf60f470296",
+    "case_id": "dev-person-01-valid_conflict",
+    "family_id": "dev-person-01",
+    "condition": "A_no_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-01-f1",
+        "entity_id": "dev-person-01-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f2",
+        "entity_id": "dev-person-01-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f3",
+        "entity_id": "dev-person-01-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f4",
+        "entity_id": "dev-person-01-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 대여 상태 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3",
+      "dev-person-01-f4"
+    ],
+    "eligible_record_ids": [
+      "f20b529e-1da1-54e3-9a48-2b633d3d6fe3",
+      "a682c39c-3086-5ac9-9cf1-fdfc7fc66d2e",
+      "00509923-2eb2-5cfa-88e4-1d6d5779fc30",
+      "0236a913-3397-5f11-85f8-dc22c1a059da"
+    ],
+    "expected_behavior": "abstain",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "dfba5b7b-5c4f-47f8-a823-7490e1795562": {
+    "run_id": "5c579b0d-2fe9-4f87-aea8-e36ed557c963",
+    "result_sha256": "e758de67624f445ec5d689f172f20b2da4c0a70c6ad5f53186401284b6014743",
+    "case_id": "dev-person-01-valid_conflict",
+    "family_id": "dev-person-01",
+    "condition": "C_verified_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-01-f1",
+        "entity_id": "dev-person-01-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f2",
+        "entity_id": "dev-person-01-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f3",
+        "entity_id": "dev-person-01-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f4",
+        "entity_id": "dev-person-01-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 대여 상태 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3",
+      "dev-person-01-f4"
+    ],
+    "eligible_record_ids": [
+      "f20b529e-1da1-54e3-9a48-2b633d3d6fe3",
+      "a682c39c-3086-5ac9-9cf1-fdfc7fc66d2e",
+      "00509923-2eb2-5cfa-88e4-1d6d5779fc30",
+      "0236a913-3397-5f11-85f8-dc22c1a059da"
+    ],
+    "expected_behavior": "mixed",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "3c495e74-77b6-49da-99b7-320765205882": {
+    "run_id": "3790e9c1-26b5-45d4-acad-8070409db45b",
+    "result_sha256": "56b2bd708ce3fe9abeb9b3858a2ef2cf7c78239d36ff5ade2930017a5558d32b",
+    "case_id": "dev-person-01-revoked",
+    "family_id": "dev-person-01",
+    "condition": "B_naive_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-01-f1",
+        "entity_id": "dev-person-01-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f2",
+        "entity_id": "dev-person-01-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f3",
+        "entity_id": "dev-person-01-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f4",
+        "entity_id": "dev-person-01-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 대여 상태 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3",
+      "dev-person-01-f4"
+    ],
+    "eligible_record_ids": [
+      "0ec3d8ef-adb0-5815-96f0-42fbd87189ee",
+      "e73915d0-b593-55d0-9736-b38e1451b3a9"
+    ],
+    "expected_behavior": "mixed",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "860b9dca-2442-4a63-b3c1-3b5438be8fc3": {
+    "run_id": "8dd91259-c5e2-45a4-aa2f-de0464d7bdc0",
+    "result_sha256": "628e935a5b6189a21be707aad81cdb8c86d4d6190c6e5c1fe1edb98f71bfa297",
+    "case_id": "dev-person-01-revoked",
+    "family_id": "dev-person-01",
+    "condition": "C_verified_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-01-f1",
+        "entity_id": "dev-person-01-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f2",
+        "entity_id": "dev-person-01-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f3",
+        "entity_id": "dev-person-01-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f4",
+        "entity_id": "dev-person-01-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 대여 상태 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3",
+      "dev-person-01-f4"
+    ],
+    "eligible_record_ids": [
+      "0ec3d8ef-adb0-5815-96f0-42fbd87189ee",
+      "e73915d0-b593-55d0-9736-b38e1451b3a9"
+    ],
+    "expected_behavior": "mixed",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "d4d584b7-59b1-411d-bfd1-a013c7ec7d35": {
+    "run_id": "34370b60-be35-42aa-9451-f544d22ea5c1",
+    "result_sha256": "0e717a0719a1beca2e8c13efb66eb98be78eb6c5b5b5a44e69fd1f1707b3c3a7",
+    "case_id": "dev-person-01-revoked",
+    "family_id": "dev-person-01",
+    "condition": "A_no_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-01-f1",
+        "entity_id": "dev-person-01-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f2",
+        "entity_id": "dev-person-01-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f3",
+        "entity_id": "dev-person-01-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f4",
+        "entity_id": "dev-person-01-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 대여 상태 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3",
+      "dev-person-01-f4"
+    ],
+    "eligible_record_ids": [
+      "0ec3d8ef-adb0-5815-96f0-42fbd87189ee",
+      "e73915d0-b593-55d0-9736-b38e1451b3a9"
+    ],
+    "expected_behavior": "abstain",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "3f2b4fc3-0953-41e2-8e73-8de3d6593ae2": {
+    "run_id": "e86c536c-5d68-4a91-ade4-58aff8e90dd1",
+    "result_sha256": "1cd38d14171a7f9f2490ad803eed72b37607beb12f08e3577c0a219ae87fc6d7",
+    "case_id": "dev-person-02-revoked",
+    "family_id": "dev-person-02",
+    "condition": "C_verified_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-02-f1",
+        "entity_id": "dev-person-02-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f2",
+        "entity_id": "dev-person-02-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f3",
+        "entity_id": "dev-person-02-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 18시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f4",
+        "entity_id": "dev-person-02-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 월별 이용량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3",
+      "dev-person-02-f4"
+    ],
+    "eligible_record_ids": [
+      "ba0bbac3-c3f5-5277-b77f-4f656ad87aff",
+      "34af6393-fb08-5fe7-a01d-114d04a73199"
+    ],
+    "expected_behavior": "mixed",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "23cded13-db44-448e-abc7-527c17d8ddd5": {
+    "run_id": "0da0abcf-ca24-492b-b1ab-bf6d57d7f23f",
+    "result_sha256": "bf35b74d867f9e0c98d049d4a9e031d80bb8ac04f81ea1294de53a80870de3c8",
+    "case_id": "dev-person-02-revoked",
+    "family_id": "dev-person-02",
+    "condition": "A_no_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-02-f1",
+        "entity_id": "dev-person-02-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f2",
+        "entity_id": "dev-person-02-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f3",
+        "entity_id": "dev-person-02-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 18시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f4",
+        "entity_id": "dev-person-02-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 월별 이용량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3",
+      "dev-person-02-f4"
+    ],
+    "eligible_record_ids": [
+      "ba0bbac3-c3f5-5277-b77f-4f656ad87aff",
+      "34af6393-fb08-5fe7-a01d-114d04a73199"
+    ],
+    "expected_behavior": "abstain",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "71ceefdf-c187-42c3-adee-ca748be9d57f": {
+    "run_id": "1b4118ae-411b-48f7-b09b-b9e694a006d8",
+    "result_sha256": "f9f025ef186ebc2bd365091664aea5fa2907df0f102be68ddea67a8f56f62dd6",
+    "case_id": "dev-person-02-revoked",
+    "family_id": "dev-person-02",
+    "condition": "B_naive_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-02-f1",
+        "entity_id": "dev-person-02-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f2",
+        "entity_id": "dev-person-02-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f3",
+        "entity_id": "dev-person-02-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 18시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f4",
+        "entity_id": "dev-person-02-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 월별 이용량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3",
+      "dev-person-02-f4"
+    ],
+    "eligible_record_ids": [
+      "ba0bbac3-c3f5-5277-b77f-4f656ad87aff",
+      "34af6393-fb08-5fe7-a01d-114d04a73199"
+    ],
+    "expected_behavior": "answer",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "56fbce8a-61c0-49d9-8bc7-89f032943b33": {
+    "run_id": "84f5dfb2-7141-492d-9b6f-1d6d2f05f52f",
+    "result_sha256": "276d66861d86b8c467c92f73b2a96d477e5d4d45f4ccd90b5dfe324f64f66079",
+    "case_id": "dev-person-02-expired",
+    "family_id": "dev-person-02",
+    "condition": "C_verified_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-02-f1",
+        "entity_id": "dev-person-02-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f2",
+        "entity_id": "dev-person-02-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f3",
+        "entity_id": "dev-person-02-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 18시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f4",
+        "entity_id": "dev-person-02-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 월별 이용량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3",
+      "dev-person-02-f4"
+    ],
+    "eligible_record_ids": [
+      "08da1372-9aa5-570a-84ac-536e1862822b",
+      "ef51b5a0-6fa1-5635-931a-7d968ea2d2d3"
+    ],
+    "expected_behavior": "mixed",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "0bd0ea2a-eb2c-4574-94e5-f50abe5dc0ab": {
+    "run_id": "eb7ba51d-5a03-49e5-bfea-71adea0fdca6",
+    "result_sha256": "1e56faf2a1f26d3350099ec38d8bba099c2866cce324a3a3f95bf5caac8c25ae",
+    "case_id": "dev-person-02-expired",
+    "family_id": "dev-person-02",
+    "condition": "B_naive_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-02-f1",
+        "entity_id": "dev-person-02-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f2",
+        "entity_id": "dev-person-02-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f3",
+        "entity_id": "dev-person-02-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 18시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f4",
+        "entity_id": "dev-person-02-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 월별 이용량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3",
+      "dev-person-02-f4"
+    ],
+    "eligible_record_ids": [
+      "08da1372-9aa5-570a-84ac-536e1862822b",
+      "ef51b5a0-6fa1-5635-931a-7d968ea2d2d3"
+    ],
+    "expected_behavior": "mixed",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "e52d6053-9769-4ad6-8360-088c8eb46a46": {
+    "run_id": "69b28aa8-8db8-41dc-85a3-b580484720cd",
+    "result_sha256": "018e4a16bc4f364f358cadce1039140a851a9683610e5ba81ed1dfe5bc5aafd6",
+    "case_id": "dev-person-02-expired",
+    "family_id": "dev-person-02",
+    "condition": "A_no_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-02-f1",
+        "entity_id": "dev-person-02-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f2",
+        "entity_id": "dev-person-02-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f3",
+        "entity_id": "dev-person-02-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 18시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f4",
+        "entity_id": "dev-person-02-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 월별 이용량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3",
+      "dev-person-02-f4"
+    ],
+    "eligible_record_ids": [
+      "08da1372-9aa5-570a-84ac-536e1862822b",
+      "ef51b5a0-6fa1-5635-931a-7d968ea2d2d3"
+    ],
+    "expected_behavior": "abstain",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "de322296-774d-4c3e-acb0-dab41e25fc26": {
+    "run_id": "2b5e4c0e-25f6-4837-a5ff-54b1bed189e2",
+    "result_sha256": "eedace5be764f16c638fa8b238a2c97402d91e6bd149dc795ba679df2b4cb506",
+    "case_id": "dev-person-02-none",
+    "family_id": "dev-person-02",
+    "condition": "A_no_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-02-f1",
+        "entity_id": "dev-person-02-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f2",
+        "entity_id": "dev-person-02-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f3",
+        "entity_id": "dev-person-02-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 18시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f4",
+        "entity_id": "dev-person-02-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 월별 이용량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3",
+      "dev-person-02-f4"
+    ],
+    "eligible_record_ids": [
+      "604454d2-8868-5f30-89fa-404ade22cc25",
+      "1a89a3e5-493f-5ef0-8980-ea7ece6a7448",
+      "0c2f4592-1f59-5b46-bbe6-18b0476e0dfd",
+      "ae5803a2-bac6-54a8-b16b-66e28e61eb14"
+    ],
+    "expected_behavior": "abstain",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "12188d1d-d2ee-4cb8-8542-8d620e66e0df": {
+    "run_id": "b24d3554-b343-4058-a141-4c9f888ddf58",
+    "result_sha256": "0b0b3fdf4897e57cce31ec34c3e794a1ad520414b1ebea7a9ef7a51045548625",
+    "case_id": "dev-person-02-none",
+    "family_id": "dev-person-02",
+    "condition": "B_naive_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-02-f1",
+        "entity_id": "dev-person-02-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f2",
+        "entity_id": "dev-person-02-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f3",
+        "entity_id": "dev-person-02-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 18시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f4",
+        "entity_id": "dev-person-02-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 월별 이용량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3",
+      "dev-person-02-f4"
+    ],
+    "eligible_record_ids": [
+      "604454d2-8868-5f30-89fa-404ade22cc25",
+      "1a89a3e5-493f-5ef0-8980-ea7ece6a7448",
+      "0c2f4592-1f59-5b46-bbe6-18b0476e0dfd",
+      "ae5803a2-bac6-54a8-b16b-66e28e61eb14"
+    ],
+    "expected_behavior": "answer",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "ad717a92-2335-4bec-81af-73f46bb0d658": {
+    "run_id": "d9023bee-87c6-42eb-930e-d24829117ca3",
+    "result_sha256": "5e8efeda57a2f85074406c019caa1a78c2019f8e1f3ceca922f7f331bfcba99c",
+    "case_id": "dev-person-02-none",
+    "family_id": "dev-person-02",
+    "condition": "C_verified_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-02-f1",
+        "entity_id": "dev-person-02-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f2",
+        "entity_id": "dev-person-02-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f3",
+        "entity_id": "dev-person-02-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 18시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f4",
+        "entity_id": "dev-person-02-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 월별 이용량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3",
+      "dev-person-02-f4"
+    ],
+    "eligible_record_ids": [
+      "604454d2-8868-5f30-89fa-404ade22cc25",
+      "1a89a3e5-493f-5ef0-8980-ea7ece6a7448",
+      "0c2f4592-1f59-5b46-bbe6-18b0476e0dfd",
+      "ae5803a2-bac6-54a8-b16b-66e28e61eb14"
+    ],
+    "expected_behavior": "answer",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "b0bd6824-d99a-43d9-b7fb-d7a94cbfcc1a": {
+    "run_id": "58a7a5ea-0388-42f1-9917-efda5501b2a5",
+    "result_sha256": "05fb3cde596437e329d2aa31197089fbea09626d7bd43b790c21860317f01c01",
+    "case_id": "dev-person-02-valid_conflict",
+    "family_id": "dev-person-02",
+    "condition": "A_no_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-02-f1",
+        "entity_id": "dev-person-02-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f2",
+        "entity_id": "dev-person-02-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f3",
+        "entity_id": "dev-person-02-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 18시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f4",
+        "entity_id": "dev-person-02-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 월별 이용량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3",
+      "dev-person-02-f4"
+    ],
+    "eligible_record_ids": [
+      "6f2f43a4-af95-59be-8bed-55685a625cfb",
+      "d699227d-3c34-5fed-9463-6a86fb829f4f",
+      "1521a4f2-9b16-51ee-b14b-6a9e42672aaf",
+      "9bee65cd-330a-5ce0-8e09-93fcc839cf01"
+    ],
+    "expected_behavior": "abstain",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "af995684-daa4-4908-8e54-128a00a84936": {
+    "run_id": "788d7da2-b192-47b8-9655-061ac62c4f18",
+    "result_sha256": "29e1d487c3c47f5dc16e7b7df3729300c2ed607a85b9e352e8ab7e37580610a4",
+    "case_id": "dev-person-02-valid_conflict",
+    "family_id": "dev-person-02",
+    "condition": "C_verified_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-02-f1",
+        "entity_id": "dev-person-02-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f2",
+        "entity_id": "dev-person-02-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f3",
+        "entity_id": "dev-person-02-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 18시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f4",
+        "entity_id": "dev-person-02-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 월별 이용량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3",
+      "dev-person-02-f4"
+    ],
+    "eligible_record_ids": [
+      "6f2f43a4-af95-59be-8bed-55685a625cfb",
+      "d699227d-3c34-5fed-9463-6a86fb829f4f",
+      "1521a4f2-9b16-51ee-b14b-6a9e42672aaf",
+      "9bee65cd-330a-5ce0-8e09-93fcc839cf01"
+    ],
+    "expected_behavior": "mixed",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "d7f58bc1-5818-4859-9035-e93e163ab4a8": {
+    "run_id": "9c7713f3-f9bb-4623-80c9-99b19df7339e",
+    "result_sha256": "69d38e68e3c4356e965a3ba2d554d1160ad207e1f84c615caf940fce5e92303f",
+    "case_id": "dev-person-02-valid_conflict",
+    "family_id": "dev-person-02",
+    "condition": "B_naive_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-02-f1",
+        "entity_id": "dev-person-02-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f2",
+        "entity_id": "dev-person-02-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f3",
+        "entity_id": "dev-person-02-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 18시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f4",
+        "entity_id": "dev-person-02-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 월별 이용량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3",
+      "dev-person-02-f4"
+    ],
+    "eligible_record_ids": [
+      "6f2f43a4-af95-59be-8bed-55685a625cfb",
+      "d699227d-3c34-5fed-9463-6a86fb829f4f",
+      "1521a4f2-9b16-51ee-b14b-6a9e42672aaf",
+      "9bee65cd-330a-5ce0-8e09-93fcc839cf01"
+    ],
+    "expected_behavior": "mixed",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "06bac147-e00d-41a9-8b65-618b1ada5f64": {
+    "run_id": "0699e7d1-c012-4e58-bcf6-9d25378f1797",
+    "result_sha256": "6e382707dac02b12fb579035b44073a6cd58b5449bc433d64694c1bcf5d93898",
+    "case_id": "dev-person-01-expired",
+    "family_id": "dev-person-01",
+    "condition": "B_naive_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-01-f1",
+        "entity_id": "dev-person-01-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f2",
+        "entity_id": "dev-person-01-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f3",
+        "entity_id": "dev-person-01-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f4",
+        "entity_id": "dev-person-01-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 대여 상태 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3",
+      "dev-person-01-f4"
+    ],
+    "eligible_record_ids": [
+      "f4ca7d3b-ac4c-5e3f-b3b4-387764eb36d4",
+      "70e296ad-b35f-57b4-9295-24fc127ded79"
+    ],
+    "expected_behavior": "answer",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "8f4521f4-fd6c-4081-8506-3cdf597e5fee": {
+    "run_id": "41ff063f-b210-44c0-bbc3-2348a3cd1c94",
+    "result_sha256": "d61588e5487ab5eee97e1f4cc96dfda17a0074fcf209770ccd6c2a9e782aa90b",
+    "case_id": "dev-person-01-expired",
+    "family_id": "dev-person-01",
+    "condition": "A_no_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-01-f1",
+        "entity_id": "dev-person-01-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f2",
+        "entity_id": "dev-person-01-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f3",
+        "entity_id": "dev-person-01-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f4",
+        "entity_id": "dev-person-01-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 대여 상태 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3",
+      "dev-person-01-f4"
+    ],
+    "eligible_record_ids": [
+      "f4ca7d3b-ac4c-5e3f-b3b4-387764eb36d4",
+      "70e296ad-b35f-57b4-9295-24fc127ded79"
+    ],
+    "expected_behavior": "abstain",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "ea86b122-00a9-4154-9856-4cfde2d052a1": {
+    "run_id": "fbf20630-5ece-4a46-a787-391a7377d786",
+    "result_sha256": "8a0566ee22d2a4c4eef37699a597a64a7a2fe60054dff21319b2722f3dece0d1",
+    "case_id": "dev-person-01-expired",
+    "family_id": "dev-person-01",
+    "condition": "C_verified_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-01-f1",
+        "entity_id": "dev-person-01-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f2",
+        "entity_id": "dev-person-01-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f3",
+        "entity_id": "dev-person-01-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f4",
+        "entity_id": "dev-person-01-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 대여 상태 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3",
+      "dev-person-01-f4"
+    ],
+    "eligible_record_ids": [
+      "f4ca7d3b-ac4c-5e3f-b3b4-387764eb36d4",
+      "70e296ad-b35f-57b4-9295-24fc127ded79"
+    ],
+    "expected_behavior": "mixed",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "93cb0b81-1382-4c82-b265-47812c82a6a5": {
+    "run_id": "1eafc2d2-0a00-40ef-9c9c-99783dd60b22",
+    "result_sha256": "03a16281d929bd957cd2a6f5f6299b7c601d639612843dbb611c28b21ea619e3",
+    "case_id": "dev-person-01-untrusted_issuer",
+    "family_id": "dev-person-01",
+    "condition": "B_naive_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-01-f1",
+        "entity_id": "dev-person-01-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f2",
+        "entity_id": "dev-person-01-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f3",
+        "entity_id": "dev-person-01-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f4",
+        "entity_id": "dev-person-01-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 대여 상태 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3",
+      "dev-person-01-f4"
+    ],
+    "eligible_record_ids": [
+      "5a4e0501-b6e4-53aa-8369-ada9a276c223",
+      "0a4fa8c2-f8f9-5137-b2af-14b6615477ce"
+    ],
+    "expected_behavior": "mixed",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "fcbb8a06-c461-4158-9877-175b6efb385a": {
+    "run_id": "45065580-24d9-44f3-9b31-c763d574d869",
+    "result_sha256": "9912bc157585e6768457690b91cc91406cf06cc429cabf37dedf971d508c7a28",
+    "case_id": "dev-person-01-untrusted_issuer",
+    "family_id": "dev-person-01",
+    "condition": "C_verified_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-01-f1",
+        "entity_id": "dev-person-01-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f2",
+        "entity_id": "dev-person-01-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f3",
+        "entity_id": "dev-person-01-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f4",
+        "entity_id": "dev-person-01-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 대여 상태 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3",
+      "dev-person-01-f4"
+    ],
+    "eligible_record_ids": [
+      "5a4e0501-b6e4-53aa-8369-ada9a276c223",
+      "0a4fa8c2-f8f9-5137-b2af-14b6615477ce"
+    ],
+    "expected_behavior": "mixed",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "0c8f54d6-56d0-4980-aeab-43b5b5eedb13": {
+    "run_id": "36634bea-29f1-433b-8035-1e7de8fa1610",
+    "result_sha256": "a4676dc7fd3a5704bd31b5ad1d31a6d1560a95a151926add450cb5330bb71612",
+    "case_id": "dev-person-01-untrusted_issuer",
+    "family_id": "dev-person-01",
+    "condition": "A_no_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-01-f1",
+        "entity_id": "dev-person-01-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f2",
+        "entity_id": "dev-person-01-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f3",
+        "entity_id": "dev-person-01-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f4",
+        "entity_id": "dev-person-01-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 대여 상태 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3",
+      "dev-person-01-f4"
+    ],
+    "eligible_record_ids": [
+      "5a4e0501-b6e4-53aa-8369-ada9a276c223",
+      "0a4fa8c2-f8f9-5137-b2af-14b6615477ce"
+    ],
+    "expected_behavior": "abstain",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "9603b916-e4ac-4afc-9c3c-41f18922020c": {
+    "run_id": "29833b0a-ff51-42cb-b6d9-e6c8d2feb773",
+    "result_sha256": "af667608e353ebdf2463a921b22cef668c4b3575ebf76c4067b78f546003f7c0",
+    "case_id": "dev-person-01-none",
+    "family_id": "dev-person-01",
+    "condition": "C_verified_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-01-f1",
+        "entity_id": "dev-person-01-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f2",
+        "entity_id": "dev-person-01-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f3",
+        "entity_id": "dev-person-01-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f4",
+        "entity_id": "dev-person-01-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 대여 상태 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3",
+      "dev-person-01-f4"
+    ],
+    "eligible_record_ids": [
+      "03e6cfe4-792c-56ed-a78f-bbac2d659ece",
+      "f5f2d737-6718-547e-b049-53552fb8e44b",
+      "55ed6cba-ebe6-56c6-a1fd-707a1d22fb42",
+      "417409aa-0684-54f1-b038-f4b73ca0010b"
+    ],
+    "expected_behavior": "answer",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "d09cc768-8542-4b3b-8d32-cc16553ca5d3": {
+    "run_id": "702db6b6-ee45-4a17-9949-90f1f127e75f",
+    "result_sha256": "8f68ca46ed86e961fabb09391f3dec0eab6c49382eb7600112fc28a5eeaed1e6",
+    "case_id": "dev-person-01-none",
+    "family_id": "dev-person-01",
+    "condition": "A_no_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-01-f1",
+        "entity_id": "dev-person-01-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f2",
+        "entity_id": "dev-person-01-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f3",
+        "entity_id": "dev-person-01-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f4",
+        "entity_id": "dev-person-01-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 대여 상태 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3",
+      "dev-person-01-f4"
+    ],
+    "eligible_record_ids": [
+      "03e6cfe4-792c-56ed-a78f-bbac2d659ece",
+      "f5f2d737-6718-547e-b049-53552fb8e44b",
+      "55ed6cba-ebe6-56c6-a1fd-707a1d22fb42",
+      "417409aa-0684-54f1-b038-f4b73ca0010b"
+    ],
+    "expected_behavior": "abstain",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "6c326081-895e-4f7c-9834-510bb6404777": {
+    "run_id": "aa43f6d6-9bc9-49c0-b0ab-d624d6e7d53e",
+    "result_sha256": "3e42fbdf83fbe24b662af8010dcf73c1a3860ccb87bb7b0fbce32db972a1d217",
+    "case_id": "dev-person-01-none",
+    "family_id": "dev-person-01",
+    "condition": "B_naive_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-01-f1",
+        "entity_id": "dev-person-01-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f2",
+        "entity_id": "dev-person-01-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f3",
+        "entity_id": "dev-person-01-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f4",
+        "entity_id": "dev-person-01-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 대여 상태 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3",
+      "dev-person-01-f4"
+    ],
+    "eligible_record_ids": [
+      "03e6cfe4-792c-56ed-a78f-bbac2d659ece",
+      "f5f2d737-6718-547e-b049-53552fb8e44b",
+      "55ed6cba-ebe6-56c6-a1fd-707a1d22fb42",
+      "417409aa-0684-54f1-b038-f4b73ca0010b"
+    ],
+    "expected_behavior": "answer",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "72a34f7c-8bd6-42f7-8b78-b19fe17995d4": {
+    "run_id": "0bd575f3-1c15-47ab-94e5-31fdadfeef0c",
+    "result_sha256": "ce314e9dc43ab066e3bae7c17251837226fbffb36b4e74edba050eed47b604ef",
+    "case_id": "dev-person-01-forged_signature",
+    "family_id": "dev-person-01",
+    "condition": "C_verified_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-01-f1",
+        "entity_id": "dev-person-01-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f2",
+        "entity_id": "dev-person-01-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f3",
+        "entity_id": "dev-person-01-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f4",
+        "entity_id": "dev-person-01-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 대여 상태 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3",
+      "dev-person-01-f4"
+    ],
+    "eligible_record_ids": [
+      "3dc7f5af-d69c-5c8a-a2cf-e00429be8fc3",
+      "dc9e75c0-90ab-59fb-a9d5-24586d62462b"
+    ],
+    "expected_behavior": "mixed",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "ea85a3d8-4dd2-46a3-82a2-f7ce7c281e6e": {
+    "run_id": "a9fe67d2-77c3-42a0-88b3-41b2610ae2ab",
+    "result_sha256": "efdd252554e05ac4bf301da37fdb1afabd1e8b38e57f59dc7d087a5867466e7a",
+    "case_id": "dev-person-01-forged_signature",
+    "family_id": "dev-person-01",
+    "condition": "B_naive_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-01-f1",
+        "entity_id": "dev-person-01-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f2",
+        "entity_id": "dev-person-01-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f3",
+        "entity_id": "dev-person-01-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f4",
+        "entity_id": "dev-person-01-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 대여 상태 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3",
+      "dev-person-01-f4"
+    ],
+    "eligible_record_ids": [
+      "3dc7f5af-d69c-5c8a-a2cf-e00429be8fc3",
+      "dc9e75c0-90ab-59fb-a9d5-24586d62462b"
+    ],
+    "expected_behavior": "answer",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "5573a1d3-c6fc-454a-ace8-3743536a0813": {
+    "run_id": "a4c11a8d-ae80-4d3a-82bc-7d4c1738af40",
+    "result_sha256": "a1290be2daea42ea97d8959c69b061a1f48af6572c89a550532e6e97efb0c70a",
+    "case_id": "dev-person-01-forged_signature",
+    "family_id": "dev-person-01",
+    "condition": "A_no_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-01-f1",
+        "entity_id": "dev-person-01-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f2",
+        "entity_id": "dev-person-01-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f3",
+        "entity_id": "dev-person-01-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-01-f4",
+        "entity_id": "dev-person-01-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 대여 상태 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-01-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-01-f1",
+      "dev-person-01-f2",
+      "dev-person-01-f3",
+      "dev-person-01-f4"
+    ],
+    "eligible_record_ids": [
+      "3dc7f5af-d69c-5c8a-a2cf-e00429be8fc3",
+      "dc9e75c0-90ab-59fb-a9d5-24586d62462b"
+    ],
+    "expected_behavior": "abstain",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "7bdbc568-8a2b-4a6b-95a9-c4236f939c68": {
+    "run_id": "c622fcbb-2c73-4912-896a-9b44bffab5fc",
+    "result_sha256": "26af30bee30258d275820401eddc26628be7f21e5c63b24314f884f0ca3b6a95",
+    "case_id": "dev-person-02-untrusted_issuer",
+    "family_id": "dev-person-02",
+    "condition": "A_no_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-02-f1",
+        "entity_id": "dev-person-02-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f2",
+        "entity_id": "dev-person-02-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f3",
+        "entity_id": "dev-person-02-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 18시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f4",
+        "entity_id": "dev-person-02-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 월별 이용량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3",
+      "dev-person-02-f4"
+    ],
+    "eligible_record_ids": [
+      "5f3f6a27-e04b-5a1a-9960-1e34004462ce",
+      "110adbb9-f846-503e-b50d-e7e3b1752705"
+    ],
+    "expected_behavior": "abstain",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "9a327384-3ab0-4db2-a72f-318a4138591d": {
+    "run_id": "63e98ccd-25d0-40a7-a9fb-442db2af8b0f",
+    "result_sha256": "45df85ee3ec2923f424a8c62c3a96f03034ccefc07d3b84d50c3f6dc23b9da42",
+    "case_id": "dev-person-02-untrusted_issuer",
+    "family_id": "dev-person-02",
+    "condition": "B_naive_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-02-f1",
+        "entity_id": "dev-person-02-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f2",
+        "entity_id": "dev-person-02-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f3",
+        "entity_id": "dev-person-02-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 18시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f4",
+        "entity_id": "dev-person-02-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 월별 이용량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3",
+      "dev-person-02-f4"
+    ],
+    "eligible_record_ids": [
+      "5f3f6a27-e04b-5a1a-9960-1e34004462ce",
+      "110adbb9-f846-503e-b50d-e7e3b1752705"
+    ],
+    "expected_behavior": "answer",
+    "gold_status": "pending",
+    "closed_world": true
+  },
+  "0888149e-d06c-42c7-9cf0-a6f7e34d2e40": {
+    "run_id": "1d7120ce-9480-41cf-acab-640182f4be08",
+    "result_sha256": "b8423d32991b1ca1e4b44fc02f5fb7adc92ca2d5d29e0f6c64562ae674232ba0",
+    "case_id": "dev-person-02-untrusted_issuer",
+    "family_id": "dev-person-02",
+    "condition": "C_verified_rag",
+    "seed": 42,
+    "reference_facts": [
+      {
+        "fact_id": "dev-person-02-f1",
+        "entity_id": "dev-person-02-project",
+        "attribute": "implementation",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.",
+        "unit": "개",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f2",
+        "entity_id": "dev-person-02-project",
+        "attribute": "test_cases",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.",
+        "unit": "건",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f3",
+        "entity_id": "dev-person-02-course",
+        "attribute": "course_completion",
+        "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 18시간이다.",
+        "unit": "시간",
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      },
+      {
+        "fact_id": "dev-person-02-f4",
+        "entity_id": "dev-person-02-project",
+        "attribute": "role",
+        "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 월별 이용량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+        "unit": null,
+        "time_scope": "2025-01/2025-05",
+        "source_ids": [
+          "dev-person-02-world"
+        ]
+      }
+    ],
+    "required_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3"
+    ],
+    "allowed_fact_ids": [
+      "dev-person-02-f1",
+      "dev-person-02-f2",
+      "dev-person-02-f3",
+      "dev-person-02-f4"
+    ],
+    "eligible_record_ids": [
+      "5f3f6a27-e04b-5a1a-9960-1e34004462ce",
+      "110adbb9-f846-503e-b50d-e7e3b1752705"
+    ],
+    "expected_behavior": "mixed",
+    "gold_status": "pending",
+    "closed_world": true
+  }
+}

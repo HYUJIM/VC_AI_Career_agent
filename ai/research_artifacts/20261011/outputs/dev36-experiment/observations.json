@@ -1,0 +1,121 @@
+{
+  "kind": "development_generation_observations",
+  "counts": {
+    "planned": 36,
+    "success": 36,
+    "failed": 0,
+    "missing": 0,
+    "length": 3
+  },
+  "seconds": 179.954828,
+  "families": 2,
+  "cases": 12,
+  "conditions": {
+    "A_no_rag": {
+      "responses": 12,
+      "length": 0,
+      "responses_with_id": 0,
+      "responses_with_unprovided_id": 0,
+      "mean_output_tokens": 117.0
+    },
+    "B_naive_rag": {
+      "responses": 12,
+      "length": 2,
+      "responses_with_id": 8,
+      "responses_with_unprovided_id": 0,
+      "mean_output_tokens": 187.7
+    },
+    "C_verified_rag": {
+      "responses": 12,
+      "length": 1,
+      "responses_with_id": 7,
+      "responses_with_unprovided_id": 0,
+      "mean_output_tokens": 189.7
+    }
+  },
+  "pairs": [
+    {
+      "case_id": "dev-person-01-expired",
+      "identical_answer": false,
+      "b_context": 4,
+      "c_context": 2
+    },
+    {
+      "case_id": "dev-person-01-forged_signature",
+      "identical_answer": false,
+      "b_context": 4,
+      "c_context": 2
+    },
+    {
+      "case_id": "dev-person-01-none",
+      "identical_answer": true,
+      "b_context": 4,
+      "c_context": 4
+    },
+    {
+      "case_id": "dev-person-01-revoked",
+      "identical_answer": false,
+      "b_context": 4,
+      "c_context": 2
+    },
+    {
+      "case_id": "dev-person-01-untrusted_issuer",
+      "identical_answer": false,
+      "b_context": 4,
+      "c_context": 2
+    },
+    {
+      "case_id": "dev-person-01-valid_conflict",
+      "identical_answer": true,
+      "b_context": 4,
+      "c_context": 4
+    },
+    {
+      "case_id": "dev-person-02-expired",
+      "identical_answer": false,
+      "b_context": 4,
+      "c_context": 2
+    },
+    {
+      "case_id": "dev-person-02-forged_signature",
+      "identical_answer": false,
+      "b_context": 4,
+      "c_context": 2
+    },
+    {
+      "case_id": "dev-person-02-none",
+      "identical_answer": true,
+      "b_context": 4,
+      "c_context": 4
+    },
+    {
+      "case_id": "dev-person-02-revoked",
+      "identical_answer": false,
+      "b_context": 4,
+      "c_context": 2
+    },
+    {
+      "case_id": "dev-person-02-untrusted_issuer",
+      "identical_answer": false,
+      "b_context": 4,
+      "c_context": 2
+    },
+    {
+      "case_id": "dev-person-02-valid_conflict",
+      "identical_answer": true,
+      "b_context": 4,
+      "c_context": 4
+    }
+  ],
+  "semantic_metrics": null,
+  "paper_ready": false,
+  "limitations": [
+    "Development split only; not the 144-run test study.",
+    "ID presence is not citation correctness.",
+    "No human-approved factual error rates.",
+    "Fresh 36-run batch; do not add the earlier overlapping nine runs."
+  ],
+  "model": "Qwen/Qwen2.5-1.5B-Instruct",
+  "revision": "989aa7980e4cf806f80c7fef2b1adb7bc71aa306",
+  "scope_sha256": "ccad32538702009a6b05561846c9cd54e584c0584fde4f83e2a5ac88d17fa1a9"
+}

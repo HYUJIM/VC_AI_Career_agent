@@ -1,0 +1,18 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "a9fe67d2-77c3-42a0-88b3-41b2610ae2ab",
+  "case_id": "dev-person-01-forged_signature",
+  "condition": "B_naive_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "length",
+  "answer": "1. 구현한 기능: 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총 3개.\n2. 점검 또는 검증 활동: 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총 6건.\n3. 이수 교육: 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.\n\n해당 record_id: fc609a98-77d0-534d-922e-10e4d4a0a549\n\n해당 record_id: dc9e75c0-90ab-59fb-a9d5-24586d62462b\n\n해당 record_id: c6cf619e-bff8-5505-b733-753834210c2e\n\n해당 record_id: 3dc7f5af-d69c-5c8a-a2cf-e00429be8fc3",
+  "context_record_ids": [
+    "fc609a98-77d0-534d-922e-10e4d4a0a549",
+    "dc9e75c0-90ab-59fb-a9d5-24586d62462b",
+    "c6cf619e-bff8-5505-b733-753834210c2e",
+    "3dc7f5af-d69c-5c8a-a2cf-e00429be8fc3"
+  ],
+  "input_tokens": 1317,
+  "output_tokens": 256
+}

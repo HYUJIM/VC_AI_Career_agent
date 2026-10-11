@@ -3,3 +3,6 @@ data/backend_education_v1/cases.json -text whitespace=trailing-space,space-befor
 docs/backend_education_contract.md -text
 # Preserve exact bytes of signed evidence and execution artifacts.
 outputs/paper_study/manual-pilot-v1/** -text whitespace=trailing-space,space-before-tab,cr-at-eol
+
+# Preserve original pilot evidence and historical helper scripts byte-for-byte.
+research_artifacts/20261011/** -text whitespace=trailing-space,space-before-tab,cr-at-eol

@@ -1,0 +1,2707 @@
+{
+  "version": "agent-review-draft/1.0",
+  "created_at": "2026-10-11T23:03:29.205396+09:00",
+  "status": "pending_human_review",
+  "author_kind": "agent",
+  "paper_ready": false,
+  "final_metrics": null,
+  "rules": [
+    "이 파일은 agent-review-draft/1.0이며 paper-review/2.1 승인 입력이 아니다. 확정 점수는 계산하지 않는다.",
+    "독립적으로 참/거짓이 달라질 수 있는 활동·사용 기술·개수·이수 여부·시간을 분리한다. 같은 원문 span이 여러 속성 주장을 지지할 수 있다.",
+    "원문에서 기간이 생략된 주장은 이 dev 사례의 동일 대상 맥락으로 잠정 해석했다. 기간까지 명시한 별도 주장으로 만들어 세지 않는다.",
+    "교육 과정 이수 yes와 시간 no가 함께 가능하다. 복합 필수 사실 f3는 모든 요소가 맞아야 coverage 후보가 된다.",
+    "같은 응답의 반복은 하나의 의미 단위에 여러 span으로 기록한다. 응답 간 동일 문장은 원장에 보존하되 독립 표본으로 늘리지 않는다.",
+    "보류·JD 설명·제안은 별도 종류로 남겼다. 기존 스키마 fact/recommendation에 무조건 강제 변환하지 않는다.",
+    "상충 문서의 존재는 context_support=yes와 별도 주석으로 기록했다. 사람은 충돌 처리 적절성도 판단해야 한다.",
+    "모든 yes/no는 pending 합성 T에 대한 AI 제안이다. 사람의 gold 검토와 주장 검토가 필요하다. 조건을 본 상태이므로 블라인드 평가가 아니다."
+  ],
+  "decisions": [
+    {
+      "id": "D1",
+      "question": "이 개발 사례의 합성 기준: 도서 기능3·사례6·교육24시간, 자전거 기능5·사례9·교육18시간을 정답으로 사용할 수 있는가?",
+      "proposal": "원문 세계·반례를 실제 사람이 확인한 뒤 기록. 이 보고서는 승인하지 않음."
+    },
+    {
+      "id": "D2",
+      "question": "기록9건/5건을 사례·기능의 축약으로 인정할 것인가?",
+      "proposal": "모호함을 보존해 unknown, full coverage 보류."
+    },
+    {
+      "id": "D3",
+      "question": "끝나열 ID를 개별 주장과 어떻게 연결할 것인가?",
+      "proposal": "관련 지지 ID가 있어도 연결이 불분명하면 unknown; 유일한 ID가 무관하면 no."
+    },
+    {
+      "id": "D4",
+      "question": "미확인: 테스트 사례 수:2, JD 재진술, 미래 계획 표현의 종류를 어떻게 분류할 것인가?",
+      "proposal": "표면 숫자·제목만으로 경력 사실 확정 금지. 종류가 해결되기 전 사실 오류율 분모 미확정."
+    }
+  ],
+  "ledger_counts": {
+    "planned": 36,
+    "success": 9,
+    "failed": 0,
+    "missing": 27,
+    "length": 0
+  },
+  "responses": [
+    {
+      "run_id": "9132a57b-4480-4096-8e77-cde8beee37b9",
+      "review_id": "043331dd-abd9-4f75-a014-a72c6f9d9785",
+      "case_id": "dev-person-01-revoked",
+      "family_id": "dev-person-01",
+      "condition": "A_no_rag",
+      "status": "agent_draft_pending",
+      "human_review": null,
+      "segmentation_complete": false,
+      "result_sha256": "8dd5948865a32b15e5d8dbdc0cf7674be791d267a2362585e25daa8dfe8131ef",
+      "answer": "1. 구현: API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.\n2. 점검: 작성한 사례 수, 검증 수행, 통과, 숙련도 확인 불가.\n3. 교육: 과정, 시간 확인 불가.\n4. 확인 불가: 주니어 백엔드 개발 직무 요구 사항 중 일부 확인 불가.\n5. 향후 학습: 향후 학습 제안: 데이터 분석 및 트래픽 관리에 대한 자격증 취득.",
+      "request": "JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.",
+      "jd": "API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.",
+      "context": [],
+      "reference_facts": [
+        {
+          "fact_id": "dev-person-01-f1",
+          "entity_id": "dev-person-01-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-01-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-01-f2",
+          "entity_id": "dev-person-01-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-01-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-01-f3",
+          "entity_id": "dev-person-01-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-01-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-01-f4",
+          "entity_id": "dev-person-01-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 대여 상태 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-01-world"
+          ]
+        }
+      ],
+      "gold_status": "pending",
+      "eligible_record_ids": [
+        "0ec3d8ef-adb0-5815-96f0-42fbd87189ee",
+        "e73915d0-b593-55d0-9736-b38e1451b3a9"
+      ],
+      "response_cited_record_ids": [],
+      "output_tokens": 140,
+      "finish_reason": "eos",
+      "units": [
+        {
+          "unit_id": "u01",
+          "canonical_key": "JD 요구사항의 재진술; 보유 경력으로 채택했는지는 제목만으로 확정하지 않음",
+          "quote": "1. 구현: API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.",
+          "spans": [
+            {
+              "start": 0,
+              "end": 50
+            }
+          ],
+          "proposed_meaning": "JD 요구사항의 재진술; 보유 경력으로 채택했는지는 제목만으로 확정하지 않음",
+          "proposed_kind": "meta_or_ambiguous",
+          "proposed_axes": {
+            "factual_correctness": "unknown",
+            "context_support": "unknown",
+            "evidence_eligibility": "unknown",
+            "citation_correct": "unknown"
+          },
+          "reference_fact_ids": [],
+          "supporting_record_ids": [],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "none",
+          "rationale": "본문은 JD와 일치하지만 구현란에 놓였다. JD 지지와 credential 문맥 지지를 구분한다."
+        },
+        {
+          "unit_id": "u02",
+          "canonical_key": "확인 불가 표현 2: 제공 근거의 한계를 설명",
+          "quote": "2. 점검: 작성한 사례 수, 검증 수행, 통과, 숙련도 확인 불가.",
+          "spans": [
+            {
+              "start": 51,
+              "end": 89
+            }
+          ],
+          "proposed_meaning": "확인 불가 표현 2: 제공 근거의 한계를 설명",
+          "proposed_kind": "abstention",
+          "proposed_axes": {
+            "factual_correctness": "not_applicable",
+            "context_support": "not_applicable",
+            "evidence_eligibility": "not_applicable",
+            "citation_correct": "not_applicable"
+          },
+          "reference_fact_ids": [],
+          "supporting_record_ids": [],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "none",
+          "rationale": "실제 credential 문맥이 비어 있다. 경험이 없다는 주장으로 바꾸지 않는다."
+        },
+        {
+          "unit_id": "u03",
+          "canonical_key": "확인 불가 표현 3: 제공 근거의 한계를 설명",
+          "quote": "3. 교육: 과정, 시간 확인 불가.",
+          "spans": [
+            {
+              "start": 90,
+              "end": 110
+            }
+          ],
+          "proposed_meaning": "확인 불가 표현 3: 제공 근거의 한계를 설명",
+          "proposed_kind": "abstention",
+          "proposed_axes": {
+            "factual_correctness": "not_applicable",
+            "context_support": "not_applicable",
+            "evidence_eligibility": "not_applicable",
+            "citation_correct": "not_applicable"
+          },
+          "reference_fact_ids": [],
+          "supporting_record_ids": [],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "none",
+          "rationale": "실제 credential 문맥이 비어 있다. 경험이 없다는 주장으로 바꾸지 않는다."
+        },
+        {
+          "unit_id": "u04",
+          "canonical_key": "확인 불가 표현 4: 제공 근거의 한계를 설명",
+          "quote": "4. 확인 불가: 주니어 백엔드 개발 직무 요구 사항 중 일부 확인 불가.",
+          "spans": [
+            {
+              "start": 111,
+              "end": 152
+            }
+          ],
+          "proposed_meaning": "확인 불가 표현 4: 제공 근거의 한계를 설명",
+          "proposed_kind": "abstention",
+          "proposed_axes": {
+            "factual_correctness": "not_applicable",
+            "context_support": "not_applicable",
+            "evidence_eligibility": "not_applicable",
+            "citation_correct": "not_applicable"
+          },
+          "reference_fact_ids": [],
+          "supporting_record_ids": [],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "none",
+          "rationale": "실제 credential 문맥이 비어 있다. 경험이 없다는 주장으로 바꾸지 않는다."
+        },
+        {
+          "unit_id": "u05",
+          "canonical_key": "향후 학습 제안 또는 이미 정한 개인 계획",
+          "quote": "5. 향후 학습: 향후 학습 제안: 데이터 분석 및 트래픽 관리에 대한 자격증 취득.",
+          "spans": [
+            {
+              "start": 153,
+              "end": 200
+            }
+          ],
+          "proposed_meaning": "향후 학습 제안 또는 이미 정한 개인 계획",
+          "proposed_kind": "recommendation_or_ambiguous",
+          "proposed_axes": {
+            "factual_correctness": "not_applicable",
+            "context_support": "not_applicable",
+            "evidence_eligibility": "not_applicable",
+            "citation_correct": "not_applicable"
+          },
+          "reference_fact_ids": [],
+          "supporting_record_ids": [],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "none",
+          "rationale": "향후 학습 제목에 따른 제안 해석을 우선 제안한다. 실제 개인 계획의 단정이면 T 밖 unknown으로 분리해야 한다."
+        }
+      ],
+      "proposed_full_coverage_fact_ids": [],
+      "open_issues": [
+        "JD 재진술을 보유 사실 분모에 포함할지. 기본 제안: 포함 보류.",
+        "미래형 문장의 제안/기존 개인 계획 구분을 모든 답변에 일관되게 적용."
+      ],
+      "notes": [
+        "경력 사실 전체 보류 후보. 구현란 JD 재진술 때문에 behavior 최종값은 미확정.",
+        "구현 항목을 명확히 확인 불가라고 쓰지 않아 형식·과제 이행 문제를 별도 기록."
+      ]
+    },
+    {
+      "run_id": "5eafe142-f4e2-43dc-ae44-f0f1e9c3e6be",
+      "review_id": "784dc026-7aeb-45d7-90f0-76b029b21dc2",
+      "case_id": "dev-person-01-revoked",
+      "family_id": "dev-person-01",
+      "condition": "B_naive_rag",
+      "status": "agent_draft_pending",
+      "human_review": null,
+      "segmentation_complete": false,
+      "result_sha256": "1ed748f7bb03bad472bfe6f8ddab3309392ed31ab106897a1d3ee2a7d9766f33",
+      "answer": "1. 구현한 기능: 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총 3개.\n2. 점검 또는 검증 활동: 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총 6건.\n3. 이수 교육: 도서 대여 실습 과정에서 총 84시간 이수.\n\n해당 record_id: 0ec3d8ef-adb0-5815-96f0-42fbd87189ee\n\n해당 record_id: e73915d0-b593-55d0-9736-b38e1451b3a9\n\n해당 record_id: 5bae88ea-53e3-5f6f-92f2-08854c784cf5\n\n해당 record_id: 8adde6a9-5275-5ec1-afc6-9e0aa018e82f",
+      "request": "JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.",
+      "jd": "API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.",
+      "context": [
+        {
+          "record_id": "8adde6a9-5275-5ec1-afc6-9e0aa018e82f",
+          "text": "{\"achievement\": {\"criteria_narrative\": \"기록된 활동 내용에 대한 발급 기록.\", \"description\": \"2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 84시간이다.\", \"name\": \"도서 대여 교육 기록\"}, \"awarded_date\": \"2025-06-01T00:00:00Z\", \"issued_at\": \"2025-06-01T00:00:00Z\", \"issuer\": {\"name\": \"교육기록센터 EAST\"}, \"record_id\": \"8adde6a9-5275-5ec1-afc6-9e0aa018e82f\", \"skills\": []}",
+          "evidence": {
+            "achievement": {
+              "criteria_narrative": "기록된 활동 내용에 대한 발급 기록.",
+              "description": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 84시간이다.",
+              "name": "도서 대여 교육 기록"
+            },
+            "awarded_date": "2025-06-01T00:00:00Z",
+            "issued_at": "2025-06-01T00:00:00Z",
+            "issuer": {
+              "name": "교육기록센터 EAST"
+            },
+            "record_id": "8adde6a9-5275-5ec1-afc6-9e0aa018e82f",
+            "skills": []
+          }
+        },
+        {
+          "record_id": "e73915d0-b593-55d0-9736-b38e1451b3a9",
+          "text": "{\"achievement\": {\"criteria_narrative\": \"기록된 활동 내용에 대한 발급 기록.\", \"description\": \"2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.\", \"name\": \"도서 대여 점검 기록\"}, \"awarded_date\": \"2025-06-01T00:00:00Z\", \"issued_at\": \"2025-06-01T00:00:00Z\", \"issuer\": {\"name\": \"교육기록센터 WEST\"}, \"record_id\": \"e73915d0-b593-55d0-9736-b38e1451b3a9\", \"skills\": []}",
+          "evidence": {
+            "achievement": {
+              "criteria_narrative": "기록된 활동 내용에 대한 발급 기록.",
+              "description": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.",
+              "name": "도서 대여 점검 기록"
+            },
+            "awarded_date": "2025-06-01T00:00:00Z",
+            "issued_at": "2025-06-01T00:00:00Z",
+            "issuer": {
+              "name": "교육기록센터 WEST"
+            },
+            "record_id": "e73915d0-b593-55d0-9736-b38e1451b3a9",
+            "skills": []
+          }
+        },
+        {
+          "record_id": "5bae88ea-53e3-5f6f-92f2-08854c784cf5",
+          "text": "{\"achievement\": {\"criteria_narrative\": \"기록된 활동 내용에 대한 발급 기록.\", \"description\": \"2025년 1월부터 5월까지 도서 대여 프로젝트의 전체 개발을 총괄했다.\", \"name\": \"도서 대여 참여 기록\"}, \"awarded_date\": \"2025-06-01T00:00:00Z\", \"issued_at\": \"2025-06-01T00:00:00Z\", \"issuer\": {\"name\": \"교육기록센터 WEST\"}, \"record_id\": \"5bae88ea-53e3-5f6f-92f2-08854c784cf5\", \"skills\": []}",
+          "evidence": {
+            "achievement": {
+              "criteria_narrative": "기록된 활동 내용에 대한 발급 기록.",
+              "description": "2025년 1월부터 5월까지 도서 대여 프로젝트의 전체 개발을 총괄했다.",
+              "name": "도서 대여 참여 기록"
+            },
+            "awarded_date": "2025-06-01T00:00:00Z",
+            "issued_at": "2025-06-01T00:00:00Z",
+            "issuer": {
+              "name": "교육기록센터 WEST"
+            },
+            "record_id": "5bae88ea-53e3-5f6f-92f2-08854c784cf5",
+            "skills": []
+          }
+        },
+        {
+          "record_id": "0ec3d8ef-adb0-5815-96f0-42fbd87189ee",
+          "text": "{\"achievement\": {\"criteria_narrative\": \"기록된 활동 내용에 대한 발급 기록.\", \"description\": \"2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.\", \"name\": \"도서 대여 구현 기록\"}, \"awarded_date\": \"2025-06-01T00:00:00Z\", \"issued_at\": \"2025-06-01T00:00:00Z\", \"issuer\": {\"name\": \"교육기록센터 EAST\"}, \"record_id\": \"0ec3d8ef-adb0-5815-96f0-42fbd87189ee\", \"skills\": []}",
+          "evidence": {
+            "achievement": {
+              "criteria_narrative": "기록된 활동 내용에 대한 발급 기록.",
+              "description": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.",
+              "name": "도서 대여 구현 기록"
+            },
+            "awarded_date": "2025-06-01T00:00:00Z",
+            "issued_at": "2025-06-01T00:00:00Z",
+            "issuer": {
+              "name": "교육기록센터 EAST"
+            },
+            "record_id": "0ec3d8ef-adb0-5815-96f0-42fbd87189ee",
+            "skills": []
+          }
+        }
+      ],
+      "reference_facts": [
+        {
+          "fact_id": "dev-person-01-f1",
+          "entity_id": "dev-person-01-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-01-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-01-f2",
+          "entity_id": "dev-person-01-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-01-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-01-f3",
+          "entity_id": "dev-person-01-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-01-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-01-f4",
+          "entity_id": "dev-person-01-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 대여 상태 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-01-world"
+          ]
+        }
+      ],
+      "gold_status": "pending",
+      "eligible_record_ids": [
+        "0ec3d8ef-adb0-5815-96f0-42fbd87189ee",
+        "e73915d0-b593-55d0-9736-b38e1451b3a9"
+      ],
+      "response_cited_record_ids": [
+        "0ec3d8ef-adb0-5815-96f0-42fbd87189ee",
+        "e73915d0-b593-55d0-9736-b38e1451b3a9",
+        "5bae88ea-53e3-5f6f-92f2-08854c784cf5",
+        "8adde6a9-5275-5ec1-afc6-9e0aa018e82f"
+      ],
+      "output_tokens": 254,
+      "finish_reason": "eos",
+      "units": [
+        {
+          "unit_id": "u01",
+          "canonical_key": "해당 프로젝트의 기능 구현 활동",
+          "quote": "1. 구현한 기능: 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총 3개.",
+          "spans": [
+            {
+              "start": 0,
+              "end": 52
+            }
+          ],
+          "proposed_meaning": "해당 프로젝트의 기능 구현 활동",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "yes",
+            "context_support": "yes",
+            "evidence_eligibility": "yes",
+            "citation_correct": "unknown"
+          },
+          "reference_fact_ids": [
+            "dev-person-01-f1"
+          ],
+          "supporting_record_ids": [
+            "0ec3d8ef-adb0-5815-96f0-42fbd87189ee"
+          ],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "unresolved",
+          "rationale": "pending 합성 T 및 실제 적격 문맥과 일치하는 제안. 시간 범위는 이 개발 사례의 동일 프로젝트 맥락으로 읽음. 끝에 나열된 ID는 주장별 연결을 사람이 확인해야 함."
+        },
+        {
+          "unit_id": "u02",
+          "canonical_key": "구현에 Java 사용",
+          "quote": "1. 구현한 기능: 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총 3개.",
+          "spans": [
+            {
+              "start": 0,
+              "end": 52
+            }
+          ],
+          "proposed_meaning": "구현에 Java 사용",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "yes",
+            "context_support": "yes",
+            "evidence_eligibility": "yes",
+            "citation_correct": "unknown"
+          },
+          "reference_fact_ids": [
+            "dev-person-01-f1"
+          ],
+          "supporting_record_ids": [
+            "0ec3d8ef-adb0-5815-96f0-42fbd87189ee"
+          ],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "unresolved",
+          "rationale": "pending 합성 T 및 실제 적격 문맥과 일치하는 제안. 시간 범위는 이 개발 사례의 동일 프로젝트 맥락으로 읽음. 끝에 나열된 ID는 주장별 연결을 사람이 확인해야 함."
+        },
+        {
+          "unit_id": "u03",
+          "canonical_key": "구현 기능 총수 3개",
+          "quote": "1. 구현한 기능: 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총 3개.",
+          "spans": [
+            {
+              "start": 0,
+              "end": 52
+            }
+          ],
+          "proposed_meaning": "구현 기능 총수 3개",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "yes",
+            "context_support": "yes",
+            "evidence_eligibility": "yes",
+            "citation_correct": "unknown"
+          },
+          "reference_fact_ids": [
+            "dev-person-01-f1"
+          ],
+          "supporting_record_ids": [
+            "0ec3d8ef-adb0-5815-96f0-42fbd87189ee"
+          ],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "unresolved",
+          "rationale": "pending 합성 T 및 실제 적격 문맥과 일치하는 제안. 시간 범위는 이 개발 사례의 동일 프로젝트 맥락으로 읽음. 끝에 나열된 ID는 주장별 연결을 사람이 확인해야 함."
+        },
+        {
+          "unit_id": "u04",
+          "canonical_key": "해당 프로젝트의 명시된 종류의 사례 작성",
+          "quote": "2. 점검 또는 검증 활동: 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총 6건.",
+          "spans": [
+            {
+              "start": 53,
+              "end": 102
+            }
+          ],
+          "proposed_meaning": "해당 프로젝트의 명시된 종류의 사례 작성",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "yes",
+            "context_support": "yes",
+            "evidence_eligibility": "yes",
+            "citation_correct": "unknown"
+          },
+          "reference_fact_ids": [
+            "dev-person-01-f2"
+          ],
+          "supporting_record_ids": [
+            "e73915d0-b593-55d0-9736-b38e1451b3a9"
+          ],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "unresolved",
+          "rationale": "pending 합성 T 및 실제 적격 문맥과 일치하는 제안. 시간 범위는 이 개발 사례의 동일 프로젝트 맥락으로 읽음. 끝에 나열된 ID는 주장별 연결을 사람이 확인해야 함."
+        },
+        {
+          "unit_id": "u05",
+          "canonical_key": "작성 사례 총수 6건",
+          "quote": "2. 점검 또는 검증 활동: 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총 6건.",
+          "spans": [
+            {
+              "start": 53,
+              "end": 102
+            }
+          ],
+          "proposed_meaning": "작성 사례 총수 6건",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "yes",
+            "context_support": "yes",
+            "evidence_eligibility": "yes",
+            "citation_correct": "unknown"
+          },
+          "reference_fact_ids": [
+            "dev-person-01-f2"
+          ],
+          "supporting_record_ids": [
+            "e73915d0-b593-55d0-9736-b38e1451b3a9"
+          ],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "unresolved",
+          "rationale": "pending 합성 T 및 실제 적격 문맥과 일치하는 제안. 시간 범위는 이 개발 사례의 동일 프로젝트 맥락으로 읽음. 끝에 나열된 ID는 주장별 연결을 사람이 확인해야 함."
+        },
+        {
+          "unit_id": "u06",
+          "canonical_key": "해당 교육 과정 이수",
+          "quote": "3. 이수 교육: 도서 대여 실습 과정에서 총 84시간 이수.",
+          "spans": [
+            {
+              "start": 103,
+              "end": 137
+            }
+          ],
+          "proposed_meaning": "해당 교육 과정 이수",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "yes",
+            "context_support": "yes",
+            "evidence_eligibility": "no",
+            "citation_correct": "unknown"
+          },
+          "reference_fact_ids": [
+            "dev-person-01-f3"
+          ],
+          "supporting_record_ids": [
+            "8adde6a9-5275-5ec1-afc6-9e0aa018e82f"
+          ],
+          "used_ineligible_record_ids": [
+            "8adde6a9-5275-5ec1-afc6-9e0aa018e82f"
+          ],
+          "citation_binding": "unresolved",
+          "rationale": "T는 24시간 이수를 명시. 과정 이수 여부와 시간 수치를 분리한다. 84시간 기록을 실제 문맥에서 확인했다. 과정·왜곡된 시간이 부적격 문서와 대응하므로 그 문서의 채택 후보로 기록."
+        },
+        {
+          "unit_id": "u07",
+          "canonical_key": "해당 단일 교육 총 이수시간 84시간",
+          "quote": "3. 이수 교육: 도서 대여 실습 과정에서 총 84시간 이수.",
+          "spans": [
+            {
+              "start": 103,
+              "end": 137
+            }
+          ],
+          "proposed_meaning": "해당 단일 교육 총 이수시간 84시간",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "no",
+            "context_support": "yes",
+            "evidence_eligibility": "no",
+            "citation_correct": "unknown"
+          },
+          "reference_fact_ids": [
+            "dev-person-01-f3"
+          ],
+          "supporting_record_ids": [
+            "8adde6a9-5275-5ec1-afc6-9e0aa018e82f"
+          ],
+          "used_ineligible_record_ids": [
+            "8adde6a9-5275-5ec1-afc6-9e0aa018e82f"
+          ],
+          "citation_binding": "unresolved",
+          "rationale": "T는 24시간 이수를 명시. 과정 이수 여부와 시간 수치를 분리한다. 84시간 기록을 실제 문맥에서 확인했다. 과정·왜곡된 시간이 부적격 문서와 대응하므로 그 문서의 채택 후보로 기록."
+        }
+      ],
+      "proposed_full_coverage_fact_ids": [
+        "dev-person-01-f1",
+        "dev-person-01-f2"
+      ],
+      "open_issues": [
+        "끝나열 인용을 개별 주장에 연결하는 규칙. 단순 ID 존재로 citation=yes를 주지 않음."
+      ],
+      "notes": [
+        "과정 이수 부분이 참이어도 시간 수치가 틀려 f3 full coverage는 인정하지 않는 안.",
+        "요구된 별도 미확인 JD 항목 문장과 향후 학습 제안이 빠짐. 형식과 사실 판단을 분리."
+      ]
+    },
+    {
+      "run_id": "d7d85855-8dd2-49a0-af68-ac51ca85796a",
+      "review_id": "c964f1a0-9103-4dd7-aa1e-2a39e8a17505",
+      "case_id": "dev-person-01-revoked",
+      "family_id": "dev-person-01",
+      "condition": "C_verified_rag",
+      "status": "agent_draft_pending",
+      "human_review": null,
+      "segmentation_complete": false,
+      "result_sha256": "02a9277fdabd35ff6500d2c93697526c368f1c5341145f72cc49e0cf30c7eeb6",
+      "answer": "1. 구현한 기능: 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 6건이다.\n2. 점검 또는 검증 활동: 도서 대여 구현 기록에서 Java로 구현한 대여 상태 조회 기능의 총수는 3개다.\n3. 이수 교육: 확인 불가.\n\n해당 record_id: e73915d0-b593-55d0-9736-b38e1451b3a9\n\n해당 record_id: 0ec3d8ef-adb0-5815-96f0-42fbd87189ee",
+      "request": "JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.",
+      "jd": "API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.",
+      "context": [
+        {
+          "record_id": "e73915d0-b593-55d0-9736-b38e1451b3a9",
+          "text": "{\"achievement\": {\"criteria_narrative\": \"기록된 활동 내용에 대한 발급 기록.\", \"description\": \"2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.\", \"name\": \"도서 대여 점검 기록\"}, \"awarded_date\": \"2025-06-01T00:00:00Z\", \"issued_at\": \"2025-06-01T00:00:00Z\", \"issuer\": {\"name\": \"교육기록센터 WEST\"}, \"record_id\": \"e73915d0-b593-55d0-9736-b38e1451b3a9\", \"skills\": []}",
+          "evidence": {
+            "achievement": {
+              "criteria_narrative": "기록된 활동 내용에 대한 발급 기록.",
+              "description": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.",
+              "name": "도서 대여 점검 기록"
+            },
+            "awarded_date": "2025-06-01T00:00:00Z",
+            "issued_at": "2025-06-01T00:00:00Z",
+            "issuer": {
+              "name": "교육기록센터 WEST"
+            },
+            "record_id": "e73915d0-b593-55d0-9736-b38e1451b3a9",
+            "skills": []
+          }
+        },
+        {
+          "record_id": "0ec3d8ef-adb0-5815-96f0-42fbd87189ee",
+          "text": "{\"achievement\": {\"criteria_narrative\": \"기록된 활동 내용에 대한 발급 기록.\", \"description\": \"2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.\", \"name\": \"도서 대여 구현 기록\"}, \"awarded_date\": \"2025-06-01T00:00:00Z\", \"issued_at\": \"2025-06-01T00:00:00Z\", \"issuer\": {\"name\": \"교육기록센터 EAST\"}, \"record_id\": \"0ec3d8ef-adb0-5815-96f0-42fbd87189ee\", \"skills\": []}",
+          "evidence": {
+            "achievement": {
+              "criteria_narrative": "기록된 활동 내용에 대한 발급 기록.",
+              "description": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.",
+              "name": "도서 대여 구현 기록"
+            },
+            "awarded_date": "2025-06-01T00:00:00Z",
+            "issued_at": "2025-06-01T00:00:00Z",
+            "issuer": {
+              "name": "교육기록센터 EAST"
+            },
+            "record_id": "0ec3d8ef-adb0-5815-96f0-42fbd87189ee",
+            "skills": []
+          }
+        }
+      ],
+      "reference_facts": [
+        {
+          "fact_id": "dev-person-01-f1",
+          "entity_id": "dev-person-01-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-01-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-01-f2",
+          "entity_id": "dev-person-01-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-01-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-01-f3",
+          "entity_id": "dev-person-01-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-01-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-01-f4",
+          "entity_id": "dev-person-01-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 대여 상태 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-01-world"
+          ]
+        }
+      ],
+      "gold_status": "pending",
+      "eligible_record_ids": [
+        "0ec3d8ef-adb0-5815-96f0-42fbd87189ee",
+        "e73915d0-b593-55d0-9736-b38e1451b3a9"
+      ],
+      "response_cited_record_ids": [
+        "e73915d0-b593-55d0-9736-b38e1451b3a9",
+        "0ec3d8ef-adb0-5815-96f0-42fbd87189ee"
+      ],
+      "output_tokens": 167,
+      "finish_reason": "eos",
+      "units": [
+        {
+          "unit_id": "u01",
+          "canonical_key": "해당 프로젝트의 기능 구현 활동",
+          "quote": "2. 점검 또는 검증 활동: 도서 대여 구현 기록에서 Java로 구현한 대여 상태 조회 기능의 총수는 3개다.",
+          "spans": [
+            {
+              "start": 49,
+              "end": 110
+            }
+          ],
+          "proposed_meaning": "해당 프로젝트의 기능 구현 활동",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "yes",
+            "context_support": "yes",
+            "evidence_eligibility": "yes",
+            "citation_correct": "unknown"
+          },
+          "reference_fact_ids": [
+            "dev-person-01-f1"
+          ],
+          "supporting_record_ids": [
+            "0ec3d8ef-adb0-5815-96f0-42fbd87189ee"
+          ],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "unresolved",
+          "rationale": "pending 합성 T 및 실제 적격 문맥과 일치하는 제안. 시간 범위는 이 개발 사례의 동일 프로젝트 맥락으로 읽음. 끝에 나열된 ID는 주장별 연결을 사람이 확인해야 함."
+        },
+        {
+          "unit_id": "u02",
+          "canonical_key": "구현에 Java 사용",
+          "quote": "2. 점검 또는 검증 활동: 도서 대여 구현 기록에서 Java로 구현한 대여 상태 조회 기능의 총수는 3개다.",
+          "spans": [
+            {
+              "start": 49,
+              "end": 110
+            }
+          ],
+          "proposed_meaning": "구현에 Java 사용",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "yes",
+            "context_support": "yes",
+            "evidence_eligibility": "yes",
+            "citation_correct": "unknown"
+          },
+          "reference_fact_ids": [
+            "dev-person-01-f1"
+          ],
+          "supporting_record_ids": [
+            "0ec3d8ef-adb0-5815-96f0-42fbd87189ee"
+          ],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "unresolved",
+          "rationale": "pending 합성 T 및 실제 적격 문맥과 일치하는 제안. 시간 범위는 이 개발 사례의 동일 프로젝트 맥락으로 읽음. 끝에 나열된 ID는 주장별 연결을 사람이 확인해야 함."
+        },
+        {
+          "unit_id": "u03",
+          "canonical_key": "구현 기능 총수 3개",
+          "quote": "2. 점검 또는 검증 활동: 도서 대여 구현 기록에서 Java로 구현한 대여 상태 조회 기능의 총수는 3개다.",
+          "spans": [
+            {
+              "start": 49,
+              "end": 110
+            }
+          ],
+          "proposed_meaning": "구현 기능 총수 3개",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "yes",
+            "context_support": "yes",
+            "evidence_eligibility": "yes",
+            "citation_correct": "unknown"
+          },
+          "reference_fact_ids": [
+            "dev-person-01-f1"
+          ],
+          "supporting_record_ids": [
+            "0ec3d8ef-adb0-5815-96f0-42fbd87189ee"
+          ],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "unresolved",
+          "rationale": "pending 합성 T 및 실제 적격 문맥과 일치하는 제안. 시간 범위는 이 개발 사례의 동일 프로젝트 맥락으로 읽음. 끝에 나열된 ID는 주장별 연결을 사람이 확인해야 함."
+        },
+        {
+          "unit_id": "u04",
+          "canonical_key": "해당 프로젝트의 명시된 종류의 사례 작성",
+          "quote": "1. 구현한 기능: 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 6건이다.",
+          "spans": [
+            {
+              "start": 0,
+              "end": 48
+            }
+          ],
+          "proposed_meaning": "해당 프로젝트의 명시된 종류의 사례 작성",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "yes",
+            "context_support": "yes",
+            "evidence_eligibility": "yes",
+            "citation_correct": "unknown"
+          },
+          "reference_fact_ids": [
+            "dev-person-01-f2"
+          ],
+          "supporting_record_ids": [
+            "e73915d0-b593-55d0-9736-b38e1451b3a9"
+          ],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "unresolved",
+          "rationale": "pending 합성 T 및 실제 적격 문맥과 일치하는 제안. 시간 범위는 이 개발 사례의 동일 프로젝트 맥락으로 읽음. 끝에 나열된 ID는 주장별 연결을 사람이 확인해야 함."
+        },
+        {
+          "unit_id": "u05",
+          "canonical_key": "작성 사례 총수 6건",
+          "quote": "1. 구현한 기능: 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 6건이다.",
+          "spans": [
+            {
+              "start": 0,
+              "end": 48
+            }
+          ],
+          "proposed_meaning": "작성 사례 총수 6건",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "yes",
+            "context_support": "yes",
+            "evidence_eligibility": "yes",
+            "citation_correct": "unknown"
+          },
+          "reference_fact_ids": [
+            "dev-person-01-f2"
+          ],
+          "supporting_record_ids": [
+            "e73915d0-b593-55d0-9736-b38e1451b3a9"
+          ],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "unresolved",
+          "rationale": "pending 합성 T 및 실제 적격 문맥과 일치하는 제안. 시간 범위는 이 개발 사례의 동일 프로젝트 맥락으로 읽음. 끝에 나열된 ID는 주장별 연결을 사람이 확인해야 함."
+        },
+        {
+          "unit_id": "u06",
+          "canonical_key": "교육 사실은 제공 문맥에서 확인할 수 없음",
+          "quote": "3. 이수 교육: 확인 불가.",
+          "spans": [
+            {
+              "start": 111,
+              "end": 127
+            }
+          ],
+          "proposed_meaning": "교육 사실은 제공 문맥에서 확인할 수 없음",
+          "proposed_kind": "abstention",
+          "proposed_axes": {
+            "factual_correctness": "not_applicable",
+            "context_support": "not_applicable",
+            "evidence_eligibility": "not_applicable",
+            "citation_correct": "not_applicable"
+          },
+          "reference_fact_ids": [],
+          "supporting_record_ids": [],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "unresolved",
+          "rationale": "C의 실제 문맥은 구현·점검 기록뿐이다. T에 교육 사실이 있어도 문맥상 확인 불가는 적절한 보류 후보."
+        }
+      ],
+      "proposed_full_coverage_fact_ids": [
+        "dev-person-01-f1",
+        "dev-person-01-f2"
+      ],
+      "open_issues": [
+        "끝나열 인용을 개별 주장에 연결하는 규칙. 단순 ID 존재로 citation=yes를 주지 않음."
+      ],
+      "notes": [
+        "구현·점검 제목 위치가 뒤바뀌었다. 문장 의미상 f1/f2는 일치하므로 형식 오류를 사실 오류로 중복 처리하지 않음.",
+        "요구된 별도 미확인 JD 항목 문장과 향후 학습 제안이 빠짐. 형식과 사실 판단을 분리."
+      ]
+    },
+    {
+      "run_id": "ed782af3-dc1b-4a0b-a915-393f03ff6f27",
+      "review_id": "11c68bce-f0ec-4698-90a0-e033bac1590c",
+      "case_id": "dev-person-01-valid_conflict",
+      "family_id": "dev-person-01",
+      "condition": "A_no_rag",
+      "status": "agent_draft_pending",
+      "human_review": null,
+      "segmentation_complete": false,
+      "result_sha256": "c08b6c300b671d5f86e3014a3c5abd5ba7c8ec04d0993d15c032bae46fc9f320",
+      "answer": "1. 구현: API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.\n2. 점검: 작성한 사례 수, 검증 수행, 통과, 숙련도 확인 불가.\n3. 교육: 과정, 시간 확인 불가.\n4. 확인 불가: 주니어 백엔드 개발 직무 요구 사항 중 일부 확인 불가.\n5. 향후 학습: 향후 학습 제안: 데이터 분석 및 트래픽 관리에 대한 자격증 취득.",
+      "request": "JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.",
+      "jd": "API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.",
+      "context": [],
+      "reference_facts": [
+        {
+          "fact_id": "dev-person-01-f1",
+          "entity_id": "dev-person-01-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-01-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-01-f2",
+          "entity_id": "dev-person-01-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-01-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-01-f3",
+          "entity_id": "dev-person-01-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-01-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-01-f4",
+          "entity_id": "dev-person-01-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 대여 상태 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-01-world"
+          ]
+        }
+      ],
+      "gold_status": "pending",
+      "eligible_record_ids": [
+        "f20b529e-1da1-54e3-9a48-2b633d3d6fe3",
+        "a682c39c-3086-5ac9-9cf1-fdfc7fc66d2e",
+        "00509923-2eb2-5cfa-88e4-1d6d5779fc30",
+        "0236a913-3397-5f11-85f8-dc22c1a059da"
+      ],
+      "response_cited_record_ids": [],
+      "output_tokens": 140,
+      "finish_reason": "eos",
+      "units": [
+        {
+          "unit_id": "u01",
+          "canonical_key": "JD 요구사항의 재진술; 보유 경력으로 채택했는지는 제목만으로 확정하지 않음",
+          "quote": "1. 구현: API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.",
+          "spans": [
+            {
+              "start": 0,
+              "end": 50
+            }
+          ],
+          "proposed_meaning": "JD 요구사항의 재진술; 보유 경력으로 채택했는지는 제목만으로 확정하지 않음",
+          "proposed_kind": "meta_or_ambiguous",
+          "proposed_axes": {
+            "factual_correctness": "unknown",
+            "context_support": "unknown",
+            "evidence_eligibility": "unknown",
+            "citation_correct": "unknown"
+          },
+          "reference_fact_ids": [],
+          "supporting_record_ids": [],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "none",
+          "rationale": "본문은 JD와 일치하지만 구현란에 놓였다. JD 지지와 credential 문맥 지지를 구분한다."
+        },
+        {
+          "unit_id": "u02",
+          "canonical_key": "확인 불가 표현 2: 제공 근거의 한계를 설명",
+          "quote": "2. 점검: 작성한 사례 수, 검증 수행, 통과, 숙련도 확인 불가.",
+          "spans": [
+            {
+              "start": 51,
+              "end": 89
+            }
+          ],
+          "proposed_meaning": "확인 불가 표현 2: 제공 근거의 한계를 설명",
+          "proposed_kind": "abstention",
+          "proposed_axes": {
+            "factual_correctness": "not_applicable",
+            "context_support": "not_applicable",
+            "evidence_eligibility": "not_applicable",
+            "citation_correct": "not_applicable"
+          },
+          "reference_fact_ids": [],
+          "supporting_record_ids": [],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "none",
+          "rationale": "실제 credential 문맥이 비어 있다. 경험이 없다는 주장으로 바꾸지 않는다."
+        },
+        {
+          "unit_id": "u03",
+          "canonical_key": "확인 불가 표현 3: 제공 근거의 한계를 설명",
+          "quote": "3. 교육: 과정, 시간 확인 불가.",
+          "spans": [
+            {
+              "start": 90,
+              "end": 110
+            }
+          ],
+          "proposed_meaning": "확인 불가 표현 3: 제공 근거의 한계를 설명",
+          "proposed_kind": "abstention",
+          "proposed_axes": {
+            "factual_correctness": "not_applicable",
+            "context_support": "not_applicable",
+            "evidence_eligibility": "not_applicable",
+            "citation_correct": "not_applicable"
+          },
+          "reference_fact_ids": [],
+          "supporting_record_ids": [],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "none",
+          "rationale": "실제 credential 문맥이 비어 있다. 경험이 없다는 주장으로 바꾸지 않는다."
+        },
+        {
+          "unit_id": "u04",
+          "canonical_key": "확인 불가 표현 4: 제공 근거의 한계를 설명",
+          "quote": "4. 확인 불가: 주니어 백엔드 개발 직무 요구 사항 중 일부 확인 불가.",
+          "spans": [
+            {
+              "start": 111,
+              "end": 152
+            }
+          ],
+          "proposed_meaning": "확인 불가 표현 4: 제공 근거의 한계를 설명",
+          "proposed_kind": "abstention",
+          "proposed_axes": {
+            "factual_correctness": "not_applicable",
+            "context_support": "not_applicable",
+            "evidence_eligibility": "not_applicable",
+            "citation_correct": "not_applicable"
+          },
+          "reference_fact_ids": [],
+          "supporting_record_ids": [],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "none",
+          "rationale": "실제 credential 문맥이 비어 있다. 경험이 없다는 주장으로 바꾸지 않는다."
+        },
+        {
+          "unit_id": "u05",
+          "canonical_key": "향후 학습 제안 또는 이미 정한 개인 계획",
+          "quote": "5. 향후 학습: 향후 학습 제안: 데이터 분석 및 트래픽 관리에 대한 자격증 취득.",
+          "spans": [
+            {
+              "start": 153,
+              "end": 200
+            }
+          ],
+          "proposed_meaning": "향후 학습 제안 또는 이미 정한 개인 계획",
+          "proposed_kind": "recommendation_or_ambiguous",
+          "proposed_axes": {
+            "factual_correctness": "not_applicable",
+            "context_support": "not_applicable",
+            "evidence_eligibility": "not_applicable",
+            "citation_correct": "not_applicable"
+          },
+          "reference_fact_ids": [],
+          "supporting_record_ids": [],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "none",
+          "rationale": "향후 학습 제목에 따른 제안 해석을 우선 제안한다. 실제 개인 계획의 단정이면 T 밖 unknown으로 분리해야 한다."
+        }
+      ],
+      "proposed_full_coverage_fact_ids": [],
+      "open_issues": [
+        "JD 재진술을 보유 사실 분모에 포함할지. 기본 제안: 포함 보류.",
+        "미래형 문장의 제안/기존 개인 계획 구분을 모든 답변에 일관되게 적용."
+      ],
+      "notes": [
+        "경력 사실 전체 보류 후보. 구현란 JD 재진술 때문에 behavior 최종값은 미확정.",
+        "구현 항목을 명확히 확인 불가라고 쓰지 않아 형식·과제 이행 문제를 별도 기록."
+      ]
+    },
+    {
+      "run_id": "d495f6ef-821d-486f-8157-448e6e96cec9",
+      "review_id": "1ec94ddc-f41f-4370-90ab-70cd8cef2c7b",
+      "case_id": "dev-person-01-valid_conflict",
+      "family_id": "dev-person-01",
+      "condition": "B_naive_rag",
+      "status": "agent_draft_pending",
+      "human_review": null,
+      "segmentation_complete": false,
+      "result_sha256": "bc5f89f3f967e2001d35a537894a8a68ac4042021020fa748600f90f4d7cbc8a",
+      "answer": "1. 구현한 기능: 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총 3개.\n2. 점검 또는 검증 활동: 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총 6건.\n3. 이수 교육: 도서 대여 실습 과정에서 이수한 84시간의 교육 시간.\n\n해당 record_id: 0236a913-3397-5f11-85f8-dc22c1a059da\n\n미확인: 테스트 사례 수: 2\n\n향후 학습 제안: 향후 Java 프로그래밍에 대한 공부를 계획하고, 도서 대여 프로젝트에서 사용한 기술을 활용한 다른 프로젝트에 참여할 예정이다.",
+      "request": "JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.",
+      "jd": "API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.",
+      "context": [
+        {
+          "record_id": "00509923-2eb2-5cfa-88e4-1d6d5779fc30",
+          "text": "{\"achievement\": {\"criteria_narrative\": \"기록된 활동 내용에 대한 발급 기록.\", \"description\": \"2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.\", \"name\": \"도서 대여 교육 기록\"}, \"awarded_date\": \"2025-06-01T00:00:00Z\", \"issued_at\": \"2025-06-01T00:00:00Z\", \"issuer\": {\"name\": \"교육기록센터 EAST\"}, \"record_id\": \"00509923-2eb2-5cfa-88e4-1d6d5779fc30\", \"skills\": []}",
+          "evidence": {
+            "achievement": {
+              "criteria_narrative": "기록된 활동 내용에 대한 발급 기록.",
+              "description": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.",
+              "name": "도서 대여 교육 기록"
+            },
+            "awarded_date": "2025-06-01T00:00:00Z",
+            "issued_at": "2025-06-01T00:00:00Z",
+            "issuer": {
+              "name": "교육기록센터 EAST"
+            },
+            "record_id": "00509923-2eb2-5cfa-88e4-1d6d5779fc30",
+            "skills": []
+          }
+        },
+        {
+          "record_id": "a682c39c-3086-5ac9-9cf1-fdfc7fc66d2e",
+          "text": "{\"achievement\": {\"criteria_narrative\": \"기록된 활동 내용에 대한 발급 기록.\", \"description\": \"2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.\", \"name\": \"도서 대여 점검 기록\"}, \"awarded_date\": \"2025-06-01T00:00:00Z\", \"issued_at\": \"2025-06-01T00:00:00Z\", \"issuer\": {\"name\": \"교육기록센터 WEST\"}, \"record_id\": \"a682c39c-3086-5ac9-9cf1-fdfc7fc66d2e\", \"skills\": []}",
+          "evidence": {
+            "achievement": {
+              "criteria_narrative": "기록된 활동 내용에 대한 발급 기록.",
+              "description": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.",
+              "name": "도서 대여 점검 기록"
+            },
+            "awarded_date": "2025-06-01T00:00:00Z",
+            "issued_at": "2025-06-01T00:00:00Z",
+            "issuer": {
+              "name": "교육기록센터 WEST"
+            },
+            "record_id": "a682c39c-3086-5ac9-9cf1-fdfc7fc66d2e",
+            "skills": []
+          }
+        },
+        {
+          "record_id": "0236a913-3397-5f11-85f8-dc22c1a059da",
+          "text": "{\"achievement\": {\"criteria_narrative\": \"기록된 활동 내용에 대한 발급 기록.\", \"description\": \"2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 84시간이다.\", \"name\": \"도서 대여 교육 기록\"}, \"awarded_date\": \"2025-06-01T00:00:00Z\", \"issued_at\": \"2025-06-01T00:00:00Z\", \"issuer\": {\"name\": \"교육기록센터 WEST\"}, \"record_id\": \"0236a913-3397-5f11-85f8-dc22c1a059da\", \"skills\": []}",
+          "evidence": {
+            "achievement": {
+              "criteria_narrative": "기록된 활동 내용에 대한 발급 기록.",
+              "description": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 84시간이다.",
+              "name": "도서 대여 교육 기록"
+            },
+            "awarded_date": "2025-06-01T00:00:00Z",
+            "issued_at": "2025-06-01T00:00:00Z",
+            "issuer": {
+              "name": "교육기록센터 WEST"
+            },
+            "record_id": "0236a913-3397-5f11-85f8-dc22c1a059da",
+            "skills": []
+          }
+        },
+        {
+          "record_id": "f20b529e-1da1-54e3-9a48-2b633d3d6fe3",
+          "text": "{\"achievement\": {\"criteria_narrative\": \"기록된 활동 내용에 대한 발급 기록.\", \"description\": \"2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.\", \"name\": \"도서 대여 구현 기록\"}, \"awarded_date\": \"2025-06-01T00:00:00Z\", \"issued_at\": \"2025-06-01T00:00:00Z\", \"issuer\": {\"name\": \"교육기록센터 EAST\"}, \"record_id\": \"f20b529e-1da1-54e3-9a48-2b633d3d6fe3\", \"skills\": []}",
+          "evidence": {
+            "achievement": {
+              "criteria_narrative": "기록된 활동 내용에 대한 발급 기록.",
+              "description": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.",
+              "name": "도서 대여 구현 기록"
+            },
+            "awarded_date": "2025-06-01T00:00:00Z",
+            "issued_at": "2025-06-01T00:00:00Z",
+            "issuer": {
+              "name": "교육기록센터 EAST"
+            },
+            "record_id": "f20b529e-1da1-54e3-9a48-2b633d3d6fe3",
+            "skills": []
+          }
+        }
+      ],
+      "reference_facts": [
+        {
+          "fact_id": "dev-person-01-f1",
+          "entity_id": "dev-person-01-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-01-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-01-f2",
+          "entity_id": "dev-person-01-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-01-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-01-f3",
+          "entity_id": "dev-person-01-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-01-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-01-f4",
+          "entity_id": "dev-person-01-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 대여 상태 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-01-world"
+          ]
+        }
+      ],
+      "gold_status": "pending",
+      "eligible_record_ids": [
+        "f20b529e-1da1-54e3-9a48-2b633d3d6fe3",
+        "a682c39c-3086-5ac9-9cf1-fdfc7fc66d2e",
+        "00509923-2eb2-5cfa-88e4-1d6d5779fc30",
+        "0236a913-3397-5f11-85f8-dc22c1a059da"
+      ],
+      "response_cited_record_ids": [
+        "0236a913-3397-5f11-85f8-dc22c1a059da"
+      ],
+      "output_tokens": 212,
+      "finish_reason": "eos",
+      "units": [
+        {
+          "unit_id": "u01",
+          "canonical_key": "해당 프로젝트의 기능 구현 활동",
+          "quote": "1. 구현한 기능: 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총 3개.",
+          "spans": [
+            {
+              "start": 0,
+              "end": 52
+            }
+          ],
+          "proposed_meaning": "해당 프로젝트의 기능 구현 활동",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "yes",
+            "context_support": "yes",
+            "evidence_eligibility": "yes",
+            "citation_correct": "no"
+          },
+          "reference_fact_ids": [
+            "dev-person-01-f1"
+          ],
+          "supporting_record_ids": [
+            "f20b529e-1da1-54e3-9a48-2b633d3d6fe3"
+          ],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "unresolved",
+          "rationale": "pending 합성 T 및 실제 적격 문맥과 일치하는 제안. 시간 범위는 이 개발 사례의 동일 프로젝트 맥락으로 읽음. 유일한 인용 ID는 교육 문서로 이 주장을 지지하지 않음."
+        },
+        {
+          "unit_id": "u02",
+          "canonical_key": "구현에 Java 사용",
+          "quote": "1. 구현한 기능: 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총 3개.",
+          "spans": [
+            {
+              "start": 0,
+              "end": 52
+            }
+          ],
+          "proposed_meaning": "구현에 Java 사용",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "yes",
+            "context_support": "yes",
+            "evidence_eligibility": "yes",
+            "citation_correct": "no"
+          },
+          "reference_fact_ids": [
+            "dev-person-01-f1"
+          ],
+          "supporting_record_ids": [
+            "f20b529e-1da1-54e3-9a48-2b633d3d6fe3"
+          ],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "unresolved",
+          "rationale": "pending 합성 T 및 실제 적격 문맥과 일치하는 제안. 시간 범위는 이 개발 사례의 동일 프로젝트 맥락으로 읽음. 유일한 인용 ID는 교육 문서로 이 주장을 지지하지 않음."
+        },
+        {
+          "unit_id": "u03",
+          "canonical_key": "구현 기능 총수 3개",
+          "quote": "1. 구현한 기능: 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총 3개.",
+          "spans": [
+            {
+              "start": 0,
+              "end": 52
+            }
+          ],
+          "proposed_meaning": "구현 기능 총수 3개",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "yes",
+            "context_support": "yes",
+            "evidence_eligibility": "yes",
+            "citation_correct": "no"
+          },
+          "reference_fact_ids": [
+            "dev-person-01-f1"
+          ],
+          "supporting_record_ids": [
+            "f20b529e-1da1-54e3-9a48-2b633d3d6fe3"
+          ],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "unresolved",
+          "rationale": "pending 합성 T 및 실제 적격 문맥과 일치하는 제안. 시간 범위는 이 개발 사례의 동일 프로젝트 맥락으로 읽음. 유일한 인용 ID는 교육 문서로 이 주장을 지지하지 않음."
+        },
+        {
+          "unit_id": "u04",
+          "canonical_key": "해당 프로젝트의 명시된 종류의 사례 작성",
+          "quote": "2. 점검 또는 검증 활동: 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총 6건.",
+          "spans": [
+            {
+              "start": 53,
+              "end": 102
+            }
+          ],
+          "proposed_meaning": "해당 프로젝트의 명시된 종류의 사례 작성",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "yes",
+            "context_support": "yes",
+            "evidence_eligibility": "yes",
+            "citation_correct": "no"
+          },
+          "reference_fact_ids": [
+            "dev-person-01-f2"
+          ],
+          "supporting_record_ids": [
+            "a682c39c-3086-5ac9-9cf1-fdfc7fc66d2e"
+          ],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "unresolved",
+          "rationale": "pending 합성 T 및 실제 적격 문맥과 일치하는 제안. 시간 범위는 이 개발 사례의 동일 프로젝트 맥락으로 읽음. 유일한 인용 ID는 교육 문서로 이 주장을 지지하지 않음."
+        },
+        {
+          "unit_id": "u05",
+          "canonical_key": "작성 사례 총수 6건",
+          "quote": "2. 점검 또는 검증 활동: 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총 6건.",
+          "spans": [
+            {
+              "start": 53,
+              "end": 102
+            }
+          ],
+          "proposed_meaning": "작성 사례 총수 6건",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "yes",
+            "context_support": "yes",
+            "evidence_eligibility": "yes",
+            "citation_correct": "no"
+          },
+          "reference_fact_ids": [
+            "dev-person-01-f2"
+          ],
+          "supporting_record_ids": [
+            "a682c39c-3086-5ac9-9cf1-fdfc7fc66d2e"
+          ],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "unresolved",
+          "rationale": "pending 합성 T 및 실제 적격 문맥과 일치하는 제안. 시간 범위는 이 개발 사례의 동일 프로젝트 맥락으로 읽음. 유일한 인용 ID는 교육 문서로 이 주장을 지지하지 않음."
+        },
+        {
+          "unit_id": "u06",
+          "canonical_key": "해당 교육 과정 이수",
+          "quote": "3. 이수 교육: 도서 대여 실습 과정에서 이수한 84시간의 교육 시간.",
+          "spans": [
+            {
+              "start": 103,
+              "end": 143
+            }
+          ],
+          "proposed_meaning": "해당 교육 과정 이수",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "yes",
+            "context_support": "yes",
+            "evidence_eligibility": "yes",
+            "citation_correct": "unknown"
+          },
+          "reference_fact_ids": [
+            "dev-person-01-f3"
+          ],
+          "supporting_record_ids": [
+            "0236a913-3397-5f11-85f8-dc22c1a059da"
+          ],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "unresolved",
+          "rationale": "T는 24시간 이수를 명시. 과정 이수 여부와 시간 수치를 분리한다. 84시간 기록을 실제 문맥에서 확인했다. 이 문서도 정책 적격이다. 적격성을 사실 진실성과 동일시하지 않음."
+        },
+        {
+          "unit_id": "u07",
+          "canonical_key": "해당 단일 교육 총 이수시간 84시간",
+          "quote": "3. 이수 교육: 도서 대여 실습 과정에서 이수한 84시간의 교육 시간.",
+          "spans": [
+            {
+              "start": 103,
+              "end": 143
+            }
+          ],
+          "proposed_meaning": "해당 단일 교육 총 이수시간 84시간",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "no",
+            "context_support": "yes",
+            "evidence_eligibility": "yes",
+            "citation_correct": "unknown"
+          },
+          "reference_fact_ids": [
+            "dev-person-01-f3"
+          ],
+          "supporting_record_ids": [
+            "0236a913-3397-5f11-85f8-dc22c1a059da"
+          ],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "unresolved",
+          "rationale": "T는 24시간 이수를 명시. 과정 이수 여부와 시간 수치를 분리한다. 84시간 기록을 실제 문맥에서 확인했다. 이 문서도 정책 적격이다. 적격성을 사실 진실성과 동일시하지 않음."
+        },
+        {
+          "unit_id": "u08",
+          "canonical_key": "테스트 사례 수 2의 의미: 총수 단정 또는 미확인 항목 표시",
+          "quote": "미확인: 테스트 사례 수: 2",
+          "spans": [
+            {
+              "start": 197,
+              "end": 213
+            }
+          ],
+          "proposed_meaning": "테스트 사례 수 2의 의미: 총수 단정 또는 미확인 항목 표시",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "unknown",
+            "context_support": "no",
+            "evidence_eligibility": "unknown",
+            "citation_correct": "no"
+          },
+          "reference_fact_ids": [
+            "dev-person-01-f2"
+          ],
+          "supporting_record_ids": [],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "unresolved",
+          "rationale": "T/문맥은 사례6건이다. 그러나 미확인 제목 때문에 총수2건 단정으로 확정하기 어렵다. 총수 단정이면 factual=no; 미확인 항목이면 abstention/meta로 별도 처리."
+        },
+        {
+          "unit_id": "u09",
+          "canonical_key": "Java 학습 및 다른 프로젝트 참여의 제안/미래 계획",
+          "quote": "향후 학습 제안: 향후 Java 프로그래밍에 대한 공부를 계획하고, 도서 대여 프로젝트에서 사용한 기술을 활용한 다른 프로젝트에 참여할 예정이다.",
+          "spans": [
+            {
+              "start": 215,
+              "end": 296
+            }
+          ],
+          "proposed_meaning": "Java 학습 및 다른 프로젝트 참여의 제안/미래 계획",
+          "proposed_kind": "recommendation_or_ambiguous",
+          "proposed_axes": {
+            "factual_correctness": "not_applicable",
+            "context_support": "not_applicable",
+            "evidence_eligibility": "not_applicable",
+            "citation_correct": "not_applicable"
+          },
+          "reference_fact_ids": [],
+          "supporting_record_ids": [],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "unresolved",
+          "rationale": "제안 제목에 따른 권고 해석을 우선 제안. 이미 확정된 개인 계획으로 읽으면 두 계획 주장을 분리하고 unknown 처리."
+        }
+      ],
+      "proposed_full_coverage_fact_ids": [
+        "dev-person-01-f1",
+        "dev-person-01-f2"
+      ],
+      "open_issues": [
+        "미확인: 테스트 사례 수:2의 의미와 사실 분모 포함 여부.",
+        "미래형 문장의 제안/기존 개인 계획 구분을 모든 답변에 일관되게 적용.",
+        "끝나열 인용을 개별 주장에 연결하는 규칙. 단순 ID 존재로 citation=yes를 주지 않음."
+      ],
+      "notes": [
+        "과정 이수 부분이 참이어도 시간 수치가 틀려 f3 full coverage는 인정하지 않는 안.",
+        "24/84시간의 동시 노출에도 충돌 표시 없이84시간 선택. B/C의 답변·문맥 동일성을 별도 확인."
+      ]
+    },
+    {
+      "run_id": "afa3087f-defe-4638-acec-3773d86b9caa",
+      "review_id": "cea79700-3801-4d0c-8417-42bb4564bb61",
+      "case_id": "dev-person-01-valid_conflict",
+      "family_id": "dev-person-01",
+      "condition": "C_verified_rag",
+      "status": "agent_draft_pending",
+      "human_review": null,
+      "segmentation_complete": false,
+      "result_sha256": "7b75f9c29d486b9cfceebb1dd6563669add2620aa94f68375afd014f29b908ed",
+      "answer": "1. 구현한 기능: 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총 3개.\n2. 점검 또는 검증 활동: 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총 6건.\n3. 이수 교육: 도서 대여 실습 과정에서 이수한 84시간의 교육 시간.\n\n해당 record_id: 0236a913-3397-5f11-85f8-dc22c1a059da\n\n미확인: 테스트 사례 수: 2\n\n향후 학습 제안: 향후 Java 프로그래밍에 대한 공부를 계획하고, 도서 대여 프로젝트에서 사용한 기술을 활용한 다른 프로젝트에 참여할 예정이다.",
+      "request": "JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.",
+      "jd": "API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.",
+      "context": [
+        {
+          "record_id": "00509923-2eb2-5cfa-88e4-1d6d5779fc30",
+          "text": "{\"achievement\": {\"criteria_narrative\": \"기록된 활동 내용에 대한 발급 기록.\", \"description\": \"2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.\", \"name\": \"도서 대여 교육 기록\"}, \"awarded_date\": \"2025-06-01T00:00:00Z\", \"issued_at\": \"2025-06-01T00:00:00Z\", \"issuer\": {\"name\": \"교육기록센터 EAST\"}, \"record_id\": \"00509923-2eb2-5cfa-88e4-1d6d5779fc30\", \"skills\": []}",
+          "evidence": {
+            "achievement": {
+              "criteria_narrative": "기록된 활동 내용에 대한 발급 기록.",
+              "description": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.",
+              "name": "도서 대여 교육 기록"
+            },
+            "awarded_date": "2025-06-01T00:00:00Z",
+            "issued_at": "2025-06-01T00:00:00Z",
+            "issuer": {
+              "name": "교육기록센터 EAST"
+            },
+            "record_id": "00509923-2eb2-5cfa-88e4-1d6d5779fc30",
+            "skills": []
+          }
+        },
+        {
+          "record_id": "a682c39c-3086-5ac9-9cf1-fdfc7fc66d2e",
+          "text": "{\"achievement\": {\"criteria_narrative\": \"기록된 활동 내용에 대한 발급 기록.\", \"description\": \"2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.\", \"name\": \"도서 대여 점검 기록\"}, \"awarded_date\": \"2025-06-01T00:00:00Z\", \"issued_at\": \"2025-06-01T00:00:00Z\", \"issuer\": {\"name\": \"교육기록센터 WEST\"}, \"record_id\": \"a682c39c-3086-5ac9-9cf1-fdfc7fc66d2e\", \"skills\": []}",
+          "evidence": {
+            "achievement": {
+              "criteria_narrative": "기록된 활동 내용에 대한 발급 기록.",
+              "description": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.",
+              "name": "도서 대여 점검 기록"
+            },
+            "awarded_date": "2025-06-01T00:00:00Z",
+            "issued_at": "2025-06-01T00:00:00Z",
+            "issuer": {
+              "name": "교육기록센터 WEST"
+            },
+            "record_id": "a682c39c-3086-5ac9-9cf1-fdfc7fc66d2e",
+            "skills": []
+          }
+        },
+        {
+          "record_id": "0236a913-3397-5f11-85f8-dc22c1a059da",
+          "text": "{\"achievement\": {\"criteria_narrative\": \"기록된 활동 내용에 대한 발급 기록.\", \"description\": \"2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 84시간이다.\", \"name\": \"도서 대여 교육 기록\"}, \"awarded_date\": \"2025-06-01T00:00:00Z\", \"issued_at\": \"2025-06-01T00:00:00Z\", \"issuer\": {\"name\": \"교육기록센터 WEST\"}, \"record_id\": \"0236a913-3397-5f11-85f8-dc22c1a059da\", \"skills\": []}",
+          "evidence": {
+            "achievement": {
+              "criteria_narrative": "기록된 활동 내용에 대한 발급 기록.",
+              "description": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 84시간이다.",
+              "name": "도서 대여 교육 기록"
+            },
+            "awarded_date": "2025-06-01T00:00:00Z",
+            "issued_at": "2025-06-01T00:00:00Z",
+            "issuer": {
+              "name": "교육기록센터 WEST"
+            },
+            "record_id": "0236a913-3397-5f11-85f8-dc22c1a059da",
+            "skills": []
+          }
+        },
+        {
+          "record_id": "f20b529e-1da1-54e3-9a48-2b633d3d6fe3",
+          "text": "{\"achievement\": {\"criteria_narrative\": \"기록된 활동 내용에 대한 발급 기록.\", \"description\": \"2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.\", \"name\": \"도서 대여 구현 기록\"}, \"awarded_date\": \"2025-06-01T00:00:00Z\", \"issued_at\": \"2025-06-01T00:00:00Z\", \"issuer\": {\"name\": \"교육기록센터 EAST\"}, \"record_id\": \"f20b529e-1da1-54e3-9a48-2b633d3d6fe3\", \"skills\": []}",
+          "evidence": {
+            "achievement": {
+              "criteria_narrative": "기록된 활동 내용에 대한 발급 기록.",
+              "description": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.",
+              "name": "도서 대여 구현 기록"
+            },
+            "awarded_date": "2025-06-01T00:00:00Z",
+            "issued_at": "2025-06-01T00:00:00Z",
+            "issuer": {
+              "name": "교육기록센터 EAST"
+            },
+            "record_id": "f20b529e-1da1-54e3-9a48-2b633d3d6fe3",
+            "skills": []
+          }
+        }
+      ],
+      "reference_facts": [
+        {
+          "fact_id": "dev-person-01-f1",
+          "entity_id": "dev-person-01-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-01-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-01-f2",
+          "entity_id": "dev-person-01-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-01-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-01-f3",
+          "entity_id": "dev-person-01-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-01-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-01-f4",
+          "entity_id": "dev-person-01-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 도서 대여 프로젝트에서 대여 상태 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-01-world"
+          ]
+        }
+      ],
+      "gold_status": "pending",
+      "eligible_record_ids": [
+        "f20b529e-1da1-54e3-9a48-2b633d3d6fe3",
+        "a682c39c-3086-5ac9-9cf1-fdfc7fc66d2e",
+        "00509923-2eb2-5cfa-88e4-1d6d5779fc30",
+        "0236a913-3397-5f11-85f8-dc22c1a059da"
+      ],
+      "response_cited_record_ids": [
+        "0236a913-3397-5f11-85f8-dc22c1a059da"
+      ],
+      "output_tokens": 212,
+      "finish_reason": "eos",
+      "units": [
+        {
+          "unit_id": "u01",
+          "canonical_key": "해당 프로젝트의 기능 구현 활동",
+          "quote": "1. 구현한 기능: 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총 3개.",
+          "spans": [
+            {
+              "start": 0,
+              "end": 52
+            }
+          ],
+          "proposed_meaning": "해당 프로젝트의 기능 구현 활동",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "yes",
+            "context_support": "yes",
+            "evidence_eligibility": "yes",
+            "citation_correct": "no"
+          },
+          "reference_fact_ids": [
+            "dev-person-01-f1"
+          ],
+          "supporting_record_ids": [
+            "f20b529e-1da1-54e3-9a48-2b633d3d6fe3"
+          ],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "unresolved",
+          "rationale": "pending 합성 T 및 실제 적격 문맥과 일치하는 제안. 시간 범위는 이 개발 사례의 동일 프로젝트 맥락으로 읽음. 유일한 인용 ID는 교육 문서로 이 주장을 지지하지 않음."
+        },
+        {
+          "unit_id": "u02",
+          "canonical_key": "구현에 Java 사용",
+          "quote": "1. 구현한 기능: 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총 3개.",
+          "spans": [
+            {
+              "start": 0,
+              "end": 52
+            }
+          ],
+          "proposed_meaning": "구현에 Java 사용",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "yes",
+            "context_support": "yes",
+            "evidence_eligibility": "yes",
+            "citation_correct": "no"
+          },
+          "reference_fact_ids": [
+            "dev-person-01-f1"
+          ],
+          "supporting_record_ids": [
+            "f20b529e-1da1-54e3-9a48-2b633d3d6fe3"
+          ],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "unresolved",
+          "rationale": "pending 합성 T 및 실제 적격 문맥과 일치하는 제안. 시간 범위는 이 개발 사례의 동일 프로젝트 맥락으로 읽음. 유일한 인용 ID는 교육 문서로 이 주장을 지지하지 않음."
+        },
+        {
+          "unit_id": "u03",
+          "canonical_key": "구현 기능 총수 3개",
+          "quote": "1. 구현한 기능: 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총 3개.",
+          "spans": [
+            {
+              "start": 0,
+              "end": 52
+            }
+          ],
+          "proposed_meaning": "구현 기능 총수 3개",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "yes",
+            "context_support": "yes",
+            "evidence_eligibility": "yes",
+            "citation_correct": "no"
+          },
+          "reference_fact_ids": [
+            "dev-person-01-f1"
+          ],
+          "supporting_record_ids": [
+            "f20b529e-1da1-54e3-9a48-2b633d3d6fe3"
+          ],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "unresolved",
+          "rationale": "pending 합성 T 및 실제 적격 문맥과 일치하는 제안. 시간 범위는 이 개발 사례의 동일 프로젝트 맥락으로 읽음. 유일한 인용 ID는 교육 문서로 이 주장을 지지하지 않음."
+        },
+        {
+          "unit_id": "u04",
+          "canonical_key": "해당 프로젝트의 명시된 종류의 사례 작성",
+          "quote": "2. 점검 또는 검증 활동: 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총 6건.",
+          "spans": [
+            {
+              "start": 53,
+              "end": 102
+            }
+          ],
+          "proposed_meaning": "해당 프로젝트의 명시된 종류의 사례 작성",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "yes",
+            "context_support": "yes",
+            "evidence_eligibility": "yes",
+            "citation_correct": "no"
+          },
+          "reference_fact_ids": [
+            "dev-person-01-f2"
+          ],
+          "supporting_record_ids": [
+            "a682c39c-3086-5ac9-9cf1-fdfc7fc66d2e"
+          ],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "unresolved",
+          "rationale": "pending 합성 T 및 실제 적격 문맥과 일치하는 제안. 시간 범위는 이 개발 사례의 동일 프로젝트 맥락으로 읽음. 유일한 인용 ID는 교육 문서로 이 주장을 지지하지 않음."
+        },
+        {
+          "unit_id": "u05",
+          "canonical_key": "작성 사례 총수 6건",
+          "quote": "2. 점검 또는 검증 활동: 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총 6건.",
+          "spans": [
+            {
+              "start": 53,
+              "end": 102
+            }
+          ],
+          "proposed_meaning": "작성 사례 총수 6건",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "yes",
+            "context_support": "yes",
+            "evidence_eligibility": "yes",
+            "citation_correct": "no"
+          },
+          "reference_fact_ids": [
+            "dev-person-01-f2"
+          ],
+          "supporting_record_ids": [
+            "a682c39c-3086-5ac9-9cf1-fdfc7fc66d2e"
+          ],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "unresolved",
+          "rationale": "pending 합성 T 및 실제 적격 문맥과 일치하는 제안. 시간 범위는 이 개발 사례의 동일 프로젝트 맥락으로 읽음. 유일한 인용 ID는 교육 문서로 이 주장을 지지하지 않음."
+        },
+        {
+          "unit_id": "u06",
+          "canonical_key": "해당 교육 과정 이수",
+          "quote": "3. 이수 교육: 도서 대여 실습 과정에서 이수한 84시간의 교육 시간.",
+          "spans": [
+            {
+              "start": 103,
+              "end": 143
+            }
+          ],
+          "proposed_meaning": "해당 교육 과정 이수",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "yes",
+            "context_support": "yes",
+            "evidence_eligibility": "yes",
+            "citation_correct": "unknown"
+          },
+          "reference_fact_ids": [
+            "dev-person-01-f3"
+          ],
+          "supporting_record_ids": [
+            "0236a913-3397-5f11-85f8-dc22c1a059da"
+          ],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "unresolved",
+          "rationale": "T는 24시간 이수를 명시. 과정 이수 여부와 시간 수치를 분리한다. 84시간 기록을 실제 문맥에서 확인했다. 이 문서도 정책 적격이다. 적격성을 사실 진실성과 동일시하지 않음."
+        },
+        {
+          "unit_id": "u07",
+          "canonical_key": "해당 단일 교육 총 이수시간 84시간",
+          "quote": "3. 이수 교육: 도서 대여 실습 과정에서 이수한 84시간의 교육 시간.",
+          "spans": [
+            {
+              "start": 103,
+              "end": 143
+            }
+          ],
+          "proposed_meaning": "해당 단일 교육 총 이수시간 84시간",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "no",
+            "context_support": "yes",
+            "evidence_eligibility": "yes",
+            "citation_correct": "unknown"
+          },
+          "reference_fact_ids": [
+            "dev-person-01-f3"
+          ],
+          "supporting_record_ids": [
+            "0236a913-3397-5f11-85f8-dc22c1a059da"
+          ],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "unresolved",
+          "rationale": "T는 24시간 이수를 명시. 과정 이수 여부와 시간 수치를 분리한다. 84시간 기록을 실제 문맥에서 확인했다. 이 문서도 정책 적격이다. 적격성을 사실 진실성과 동일시하지 않음."
+        },
+        {
+          "unit_id": "u08",
+          "canonical_key": "테스트 사례 수 2의 의미: 총수 단정 또는 미확인 항목 표시",
+          "quote": "미확인: 테스트 사례 수: 2",
+          "spans": [
+            {
+              "start": 197,
+              "end": 213
+            }
+          ],
+          "proposed_meaning": "테스트 사례 수 2의 의미: 총수 단정 또는 미확인 항목 표시",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "unknown",
+            "context_support": "no",
+            "evidence_eligibility": "unknown",
+            "citation_correct": "no"
+          },
+          "reference_fact_ids": [
+            "dev-person-01-f2"
+          ],
+          "supporting_record_ids": [],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "unresolved",
+          "rationale": "T/문맥은 사례6건이다. 그러나 미확인 제목 때문에 총수2건 단정으로 확정하기 어렵다. 총수 단정이면 factual=no; 미확인 항목이면 abstention/meta로 별도 처리."
+        },
+        {
+          "unit_id": "u09",
+          "canonical_key": "Java 학습 및 다른 프로젝트 참여의 제안/미래 계획",
+          "quote": "향후 학습 제안: 향후 Java 프로그래밍에 대한 공부를 계획하고, 도서 대여 프로젝트에서 사용한 기술을 활용한 다른 프로젝트에 참여할 예정이다.",
+          "spans": [
+            {
+              "start": 215,
+              "end": 296
+            }
+          ],
+          "proposed_meaning": "Java 학습 및 다른 프로젝트 참여의 제안/미래 계획",
+          "proposed_kind": "recommendation_or_ambiguous",
+          "proposed_axes": {
+            "factual_correctness": "not_applicable",
+            "context_support": "not_applicable",
+            "evidence_eligibility": "not_applicable",
+            "citation_correct": "not_applicable"
+          },
+          "reference_fact_ids": [],
+          "supporting_record_ids": [],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "unresolved",
+          "rationale": "제안 제목에 따른 권고 해석을 우선 제안. 이미 확정된 개인 계획으로 읽으면 두 계획 주장을 분리하고 unknown 처리."
+        }
+      ],
+      "proposed_full_coverage_fact_ids": [
+        "dev-person-01-f1",
+        "dev-person-01-f2"
+      ],
+      "open_issues": [
+        "미확인: 테스트 사례 수:2의 의미와 사실 분모 포함 여부.",
+        "미래형 문장의 제안/기존 개인 계획 구분을 모든 답변에 일관되게 적용.",
+        "끝나열 인용을 개별 주장에 연결하는 규칙. 단순 ID 존재로 citation=yes를 주지 않음."
+      ],
+      "notes": [
+        "과정 이수 부분이 참이어도 시간 수치가 틀려 f3 full coverage는 인정하지 않는 안.",
+        "24/84시간의 동시 노출에도 충돌 표시 없이84시간 선택. B/C의 답변·문맥 동일성을 별도 확인."
+      ]
+    },
+    {
+      "run_id": "b736b44b-e6bc-4287-a4e5-816640b29fdc",
+      "review_id": "7c2763f1-170e-4206-9b53-8ccf51c4ad08",
+      "case_id": "dev-person-02-forged_signature",
+      "family_id": "dev-person-02",
+      "condition": "A_no_rag",
+      "status": "agent_draft_pending",
+      "human_review": null,
+      "segmentation_complete": false,
+      "result_sha256": "0aadf0df474dda95d8ba484275b8df2860e5ac780ab5b25a7bd2cfa7545a2d4d",
+      "answer": "1. 구현: 데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.\n2. 점검: 작성한 사례 수, 확인 불가.\n3. 교육: 과정, 시간, 확인 불가.\n4. 확인 불가.\n5. 향후 학습: 데이터 분석 기술을 습득하고 업데이트할 예정.",
+      "request": "JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.",
+      "jd": "데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.",
+      "context": [],
+      "reference_facts": [
+        {
+          "fact_id": "dev-person-02-f1",
+          "entity_id": "dev-person-02-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-02-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-02-f2",
+          "entity_id": "dev-person-02-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-02-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-02-f3",
+          "entity_id": "dev-person-02-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 18시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-02-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-02-f4",
+          "entity_id": "dev-person-02-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 월별 이용량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-02-world"
+          ]
+        }
+      ],
+      "gold_status": "pending",
+      "eligible_record_ids": [
+        "377551cd-cc47-5555-99a1-a10d9220c3be",
+        "38dfd4b9-967e-5974-8ed2-631d888f02b8"
+      ],
+      "response_cited_record_ids": [],
+      "output_tokens": 94,
+      "finish_reason": "eos",
+      "units": [
+        {
+          "unit_id": "u01",
+          "canonical_key": "JD 요구사항의 재진술; 보유 경력으로 채택했는지는 제목만으로 확정하지 않음",
+          "quote": "1. 구현: 데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.",
+          "spans": [
+            {
+              "start": 0,
+              "end": 48
+            }
+          ],
+          "proposed_meaning": "JD 요구사항의 재진술; 보유 경력으로 채택했는지는 제목만으로 확정하지 않음",
+          "proposed_kind": "meta_or_ambiguous",
+          "proposed_axes": {
+            "factual_correctness": "unknown",
+            "context_support": "unknown",
+            "evidence_eligibility": "unknown",
+            "citation_correct": "unknown"
+          },
+          "reference_fact_ids": [],
+          "supporting_record_ids": [],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "none",
+          "rationale": "본문은 JD와 일치하지만 구현란에 놓였다. JD 지지와 credential 문맥 지지를 구분한다."
+        },
+        {
+          "unit_id": "u02",
+          "canonical_key": "확인 불가 표현 2: 제공 근거의 한계를 설명",
+          "quote": "2. 점검: 작성한 사례 수, 확인 불가.",
+          "spans": [
+            {
+              "start": 49,
+              "end": 72
+            }
+          ],
+          "proposed_meaning": "확인 불가 표현 2: 제공 근거의 한계를 설명",
+          "proposed_kind": "abstention",
+          "proposed_axes": {
+            "factual_correctness": "not_applicable",
+            "context_support": "not_applicable",
+            "evidence_eligibility": "not_applicable",
+            "citation_correct": "not_applicable"
+          },
+          "reference_fact_ids": [],
+          "supporting_record_ids": [],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "none",
+          "rationale": "실제 credential 문맥이 비어 있다. 경험이 없다는 주장으로 바꾸지 않는다."
+        },
+        {
+          "unit_id": "u03",
+          "canonical_key": "확인 불가 표현 3: 제공 근거의 한계를 설명",
+          "quote": "3. 교육: 과정, 시간, 확인 불가.",
+          "spans": [
+            {
+              "start": 73,
+              "end": 94
+            }
+          ],
+          "proposed_meaning": "확인 불가 표현 3: 제공 근거의 한계를 설명",
+          "proposed_kind": "abstention",
+          "proposed_axes": {
+            "factual_correctness": "not_applicable",
+            "context_support": "not_applicable",
+            "evidence_eligibility": "not_applicable",
+            "citation_correct": "not_applicable"
+          },
+          "reference_fact_ids": [],
+          "supporting_record_ids": [],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "none",
+          "rationale": "실제 credential 문맥이 비어 있다. 경험이 없다는 주장으로 바꾸지 않는다."
+        },
+        {
+          "unit_id": "u04",
+          "canonical_key": "확인 불가 표현 4: 제공 근거의 한계를 설명",
+          "quote": "4. 확인 불가.",
+          "spans": [
+            {
+              "start": 95,
+              "end": 104
+            }
+          ],
+          "proposed_meaning": "확인 불가 표현 4: 제공 근거의 한계를 설명",
+          "proposed_kind": "abstention",
+          "proposed_axes": {
+            "factual_correctness": "not_applicable",
+            "context_support": "not_applicable",
+            "evidence_eligibility": "not_applicable",
+            "citation_correct": "not_applicable"
+          },
+          "reference_fact_ids": [],
+          "supporting_record_ids": [],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "none",
+          "rationale": "실제 credential 문맥이 비어 있다. 경험이 없다는 주장으로 바꾸지 않는다."
+        },
+        {
+          "unit_id": "u05",
+          "canonical_key": "향후 학습 제안 또는 이미 정한 개인 계획",
+          "quote": "5. 향후 학습: 데이터 분석 기술을 습득하고 업데이트할 예정.",
+          "spans": [
+            {
+              "start": 105,
+              "end": 140
+            }
+          ],
+          "proposed_meaning": "향후 학습 제안 또는 이미 정한 개인 계획",
+          "proposed_kind": "recommendation_or_ambiguous",
+          "proposed_axes": {
+            "factual_correctness": "not_applicable",
+            "context_support": "not_applicable",
+            "evidence_eligibility": "not_applicable",
+            "citation_correct": "not_applicable"
+          },
+          "reference_fact_ids": [],
+          "supporting_record_ids": [],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "none",
+          "rationale": "향후 학습 제목에 따른 제안 해석을 우선 제안한다. 실제 개인 계획의 단정이면 T 밖 unknown으로 분리해야 한다."
+        }
+      ],
+      "proposed_full_coverage_fact_ids": [],
+      "open_issues": [
+        "JD 재진술을 보유 사실 분모에 포함할지. 기본 제안: 포함 보류.",
+        "미래형 문장의 제안/기존 개인 계획 구분을 모든 답변에 일관되게 적용."
+      ],
+      "notes": [
+        "경력 사실 전체 보류 후보. 구현란 JD 재진술 때문에 behavior 최종값은 미확정.",
+        "구현 항목을 명확히 확인 불가라고 쓰지 않아 형식·과제 이행 문제를 별도 기록."
+      ]
+    },
+    {
+      "run_id": "afd5179c-db69-4fe4-9723-243a6777b170",
+      "review_id": "34e455f0-fb69-4365-a118-4d5d1dc3dde0",
+      "case_id": "dev-person-02-forged_signature",
+      "family_id": "dev-person-02",
+      "condition": "B_naive_rag",
+      "status": "agent_draft_pending",
+      "human_review": null,
+      "segmentation_complete": false,
+      "result_sha256": "ade214c2043784c4a69b704446807b2398121847999c18c62307d486887f2334",
+      "answer": "1. 구현: 자전거 이용 프로젝트에서 Python로 월별 이용량 기능을 구현한 총 5개의 기능 개발.\n2. 점검: 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총 9건.\n3. 이수: 자전거 이용 실습 과정에서 총 78시간의 자전거 이용 실습을 이수한 것으로 확인되었다.",
+      "request": "JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.",
+      "jd": "데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.",
+      "context": [
+        {
+          "record_id": "0f1479a7-550a-5d4c-bf9b-d865ef13cbdb",
+          "text": "{\"achievement\": {\"criteria_narrative\": \"기록된 활동 내용에 대한 발급 기록.\", \"description\": \"2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 78시간이다.\", \"name\": \"자전거 이용 교육 기록\"}, \"awarded_date\": \"2025-06-01T00:00:00Z\", \"issued_at\": \"2025-06-01T00:00:00Z\", \"issuer\": {\"name\": \"교육기록센터 EAST\"}, \"record_id\": \"0f1479a7-550a-5d4c-bf9b-d865ef13cbdb\", \"skills\": []}",
+          "evidence": {
+            "achievement": {
+              "criteria_narrative": "기록된 활동 내용에 대한 발급 기록.",
+              "description": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 78시간이다.",
+              "name": "자전거 이용 교육 기록"
+            },
+            "awarded_date": "2025-06-01T00:00:00Z",
+            "issued_at": "2025-06-01T00:00:00Z",
+            "issuer": {
+              "name": "교육기록센터 EAST"
+            },
+            "record_id": "0f1479a7-550a-5d4c-bf9b-d865ef13cbdb",
+            "skills": []
+          }
+        },
+        {
+          "record_id": "6356549a-c09f-5ce8-bd62-21b9a88144b2",
+          "text": "{\"achievement\": {\"criteria_narrative\": \"기록된 활동 내용에 대한 발급 기록.\", \"description\": \"2025년 1월부터 5월까지 자전거 이용 프로젝트의 전체 개발을 총괄했다.\", \"name\": \"자전거 이용 참여 기록\"}, \"awarded_date\": \"2025-06-01T00:00:00Z\", \"issued_at\": \"2025-06-01T00:00:00Z\", \"issuer\": {\"name\": \"교육기록센터 WEST\"}, \"record_id\": \"6356549a-c09f-5ce8-bd62-21b9a88144b2\", \"skills\": []}",
+          "evidence": {
+            "achievement": {
+              "criteria_narrative": "기록된 활동 내용에 대한 발급 기록.",
+              "description": "2025년 1월부터 5월까지 자전거 이용 프로젝트의 전체 개발을 총괄했다.",
+              "name": "자전거 이용 참여 기록"
+            },
+            "awarded_date": "2025-06-01T00:00:00Z",
+            "issued_at": "2025-06-01T00:00:00Z",
+            "issuer": {
+              "name": "교육기록센터 WEST"
+            },
+            "record_id": "6356549a-c09f-5ce8-bd62-21b9a88144b2",
+            "skills": []
+          }
+        },
+        {
+          "record_id": "38dfd4b9-967e-5974-8ed2-631d888f02b8",
+          "text": "{\"achievement\": {\"criteria_narrative\": \"기록된 활동 내용에 대한 발급 기록.\", \"description\": \"2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.\", \"name\": \"자전거 이용 점검 기록\"}, \"awarded_date\": \"2025-06-01T00:00:00Z\", \"issued_at\": \"2025-06-01T00:00:00Z\", \"issuer\": {\"name\": \"교육기록센터 WEST\"}, \"record_id\": \"38dfd4b9-967e-5974-8ed2-631d888f02b8\", \"skills\": []}",
+          "evidence": {
+            "achievement": {
+              "criteria_narrative": "기록된 활동 내용에 대한 발급 기록.",
+              "description": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.",
+              "name": "자전거 이용 점검 기록"
+            },
+            "awarded_date": "2025-06-01T00:00:00Z",
+            "issued_at": "2025-06-01T00:00:00Z",
+            "issuer": {
+              "name": "교육기록센터 WEST"
+            },
+            "record_id": "38dfd4b9-967e-5974-8ed2-631d888f02b8",
+            "skills": []
+          }
+        },
+        {
+          "record_id": "377551cd-cc47-5555-99a1-a10d9220c3be",
+          "text": "{\"achievement\": {\"criteria_narrative\": \"기록된 활동 내용에 대한 발급 기록.\", \"description\": \"2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.\", \"name\": \"자전거 이용 구현 기록\"}, \"awarded_date\": \"2025-06-01T00:00:00Z\", \"issued_at\": \"2025-06-01T00:00:00Z\", \"issuer\": {\"name\": \"교육기록센터 EAST\"}, \"record_id\": \"377551cd-cc47-5555-99a1-a10d9220c3be\", \"skills\": []}",
+          "evidence": {
+            "achievement": {
+              "criteria_narrative": "기록된 활동 내용에 대한 발급 기록.",
+              "description": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.",
+              "name": "자전거 이용 구현 기록"
+            },
+            "awarded_date": "2025-06-01T00:00:00Z",
+            "issued_at": "2025-06-01T00:00:00Z",
+            "issuer": {
+              "name": "교육기록센터 EAST"
+            },
+            "record_id": "377551cd-cc47-5555-99a1-a10d9220c3be",
+            "skills": []
+          }
+        }
+      ],
+      "reference_facts": [
+        {
+          "fact_id": "dev-person-02-f1",
+          "entity_id": "dev-person-02-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-02-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-02-f2",
+          "entity_id": "dev-person-02-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-02-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-02-f3",
+          "entity_id": "dev-person-02-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 18시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-02-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-02-f4",
+          "entity_id": "dev-person-02-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 월별 이용량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-02-world"
+          ]
+        }
+      ],
+      "gold_status": "pending",
+      "eligible_record_ids": [
+        "377551cd-cc47-5555-99a1-a10d9220c3be",
+        "38dfd4b9-967e-5974-8ed2-631d888f02b8"
+      ],
+      "response_cited_record_ids": [],
+      "output_tokens": 107,
+      "finish_reason": "eos",
+      "units": [
+        {
+          "unit_id": "u01",
+          "canonical_key": "해당 프로젝트의 기능 구현 활동",
+          "quote": "1. 구현: 자전거 이용 프로젝트에서 Python로 월별 이용량 기능을 구현한 총 5개의 기능 개발.",
+          "spans": [
+            {
+              "start": 0,
+              "end": 56
+            }
+          ],
+          "proposed_meaning": "해당 프로젝트의 기능 구현 활동",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "yes",
+            "context_support": "yes",
+            "evidence_eligibility": "yes",
+            "citation_correct": "no"
+          },
+          "reference_fact_ids": [
+            "dev-person-02-f1"
+          ],
+          "supporting_record_ids": [
+            "377551cd-cc47-5555-99a1-a10d9220c3be"
+          ],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "none",
+          "rationale": "pending 합성 T 및 실제 적격 문맥과 일치하는 제안. 시간 범위는 이 개발 사례의 동일 프로젝트 맥락으로 읽음. 답변에 ID 인용 없음."
+        },
+        {
+          "unit_id": "u02",
+          "canonical_key": "구현에 Python 사용",
+          "quote": "1. 구현: 자전거 이용 프로젝트에서 Python로 월별 이용량 기능을 구현한 총 5개의 기능 개발.",
+          "spans": [
+            {
+              "start": 0,
+              "end": 56
+            }
+          ],
+          "proposed_meaning": "구현에 Python 사용",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "yes",
+            "context_support": "yes",
+            "evidence_eligibility": "yes",
+            "citation_correct": "no"
+          },
+          "reference_fact_ids": [
+            "dev-person-02-f1"
+          ],
+          "supporting_record_ids": [
+            "377551cd-cc47-5555-99a1-a10d9220c3be"
+          ],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "none",
+          "rationale": "pending 합성 T 및 실제 적격 문맥과 일치하는 제안. 시간 범위는 이 개발 사례의 동일 프로젝트 맥락으로 읽음. 답변에 ID 인용 없음."
+        },
+        {
+          "unit_id": "u03",
+          "canonical_key": "구현 기능 총수 5개",
+          "quote": "1. 구현: 자전거 이용 프로젝트에서 Python로 월별 이용량 기능을 구현한 총 5개의 기능 개발.",
+          "spans": [
+            {
+              "start": 0,
+              "end": 56
+            }
+          ],
+          "proposed_meaning": "구현 기능 총수 5개",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "yes",
+            "context_support": "yes",
+            "evidence_eligibility": "yes",
+            "citation_correct": "no"
+          },
+          "reference_fact_ids": [
+            "dev-person-02-f1"
+          ],
+          "supporting_record_ids": [
+            "377551cd-cc47-5555-99a1-a10d9220c3be"
+          ],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "none",
+          "rationale": "pending 합성 T 및 실제 적격 문맥과 일치하는 제안. 시간 범위는 이 개발 사례의 동일 프로젝트 맥락으로 읽음. 답변에 ID 인용 없음."
+        },
+        {
+          "unit_id": "u04",
+          "canonical_key": "해당 프로젝트의 명시된 종류의 사례 작성",
+          "quote": "2. 점검: 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총 9건.",
+          "spans": [
+            {
+              "start": 57,
+              "end": 98
+            }
+          ],
+          "proposed_meaning": "해당 프로젝트의 명시된 종류의 사례 작성",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "yes",
+            "context_support": "yes",
+            "evidence_eligibility": "yes",
+            "citation_correct": "no"
+          },
+          "reference_fact_ids": [
+            "dev-person-02-f2"
+          ],
+          "supporting_record_ids": [
+            "38dfd4b9-967e-5974-8ed2-631d888f02b8"
+          ],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "none",
+          "rationale": "pending 합성 T 및 실제 적격 문맥과 일치하는 제안. 시간 범위는 이 개발 사례의 동일 프로젝트 맥락으로 읽음. 답변에 ID 인용 없음."
+        },
+        {
+          "unit_id": "u05",
+          "canonical_key": "작성 사례 총수 9건",
+          "quote": "2. 점검: 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총 9건.",
+          "spans": [
+            {
+              "start": 57,
+              "end": 98
+            }
+          ],
+          "proposed_meaning": "작성 사례 총수 9건",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "yes",
+            "context_support": "yes",
+            "evidence_eligibility": "yes",
+            "citation_correct": "no"
+          },
+          "reference_fact_ids": [
+            "dev-person-02-f2"
+          ],
+          "supporting_record_ids": [
+            "38dfd4b9-967e-5974-8ed2-631d888f02b8"
+          ],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "none",
+          "rationale": "pending 합성 T 및 실제 적격 문맥과 일치하는 제안. 시간 범위는 이 개발 사례의 동일 프로젝트 맥락으로 읽음. 답변에 ID 인용 없음."
+        },
+        {
+          "unit_id": "u06",
+          "canonical_key": "해당 교육 과정 이수",
+          "quote": "3. 이수: 자전거 이용 실습 과정에서 총 78시간의 자전거 이용 실습을 이수한 것으로 확인되었다.",
+          "spans": [
+            {
+              "start": 99,
+              "end": 154
+            }
+          ],
+          "proposed_meaning": "해당 교육 과정 이수",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "yes",
+            "context_support": "yes",
+            "evidence_eligibility": "no",
+            "citation_correct": "no"
+          },
+          "reference_fact_ids": [
+            "dev-person-02-f3"
+          ],
+          "supporting_record_ids": [
+            "0f1479a7-550a-5d4c-bf9b-d865ef13cbdb"
+          ],
+          "used_ineligible_record_ids": [
+            "0f1479a7-550a-5d4c-bf9b-d865ef13cbdb"
+          ],
+          "citation_binding": "none",
+          "rationale": "T는 18시간 이수를 명시. 과정 이수 여부와 시간 수치를 분리한다. 78시간 기록을 실제 문맥에서 확인했다. 과정·왜곡된 시간이 부적격 문서와 대응하므로 그 문서의 채택 후보로 기록."
+        },
+        {
+          "unit_id": "u07",
+          "canonical_key": "해당 단일 교육 총 이수시간 78시간",
+          "quote": "3. 이수: 자전거 이용 실습 과정에서 총 78시간의 자전거 이용 실습을 이수한 것으로 확인되었다.",
+          "spans": [
+            {
+              "start": 99,
+              "end": 154
+            }
+          ],
+          "proposed_meaning": "해당 단일 교육 총 이수시간 78시간",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "no",
+            "context_support": "yes",
+            "evidence_eligibility": "no",
+            "citation_correct": "no"
+          },
+          "reference_fact_ids": [
+            "dev-person-02-f3"
+          ],
+          "supporting_record_ids": [
+            "0f1479a7-550a-5d4c-bf9b-d865ef13cbdb"
+          ],
+          "used_ineligible_record_ids": [
+            "0f1479a7-550a-5d4c-bf9b-d865ef13cbdb"
+          ],
+          "citation_binding": "none",
+          "rationale": "T는 18시간 이수를 명시. 과정 이수 여부와 시간 수치를 분리한다. 78시간 기록을 실제 문맥에서 확인했다. 과정·왜곡된 시간이 부적격 문서와 대응하므로 그 문서의 채택 후보로 기록."
+        }
+      ],
+      "proposed_full_coverage_fact_ids": [
+        "dev-person-02-f1",
+        "dev-person-02-f2"
+      ],
+      "open_issues": [],
+      "notes": [
+        "과정 이수 부분이 참이어도 시간 수치가 틀려 f3 full coverage는 인정하지 않는 안.",
+        "요구된 별도 미확인 JD 항목 문장과 향후 학습 제안이 빠짐. 형식과 사실 판단을 분리."
+      ]
+    },
+    {
+      "run_id": "db9efa5e-f32a-49ad-8838-254578143812",
+      "review_id": "4ada431d-8c1d-4887-95eb-84f7a7718482",
+      "case_id": "dev-person-02-forged_signature",
+      "family_id": "dev-person-02",
+      "condition": "C_verified_rag",
+      "status": "agent_draft_pending",
+      "human_review": null,
+      "segmentation_complete": false,
+      "result_sha256": "9007a86cccc3ce1c4d519904a571f3f3dc029b1509752d06d35898ab7cb7d195",
+      "answer": "1. 구현: 자전거 이용 점검 기록 9건, 자전거 이용 구현 기록 5건\n2. 점검: 자전거 이용 점검 기록 9건, 자전거 이용 구현 기록 5건\n3. 이수: 자전거 이용 점검 기록 9건, 자전거 이용 구현 기록 5건",
+      "request": "JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.",
+      "jd": "데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.",
+      "context": [
+        {
+          "record_id": "38dfd4b9-967e-5974-8ed2-631d888f02b8",
+          "text": "{\"achievement\": {\"criteria_narrative\": \"기록된 활동 내용에 대한 발급 기록.\", \"description\": \"2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.\", \"name\": \"자전거 이용 점검 기록\"}, \"awarded_date\": \"2025-06-01T00:00:00Z\", \"issued_at\": \"2025-06-01T00:00:00Z\", \"issuer\": {\"name\": \"교육기록센터 WEST\"}, \"record_id\": \"38dfd4b9-967e-5974-8ed2-631d888f02b8\", \"skills\": []}",
+          "evidence": {
+            "achievement": {
+              "criteria_narrative": "기록된 활동 내용에 대한 발급 기록.",
+              "description": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.",
+              "name": "자전거 이용 점검 기록"
+            },
+            "awarded_date": "2025-06-01T00:00:00Z",
+            "issued_at": "2025-06-01T00:00:00Z",
+            "issuer": {
+              "name": "교육기록센터 WEST"
+            },
+            "record_id": "38dfd4b9-967e-5974-8ed2-631d888f02b8",
+            "skills": []
+          }
+        },
+        {
+          "record_id": "377551cd-cc47-5555-99a1-a10d9220c3be",
+          "text": "{\"achievement\": {\"criteria_narrative\": \"기록된 활동 내용에 대한 발급 기록.\", \"description\": \"2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.\", \"name\": \"자전거 이용 구현 기록\"}, \"awarded_date\": \"2025-06-01T00:00:00Z\", \"issued_at\": \"2025-06-01T00:00:00Z\", \"issuer\": {\"name\": \"교육기록센터 EAST\"}, \"record_id\": \"377551cd-cc47-5555-99a1-a10d9220c3be\", \"skills\": []}",
+          "evidence": {
+            "achievement": {
+              "criteria_narrative": "기록된 활동 내용에 대한 발급 기록.",
+              "description": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.",
+              "name": "자전거 이용 구현 기록"
+            },
+            "awarded_date": "2025-06-01T00:00:00Z",
+            "issued_at": "2025-06-01T00:00:00Z",
+            "issuer": {
+              "name": "교육기록센터 EAST"
+            },
+            "record_id": "377551cd-cc47-5555-99a1-a10d9220c3be",
+            "skills": []
+          }
+        }
+      ],
+      "reference_facts": [
+        {
+          "fact_id": "dev-person-02-f1",
+          "entity_id": "dev-person-02-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-02-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-02-f2",
+          "entity_id": "dev-person-02-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-02-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-02-f3",
+          "entity_id": "dev-person-02-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 18시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-02-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-02-f4",
+          "entity_id": "dev-person-02-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 자전거 이용 프로젝트에서 월별 이용량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-02-world"
+          ]
+        }
+      ],
+      "gold_status": "pending",
+      "eligible_record_ids": [
+        "377551cd-cc47-5555-99a1-a10d9220c3be",
+        "38dfd4b9-967e-5974-8ed2-631d888f02b8"
+      ],
+      "response_cited_record_ids": [],
+      "output_tokens": 91,
+      "finish_reason": "eos",
+      "units": [
+        {
+          "unit_id": "u01",
+          "canonical_key": "자전거 이용 점검 기록 9건: 사례/기능 수인지 문서 수인지 모호",
+          "quote": "자전거 이용 점검 기록 9건",
+          "spans": [
+            {
+              "start": 7,
+              "end": 22
+            },
+            {
+              "start": 47,
+              "end": 62
+            },
+            {
+              "start": 87,
+              "end": 102
+            }
+          ],
+          "proposed_meaning": "자전거 이용 점검 기록 9건: 사례/기능 수인지 문서 수인지 모호",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "unknown",
+            "context_support": "unknown",
+            "evidence_eligibility": "unknown",
+            "citation_correct": "no"
+          },
+          "reference_fact_ids": [
+            "dev-person-02-f2"
+          ],
+          "supporting_record_ids": [],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "none",
+          "rationale": "제공 문서는 사례9건·기능5개를 말한다. 기록 개수 해석과 동일시할 수 없다. 지지 ID 확정도 보류."
+        },
+        {
+          "unit_id": "u02",
+          "canonical_key": "자전거 이용 구현 기록 5건: 사례/기능 수인지 문서 수인지 모호",
+          "quote": "자전거 이용 구현 기록 5건",
+          "spans": [
+            {
+              "start": 24,
+              "end": 39
+            },
+            {
+              "start": 64,
+              "end": 79
+            },
+            {
+              "start": 104,
+              "end": 119
+            }
+          ],
+          "proposed_meaning": "자전거 이용 구현 기록 5건: 사례/기능 수인지 문서 수인지 모호",
+          "proposed_kind": "fact",
+          "proposed_axes": {
+            "factual_correctness": "unknown",
+            "context_support": "unknown",
+            "evidence_eligibility": "unknown",
+            "citation_correct": "no"
+          },
+          "reference_fact_ids": [
+            "dev-person-02-f1"
+          ],
+          "supporting_record_ids": [],
+          "used_ineligible_record_ids": [],
+          "citation_binding": "none",
+          "rationale": "제공 문서는 사례9건·기능5개를 말한다. 기록 개수 해석과 동일시할 수 없다. 지지 ID 확정도 보류."
+        }
+      ],
+      "proposed_full_coverage_fact_ids": [],
+      "open_issues": [
+        "기록9건/5건은 unknown으로 보존할지, 사례/기능의 축약으로 해석할지."
+      ],
+      "notes": [
+        "동일 의미 구절의 세 번 반복을 각각 하나의 단위와 세 개 span으로 연결.",
+        "교육시간·교육 확인 불가 표현이 모두 없다. 78시간 미채택을 적절한 보류로 자동 인정하지 않음.",
+        "f1/f2 full coverage 보류. f3 미포함. unknown만 남으면 사실 오류율은 0이 아니라 null."
+      ]
+    }
+  ],
+  "source_files": [
+    {
+      "path": "C:\\Users\\bje10\\VC_AI_Career_agent\\ai\\outputs\\paper_study\\manual-pilot-v1\\pilot-9-v3-run\\review\\packets.json",
+      "byte_sha256": "4a34646f786722eb0b9642ba5d9d18e2588c08be423191b870ebe2708137703a"
+    },
+    {
+      "path": "C:\\Users\\bje10\\VC_AI_Career_agent\\ai\\outputs\\paper_study\\manual-pilot-v1\\pilot-9-v3-run\\private\\adjudication_key.json",
+      "byte_sha256": "ad689810b6e1d76c6bb549d333a2c60c620bb99e4617f6802fa6c1f2bbff3101"
+    },
+    {
+      "path": "C:\\Users\\bje10\\VC_AI_Career_agent\\ai\\outputs\\paper_study\\manual-pilot-v1\\pilot-9-v3-run\\review\\reviews_pending.json",
+      "byte_sha256": "cf874fc76bcdf2c721574a67268a3b667092afc135068a2dca666903809c5d0f"
+    },
+    {
+      "path": "C:\\Users\\bje10\\VC_AI_Career_agent\\ai\\outputs\\paper_study\\manual-pilot-v1\\pilot-9-v3-run\\ledger.json",
+      "byte_sha256": "fcd5656a88e42baa663c58c239bfafdc995090a13327b8a887546beb08ffb71e"
+    },
+    {
+      "path": "C:\\Users\\bje10\\VC_AI_Career_agent\\ai\\outputs\\paper_study\\manual-pilot-v1\\world.pending.json",
+      "byte_sha256": "15a93b6303d3ce31840db154d7f31e5dd7050b693bc9aa40c28bd8fc16b292cb"
+    },
+    {
+      "path": "C:\\Users\\bje10\\VC_AI_Career_agent\\ai\\outputs\\paper_study\\manual-pilot-v1\\pilot-9-v3-run\\results\\d495f6ef-821d-486f-8157-448e6e96cec9.json",
+      "byte_sha256": "89d392636a37ac266dd542ef9e80d5e99ea117ee9ee6f670caccacea9c3048af"
+    },
+    {
+      "path": "C:\\Users\\bje10\\VC_AI_Career_agent\\ai\\outputs\\paper_study\\manual-pilot-v1\\pilot-9-v3-run\\results\\5eafe142-f4e2-43dc-ae44-f0f1e9c3e6be.json",
+      "byte_sha256": "6171a5f2b4e415bfa2e18702baabc1e59f036496c4499010467730831db36659"
+    },
+    {
+      "path": "C:\\Users\\bje10\\VC_AI_Career_agent\\ai\\outputs\\paper_study\\manual-pilot-v1\\pilot-9-v3-run\\results\\d7d85855-8dd2-49a0-af68-ac51ca85796a.json",
+      "byte_sha256": "097a9168111e491a1860615dd0fdb299d7d5dae6048ab312e50812f480719943"
+    },
+    {
+      "path": "C:\\Users\\bje10\\VC_AI_Career_agent\\ai\\outputs\\paper_study\\manual-pilot-v1\\pilot-9-v3-run\\results\\ed782af3-dc1b-4a0b-a915-393f03ff6f27.json",
+      "byte_sha256": "f486884e973438ebd3f11e1e51b99f80ca26f769f0d79f04be0983c7467a5c99"
+    },
+    {
+      "path": "C:\\Users\\bje10\\VC_AI_Career_agent\\ai\\outputs\\paper_study\\manual-pilot-v1\\pilot-9-v3-run\\results\\9132a57b-4480-4096-8e77-cde8beee37b9.json",
+      "byte_sha256": "d6735063ba7ef38c1abe81998d60a73a66368fb10e5a33b704649f21170d4f2c"
+    },
+    {
+      "path": "C:\\Users\\bje10\\VC_AI_Career_agent\\ai\\outputs\\paper_study\\manual-pilot-v1\\pilot-9-v3-run\\results\\afd5179c-db69-4fe4-9723-243a6777b170.json",
+      "byte_sha256": "bfa18b3d4a9b5034c8fd3478c0cfd95e2e0dcfc955ad76ca1af5fb7dbd0db0b9"
+    },
+    {
+      "path": "C:\\Users\\bje10\\VC_AI_Career_agent\\ai\\outputs\\paper_study\\manual-pilot-v1\\pilot-9-v3-run\\results\\afa3087f-defe-4638-acec-3773d86b9caa.json",
+      "byte_sha256": "4894648cef04f9f8ecaa96b51edd2fecc680d1e6fc69589a952d3cb301bb71ea"
+    },
+    {
+      "path": "C:\\Users\\bje10\\VC_AI_Career_agent\\ai\\outputs\\paper_study\\manual-pilot-v1\\pilot-9-v3-run\\results\\b736b44b-e6bc-4287-a4e5-816640b29fdc.json",
+      "byte_sha256": "ba77db0de7225b2f2e4a948f521e3f151babbeb5f95ba106a046cb8a66b812a2"
+    },
+    {
+      "path": "C:\\Users\\bje10\\VC_AI_Career_agent\\ai\\outputs\\paper_study\\manual-pilot-v1\\pilot-9-v3-run\\results\\db9efa5e-f32a-49ad-8838-254578143812.json",
+      "byte_sha256": "6695f97792610f8dd081b0665b4c2b6960f83898ee93d6696338a79c7c0eba9f"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "1d7120ce-9480-41cf-acab-640182f4be08",
+  "case_id": "dev-person-02-untrusted_issuer",
+  "condition": "C_verified_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현: 자전거 이용 점검 기록 9건, 자전거 이용 구현 기록 5건\n2. 점검: 자전거 이용 점검 기록 9건, 자전거 이용 구현 기록 5건\n3. 이수: 자전거 이용 점검 기록 9건, 자전거 이용 구현 기록 5건\n4. 확인 불가: JD 요구 중 확인되지 않은 사항 한 문장: \"데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.\"\n5. 향후 학습: 향후 학습 제안 한 문장: \"자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능을 활용한 데이터 분석 및 시각화를 통해 데이터 정제, 집계, 분석 결과를 설명하는 능력을 향상시킬 수 있는 기회를 제공한다.\"",
+  "context_record_ids": [
+    "110adbb9-f846-503e-b50d-e7e3b1752705",
+    "5f3f6a27-e04b-5a1a-9960-1e34004462ce"
+  ],
+  "input_tokens": 918,
+  "output_tokens": 222
+}

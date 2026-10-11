@@ -1,0 +1,16 @@
+{
+  "status": "passed",
+  "checks": [
+    "9 packet/key/result mappings and canonical result hashes",
+    "reference facts equal source world",
+    "actual context ID order matches result",
+    "all quote spans and fact/support/ineligible references",
+    "pending status with no human approval",
+    "valid_conflict B/C identical answer and context",
+    "all read source byte hashes unchanged"
+  ],
+  "responses": 9,
+  "units": 55,
+  "spans": 59,
+  "disclaimer": "Structural checks only. Semantic judgments remain AI proposals."
+}

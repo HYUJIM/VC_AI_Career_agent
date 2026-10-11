@@ -1,0 +1,16 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "12d6f90f-8c9a-4ffe-9513-3ab65e1705eb",
+  "case_id": "dev-person-02-forged_signature",
+  "condition": "C_verified_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현: 자전거 이용 점검 기록 9건, 자전거 이용 구현 기록 5건\n2. 점검: 자전거 이용 점검 기록 9건, 자전거 이용 구현 기록 5건\n3. 이수: 자전거 이용 점검 기록 9건, 자전거 이용 구현 기록 5건",
+  "context_record_ids": [
+    "38dfd4b9-967e-5974-8ed2-631d888f02b8",
+    "377551cd-cc47-5555-99a1-a10d9220c3be"
+  ],
+  "input_tokens": 918,
+  "output_tokens": 91
+}

@@ -1,0 +1,18 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "9c7713f3-f9bb-4623-80c9-99b19df7339e",
+  "case_id": "dev-person-02-valid_conflict",
+  "condition": "B_naive_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현: Python으로 월별 이용량 기능 5개, 확인 불가\n2. 점검: 자전거 이용 프로젝트에서 작성한 데이터 정제 사례 9건, 확인 불가\n3. 이수: 자전거 이용 실습 18시간, 확인 불가\n4. 확인 불가\n5. 향후 학습: 자전거 이용 프로젝트에서 자전거 이용 실습을 통해 학습한 자전거 이용 실습 기술, 확인 불가",
+  "context_record_ids": [
+    "1521a4f2-9b16-51ee-b14b-6a9e42672aaf",
+    "9bee65cd-330a-5ce0-8e09-93fcc839cf01",
+    "d699227d-3c34-5fed-9463-6a86fb829f4f",
+    "6f2f43a4-af95-59be-8bed-55685a625cfb"
+  ],
+  "input_tokens": 1311,
+  "output_tokens": 122
+}

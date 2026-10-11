@@ -1,0 +1,18 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "eb7ba51d-5a03-49e5-bfea-71adea0fdca6",
+  "case_id": "dev-person-02-expired",
+  "condition": "B_naive_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현: 자전거 이용 프로젝트에서 Python로 월별 이용량 기능을 구현한 총 5개의 기능 개발.\n2. 점검: 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총 9건.\n3. 이수: 자전거 이용 실습 과정에서 총 78시간의 이수 시간.\n\n해당 record_id: b5cfda52-1955-515b-a1f4-d31576560ce4\n\n미확인: 자전거 이용 교육 기록과 자전거 이용 참여 기록의 확인 불가능한 정보.",
+  "context_record_ids": [
+    "b5cfda52-1955-515b-a1f4-d31576560ce4",
+    "ccc34276-4b59-511e-a0fd-84f27d65cef1",
+    "ef51b5a0-6fa1-5635-931a-7d968ea2d2d3",
+    "08da1372-9aa5-570a-84ac-536e1862822b"
+  ],
+  "input_tokens": 1294,
+  "output_tokens": 162
+}

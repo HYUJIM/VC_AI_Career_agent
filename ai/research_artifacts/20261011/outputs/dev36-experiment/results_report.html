@@ -1,0 +1,1517 @@
+<!doctype html><meta charset="utf-8"><title>36건 실제 생성 결과</title><style>body{font:16px/1.7 system-ui;max-width:1100px;margin:36px auto;padding:0 24px;color:#152c42}pre{white-space:pre-wrap;background:#f1f5f9;padding:18px}table{border-collapse:collapse;width:100%}td,th{padding:10px;border:1px solid #ddd}article{border-top:3px solid #315776;margin-top:40px}summary{cursor:pointer}</style><h1>Qwen 개발 실험 36건 실제 생성 결과</h1><p>2 families × 6 근거 상태 × A/B/C · 소요 180.0초 · 성공 36 · 실패 0 · 미실행 0 · 길이 제한 3</p><p>이번에 새로 생성한 개발용 결과입니다. 본 실험144건과 사람 확정 평가는 아직 별개입니다. 기존9건과 합산하지 않습니다. 인용 ID 존재는 인용 정확도나 사실 정확도를 뜻하지 않습니다.</p><table><tr><th>조건</th><th>답변</th><th>ID 포함</th><th>미제공 ID 포함</th><th>평균 출력토큰</th></tr><tr><td>A_no_rag</td><td>12</td><td>0</td><td>0</td><td>117.0</td></tr><tr><td>B_naive_rag</td><td>12</td><td>8</td><td>0</td><td>187.7</td></tr><tr><td>C_verified_rag</td><td>12</td><td>7</td><td>0</td><td>189.7</td></tr></table><p><a href="observations.json">기계적 집계 JSON</a> · <a href="ledger.json">실행 원장</a></p><article><h2>dev-person-01-expired</h2><p>B/C 원문 동일: False · 문맥 문서 B 4 / C 2</p><h3>A_no_rag · 140 tokens · eos</h3><pre>1. 구현: API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.
+2. 점검: 작성한 사례 수, 검증 수행, 통과, 숙련도 확인 불가.
+3. 교육: 과정, 시간 확인 불가.
+4. 확인 불가: 주니어 백엔드 개발 직무 요구 사항 중 일부 확인 불가.
+5. 향후 학습: 향후 학습 제안: 데이터 분석 및 트래픽 관리에 대한 자격증 취득.</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: []
+}</pre></details><h3>B_naive_rag · 250 tokens · eos</h3><pre>1. 구현한 기능: 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총 3개.
+2. 점검 또는 검증 활동: 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총 6건.
+3. 이수 교육: 도서 대여 실습 과정에서 24시간 이수한 교육 시간.
+
+해당 record_id: 7f1fab0a-f898-536a-ac28-b519219c7673
+
+해당 record_id: 70e296ad-b35f-57b4-9295-24fc127ded79
+
+해당 record_id: 808bff53-efd0-570c-a841-441fe0d65158
+
+해당 record_id: f4ca7d3b-ac4c-5e3f-b3b4-387764eb36d4</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: [
+    {
+      &quot;record_id&quot;: &quot;7f1fab0a-f898-536a-ac28-b519219c7673&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 교육 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;70e296ad-b35f-57b4-9295-24fc127ded79&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 점검 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;808bff53-efd0-570c-a841-441fe0d65158&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 참여 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 도서 대여 프로젝트에서 대여 상태 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;f4ca7d3b-ac4c-5e3f-b3b4-387764eb36d4&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 구현 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    }
+  ]
+}</pre></details><h3>C_verified_rag · 191 tokens · eos</h3><pre>1. 구현한 기능: 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 6건이다.
+2. 점검 또는 검증 활동: 도서 대여 구현 기록에서 Java로 구현한 대여 상태 조회 기능의 총수는 3개다.
+3. 이수 교육: 확인 불가.
+
+해당 record_id: f4ca7d3b-ac4c-5e3f-b3b4-387764eb36d4
+
+JD 요구 중 확인되지 않은 사항: API 구현, 테스트, 데이터베이스 기초
+
+향후 학습 제안: 향후 학습은 Java로 데이터베이스 기초를 구현하는 기술을 습득하는 것이 좋다.</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: [
+    {
+      &quot;record_id&quot;: &quot;70e296ad-b35f-57b4-9295-24fc127ded79&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 점검 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;f4ca7d3b-ac4c-5e3f-b3b4-387764eb36d4&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 구현 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    }
+  ]
+}</pre></details></article><article><h2>dev-person-01-forged_signature</h2><p>B/C 원문 동일: False · 문맥 문서 B 4 / C 2</p><h3>A_no_rag · 140 tokens · eos</h3><pre>1. 구현: API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.
+2. 점검: 작성한 사례 수, 검증 수행, 통과, 숙련도 확인 불가.
+3. 교육: 과정, 시간 확인 불가.
+4. 확인 불가: 주니어 백엔드 개발 직무 요구 사항 중 일부 확인 불가.
+5. 향후 학습: 향후 학습 제안: 데이터 분석 및 트래픽 관리에 대한 자격증 취득.</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: []
+}</pre></details><h3>B_naive_rag · 256 tokens · length</h3><pre>1. 구현한 기능: 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총 3개.
+2. 점검 또는 검증 활동: 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총 6건.
+3. 이수 교육: 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.
+
+해당 record_id: fc609a98-77d0-534d-922e-10e4d4a0a549
+
+해당 record_id: dc9e75c0-90ab-59fb-a9d5-24586d62462b
+
+해당 record_id: c6cf619e-bff8-5505-b733-753834210c2e
+
+해당 record_id: 3dc7f5af-d69c-5c8a-a2cf-e00429be8fc3</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: [
+    {
+      &quot;record_id&quot;: &quot;fc609a98-77d0-534d-922e-10e4d4a0a549&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 교육 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;dc9e75c0-90ab-59fb-a9d5-24586d62462b&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 점검 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;c6cf619e-bff8-5505-b733-753834210c2e&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 참여 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 도서 대여 프로젝트에서 대여 상태 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;3dc7f5af-d69c-5c8a-a2cf-e00429be8fc3&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 구현 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    }
+  ]
+}</pre></details><h3>C_verified_rag · 194 tokens · eos</h3><pre>1. 구현한 기능: 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 6건이다.
+2. 점검 또는 검증 활동: 도서 대여 구현 기록에서 Java로 구현한 대여 상태 조회 기능의 총수는 3개다.
+3. 이수 교육: 확인 불가.
+
+해당 record_id: dc9e75c0-90ab-59fb-a9d5-24586d62462b
+
+JD 요구 중 확인되지 않은 사항: API 구현
+
+향후 학습 제안: 향후 학습은 Java로 도서 대여 프로젝트에서 구현한 기능을 확장하고, 대여 상태 조회 기능을 확장하는 것을 추천한다.</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: [
+    {
+      &quot;record_id&quot;: &quot;dc9e75c0-90ab-59fb-a9d5-24586d62462b&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 점검 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;3dc7f5af-d69c-5c8a-a2cf-e00429be8fc3&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 구현 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    }
+  ]
+}</pre></details></article><article><h2>dev-person-01-none</h2><p>B/C 원문 동일: True · 문맥 문서 B 4 / C 4</p><h3>A_no_rag · 140 tokens · eos</h3><pre>1. 구현: API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.
+2. 점검: 작성한 사례 수, 검증 수행, 통과, 숙련도 확인 불가.
+3. 교육: 과정, 시간 확인 불가.
+4. 확인 불가: 주니어 백엔드 개발 직무 요구 사항 중 일부 확인 불가.
+5. 향후 학습: 향후 학습 제안: 데이터 분석 및 트래픽 관리에 대한 자격증 취득.</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: []
+}</pre></details><h3>B_naive_rag · 250 tokens · eos</h3><pre>1. 구현한 기능: 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총 3개.
+2. 점검 또는 검증 활동: 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총 6건.
+3. 이수 교육: 도서 대여 실습 과정에서 24시간 이수한 교육 시간.
+
+해당 record_id: 55ed6cba-ebe6-56c6-a1fd-707a1d22fb42
+
+해당 record_id: f5f2d737-6718-547e-b049-53552fb8e44b
+
+해당 record_id: 417409aa-0684-54f1-b038-f4b73ca0010b
+
+해당 record_id: 03e6cfe4-792c-56ed-a78f-bbac2d659ece</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: [
+    {
+      &quot;record_id&quot;: &quot;55ed6cba-ebe6-56c6-a1fd-707a1d22fb42&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 교육 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;f5f2d737-6718-547e-b049-53552fb8e44b&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 점검 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;417409aa-0684-54f1-b038-f4b73ca0010b&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 참여 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 도서 대여 프로젝트에서 대여 상태 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;03e6cfe4-792c-56ed-a78f-bbac2d659ece&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 구현 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    }
+  ]
+}</pre></details><h3>C_verified_rag · 250 tokens · eos</h3><pre>1. 구현한 기능: 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총 3개.
+2. 점검 또는 검증 활동: 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총 6건.
+3. 이수 교육: 도서 대여 실습 과정에서 24시간 이수한 교육 시간.
+
+해당 record_id: 55ed6cba-ebe6-56c6-a1fd-707a1d22fb42
+
+해당 record_id: f5f2d737-6718-547e-b049-53552fb8e44b
+
+해당 record_id: 417409aa-0684-54f1-b038-f4b73ca0010b
+
+해당 record_id: 03e6cfe4-792c-56ed-a78f-bbac2d659ece</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: [
+    {
+      &quot;record_id&quot;: &quot;55ed6cba-ebe6-56c6-a1fd-707a1d22fb42&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 교육 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;f5f2d737-6718-547e-b049-53552fb8e44b&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 점검 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;417409aa-0684-54f1-b038-f4b73ca0010b&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 참여 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 도서 대여 프로젝트에서 대여 상태 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;03e6cfe4-792c-56ed-a78f-bbac2d659ece&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 구현 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    }
+  ]
+}</pre></details></article><article><h2>dev-person-01-revoked</h2><p>B/C 원문 동일: False · 문맥 문서 B 4 / C 2</p><h3>A_no_rag · 140 tokens · eos</h3><pre>1. 구현: API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.
+2. 점검: 작성한 사례 수, 검증 수행, 통과, 숙련도 확인 불가.
+3. 교육: 과정, 시간 확인 불가.
+4. 확인 불가: 주니어 백엔드 개발 직무 요구 사항 중 일부 확인 불가.
+5. 향후 학습: 향후 학습 제안: 데이터 분석 및 트래픽 관리에 대한 자격증 취득.</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: []
+}</pre></details><h3>B_naive_rag · 254 tokens · eos</h3><pre>1. 구현한 기능: 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총 3개.
+2. 점검 또는 검증 활동: 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총 6건.
+3. 이수 교육: 도서 대여 실습 과정에서 총 84시간 이수.
+
+해당 record_id: 0ec3d8ef-adb0-5815-96f0-42fbd87189ee
+
+해당 record_id: e73915d0-b593-55d0-9736-b38e1451b3a9
+
+해당 record_id: 5bae88ea-53e3-5f6f-92f2-08854c784cf5
+
+해당 record_id: 8adde6a9-5275-5ec1-afc6-9e0aa018e82f</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: [
+    {
+      &quot;record_id&quot;: &quot;8adde6a9-5275-5ec1-afc6-9e0aa018e82f&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 교육 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 84시간이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;e73915d0-b593-55d0-9736-b38e1451b3a9&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 점검 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;5bae88ea-53e3-5f6f-92f2-08854c784cf5&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 참여 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 도서 대여 프로젝트의 전체 개발을 총괄했다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;0ec3d8ef-adb0-5815-96f0-42fbd87189ee&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 구현 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    }
+  ]
+}</pre></details><h3>C_verified_rag · 167 tokens · eos</h3><pre>1. 구현한 기능: 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 6건이다.
+2. 점검 또는 검증 활동: 도서 대여 구현 기록에서 Java로 구현한 대여 상태 조회 기능의 총수는 3개다.
+3. 이수 교육: 확인 불가.
+
+해당 record_id: e73915d0-b593-55d0-9736-b38e1451b3a9
+
+해당 record_id: 0ec3d8ef-adb0-5815-96f0-42fbd87189ee</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: [
+    {
+      &quot;record_id&quot;: &quot;e73915d0-b593-55d0-9736-b38e1451b3a9&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 점검 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;0ec3d8ef-adb0-5815-96f0-42fbd87189ee&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 구현 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    }
+  ]
+}</pre></details></article><article><h2>dev-person-01-untrusted_issuer</h2><p>B/C 원문 동일: False · 문맥 문서 B 4 / C 2</p><h3>A_no_rag · 140 tokens · eos</h3><pre>1. 구현: API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.
+2. 점검: 작성한 사례 수, 검증 수행, 통과, 숙련도 확인 불가.
+3. 교육: 과정, 시간 확인 불가.
+4. 확인 불가: 주니어 백엔드 개발 직무 요구 사항 중 일부 확인 불가.
+5. 향후 학습: 향후 학습 제안: 데이터 분석 및 트래픽 관리에 대한 자격증 취득.</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: []
+}</pre></details><h3>B_naive_rag · 202 tokens · eos</h3><pre>1. 구현한 기능: 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 3개다.
+2. 점검 또는 검증 활동: 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 6건이다.
+3. 이수 교육: 도서 대여 실습 과정에서 총 이수 시간은 84시간이다.
+
+해당 record_id: 6def7215-19ee-5707-b8d8-e96fc3bfe41e
+
+미확인: 향후 학습 제안: 향후 학습 제안은 &quot;Java 개발 기본 지식&quot;을 통해 향후 Java 기술을 습득할 수 있는 방법을 제안할 수 있다.</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: [
+    {
+      &quot;record_id&quot;: &quot;61028080-ddfd-566a-b823-c35ab1ebdfc8&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 NORTH&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 교육 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 84시간이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;0a4fa8c2-f8f9-5137-b2af-14b6615477ce&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 점검 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;6def7215-19ee-5707-b8d8-e96fc3bfe41e&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 NORTH&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 참여 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 도서 대여 프로젝트의 전체 개발을 총괄했다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;5a4e0501-b6e4-53aa-8369-ada9a276c223&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 구현 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    }
+  ]
+}</pre></details><h3>C_verified_rag · 192 tokens · eos</h3><pre>1. 구현한 기능: 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 6건이다.
+2. 점검 또는 검증 활동: 도서 대여 구현 기록에서 Java로 구현한 대여 상태 조회 기능의 총수는 3개다.
+3. 이수 교육: 확인 불가.
+
+해당 record_id: 0a4fa8c2-f8f9-5137-b2af-14b6615477ce
+
+JD 요구 중 확인되지 않은 사항: API 구현, 테스트, 데이터베이스 기초
+
+향후 학습 제안: 향후 학습은 Java로 데이터베이스 기초를 구현하는 기술을 습득하는 것이 좋다.</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: [
+    {
+      &quot;record_id&quot;: &quot;0a4fa8c2-f8f9-5137-b2af-14b6615477ce&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 점검 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;5a4e0501-b6e4-53aa-8369-ada9a276c223&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 구현 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    }
+  ]
+}</pre></details></article><article><h2>dev-person-01-valid_conflict</h2><p>B/C 원문 동일: True · 문맥 문서 B 4 / C 4</p><h3>A_no_rag · 140 tokens · eos</h3><pre>1. 구현: API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.
+2. 점검: 작성한 사례 수, 검증 수행, 통과, 숙련도 확인 불가.
+3. 교육: 과정, 시간 확인 불가.
+4. 확인 불가: 주니어 백엔드 개발 직무 요구 사항 중 일부 확인 불가.
+5. 향후 학습: 향후 학습 제안: 데이터 분석 및 트래픽 관리에 대한 자격증 취득.</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: []
+}</pre></details><h3>B_naive_rag · 212 tokens · eos</h3><pre>1. 구현한 기능: 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총 3개.
+2. 점검 또는 검증 활동: 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총 6건.
+3. 이수 교육: 도서 대여 실습 과정에서 이수한 84시간의 교육 시간.
+
+해당 record_id: 0236a913-3397-5f11-85f8-dc22c1a059da
+
+미확인: 테스트 사례 수: 2
+
+향후 학습 제안: 향후 Java 프로그래밍에 대한 공부를 계획하고, 도서 대여 프로젝트에서 사용한 기술을 활용한 다른 프로젝트에 참여할 예정이다.</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: [
+    {
+      &quot;record_id&quot;: &quot;00509923-2eb2-5cfa-88e4-1d6d5779fc30&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 교육 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;a682c39c-3086-5ac9-9cf1-fdfc7fc66d2e&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 점검 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;0236a913-3397-5f11-85f8-dc22c1a059da&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 교육 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 84시간이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;f20b529e-1da1-54e3-9a48-2b633d3d6fe3&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 구현 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    }
+  ]
+}</pre></details><h3>C_verified_rag · 212 tokens · eos</h3><pre>1. 구현한 기능: 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총 3개.
+2. 점검 또는 검증 활동: 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총 6건.
+3. 이수 교육: 도서 대여 실습 과정에서 이수한 84시간의 교육 시간.
+
+해당 record_id: 0236a913-3397-5f11-85f8-dc22c1a059da
+
+미확인: 테스트 사례 수: 2
+
+향후 학습 제안: 향후 Java 프로그래밍에 대한 공부를 계획하고, 도서 대여 프로젝트에서 사용한 기술을 활용한 다른 프로젝트에 참여할 예정이다.</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: [
+    {
+      &quot;record_id&quot;: &quot;00509923-2eb2-5cfa-88e4-1d6d5779fc30&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 교육 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 24시간이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;a682c39c-3086-5ac9-9cf1-fdfc7fc66d2e&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 점검 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;0236a913-3397-5f11-85f8-dc22c1a059da&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 교육 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 대여 실습」의 총 이수 시간은 정확히 84시간이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;f20b529e-1da1-54e3-9a48-2b633d3d6fe3&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;도서 대여 구현 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 도서 대여 프로젝트에서 Java로 구현한 대여 상태 조회 기능의 총수는 정확히 3개다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    }
+  ]
+}</pre></details></article><article><h2>dev-person-02-expired</h2><p>B/C 원문 동일: False · 문맥 문서 B 4 / C 2</p><h3>A_no_rag · 94 tokens · eos</h3><pre>1. 구현: 데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.
+2. 점검: 작성한 사례 수, 확인 불가.
+3. 교육: 과정, 시간, 확인 불가.
+4. 확인 불가.
+5. 향후 학습: 데이터 분석 기술을 습득하고 업데이트할 예정.</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: []
+}</pre></details><h3>B_naive_rag · 162 tokens · eos</h3><pre>1. 구현: 자전거 이용 프로젝트에서 Python로 월별 이용량 기능을 구현한 총 5개의 기능 개발.
+2. 점검: 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총 9건.
+3. 이수: 자전거 이용 실습 과정에서 총 78시간의 이수 시간.
+
+해당 record_id: b5cfda52-1955-515b-a1f4-d31576560ce4
+
+미확인: 자전거 이용 교육 기록과 자전거 이용 참여 기록의 확인 불가능한 정보.</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: [
+    {
+      &quot;record_id&quot;: &quot;b5cfda52-1955-515b-a1f4-d31576560ce4&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 교육 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 78시간이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;ccc34276-4b59-511e-a0fd-84f27d65cef1&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 참여 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 자전거 이용 프로젝트의 전체 개발을 총괄했다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;ef51b5a0-6fa1-5635-931a-7d968ea2d2d3&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 점검 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;08da1372-9aa5-570a-84ac-536e1862822b&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 구현 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    }
+  ]
+}</pre></details><h3>C_verified_rag · 222 tokens · eos</h3><pre>1. 구현: 자전거 이용 점검 기록 9건, 자전거 이용 구현 기록 5건
+2. 점검: 자전거 이용 점검 기록 9건, 자전거 이용 구현 기록 5건
+3. 이수: 자전거 이용 점검 기록 9건, 자전거 이용 구현 기록 5건
+4. 확인 불가: JD 요구 중 확인되지 않은 사항 한 문장: &quot;데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.&quot;
+5. 향후 학습: 향후 학습 제안 한 문장: &quot;자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능을 활용한 데이터 분석 및 시각화를 통해 데이터 정제, 집계, 분석 결과를 설명하는 능력을 향상시킬 수 있는 기회를 제공한다.&quot;</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: [
+    {
+      &quot;record_id&quot;: &quot;ef51b5a0-6fa1-5635-931a-7d968ea2d2d3&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 점검 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;08da1372-9aa5-570a-84ac-536e1862822b&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 구현 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    }
+  ]
+}</pre></details></article><article><h2>dev-person-02-forged_signature</h2><p>B/C 원문 동일: False · 문맥 문서 B 4 / C 2</p><h3>A_no_rag · 94 tokens · eos</h3><pre>1. 구현: 데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.
+2. 점검: 작성한 사례 수, 확인 불가.
+3. 교육: 과정, 시간, 확인 불가.
+4. 확인 불가.
+5. 향후 학습: 데이터 분석 기술을 습득하고 업데이트할 예정.</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: []
+}</pre></details><h3>B_naive_rag · 107 tokens · eos</h3><pre>1. 구현: 자전거 이용 프로젝트에서 Python로 월별 이용량 기능을 구현한 총 5개의 기능 개발.
+2. 점검: 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총 9건.
+3. 이수: 자전거 이용 실습 과정에서 총 78시간의 자전거 이용 실습을 이수한 것으로 확인되었다.</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: [
+    {
+      &quot;record_id&quot;: &quot;0f1479a7-550a-5d4c-bf9b-d865ef13cbdb&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 교육 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 78시간이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;6356549a-c09f-5ce8-bd62-21b9a88144b2&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 참여 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 자전거 이용 프로젝트의 전체 개발을 총괄했다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;38dfd4b9-967e-5974-8ed2-631d888f02b8&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 점검 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;377551cd-cc47-5555-99a1-a10d9220c3be&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 구현 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    }
+  ]
+}</pre></details><h3>C_verified_rag · 91 tokens · eos</h3><pre>1. 구현: 자전거 이용 점검 기록 9건, 자전거 이용 구현 기록 5건
+2. 점검: 자전거 이용 점검 기록 9건, 자전거 이용 구현 기록 5건
+3. 이수: 자전거 이용 점검 기록 9건, 자전거 이용 구현 기록 5건</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: [
+    {
+      &quot;record_id&quot;: &quot;38dfd4b9-967e-5974-8ed2-631d888f02b8&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 점검 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;377551cd-cc47-5555-99a1-a10d9220c3be&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 구현 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    }
+  ]
+}</pre></details></article><article><h2>dev-person-02-none</h2><p>B/C 원문 동일: True · 문맥 문서 B 4 / C 4</p><h3>A_no_rag · 94 tokens · eos</h3><pre>1. 구현: 데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.
+2. 점검: 작성한 사례 수, 확인 불가.
+3. 교육: 과정, 시간, 확인 불가.
+4. 확인 불가.
+5. 향후 학습: 데이터 분석 기술을 습득하고 업데이트할 예정.</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: []
+}</pre></details><h3>B_naive_rag · 256 tokens · length</h3><pre>1. 구현: Python으로 월별 이용량 기능 5개 개수, ② 점검: 자전거 이용 프로젝트에서 작성한 데이터 정제 사례 9건 수, ③ 이수: 자전거 이용 실습 18시간 시간 [604454d2-8868-5f30-89fa-404ade22cc25]
+
+2. 점검: 자전거 이용 프로젝트에서 작성한 데이터 정제 사례 9건 수, ② 검증: 자전거 이용 프로젝트에서 작성한 데이터 정제 사례 9건 수, ③ 교육: 자전거 이용 실습 18시간 시간 [ae5803a2-bac6-54a8-b16b-66e28e61eb14]
+
+3. 이수: 자전거 이용 실습 18시간 시간, ② 학습: 자전거 이용 프로젝트에서 작성한 데이터 정제 사례 9건 수, ③ 교육: 자전</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: [
+    {
+      &quot;record_id&quot;: &quot;0c2f4592-1f59-5b46-bbe6-18b0476e0dfd&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 교육 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 18시간이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;ae5803a2-bac6-54a8-b16b-66e28e61eb14&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 참여 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 자전거 이용 프로젝트에서 월별 이용량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;1a89a3e5-493f-5ef0-8980-ea7ece6a7448&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 점검 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;604454d2-8868-5f30-89fa-404ade22cc25&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 구현 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    }
+  ]
+}</pre></details><h3>C_verified_rag · 256 tokens · length</h3><pre>1. 구현: Python으로 월별 이용량 기능 5개 개수, ② 점검: 자전거 이용 프로젝트에서 작성한 데이터 정제 사례 9건 수, ③ 이수: 자전거 이용 실습 18시간 시간 [604454d2-8868-5f30-89fa-404ade22cc25]
+
+2. 점검: 자전거 이용 프로젝트에서 작성한 데이터 정제 사례 9건 수, ② 검증: 자전거 이용 프로젝트에서 작성한 데이터 정제 사례 9건 수, ③ 교육: 자전거 이용 실습 18시간 시간 [ae5803a2-bac6-54a8-b16b-66e28e61eb14]
+
+3. 이수: 자전거 이용 실습 18시간 시간, ② 학습: 자전거 이용 프로젝트에서 작성한 데이터 정제 사례 9건 수, ③ 교육: 자전</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: [
+    {
+      &quot;record_id&quot;: &quot;0c2f4592-1f59-5b46-bbe6-18b0476e0dfd&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 교육 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 18시간이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;ae5803a2-bac6-54a8-b16b-66e28e61eb14&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 참여 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 자전거 이용 프로젝트에서 월별 이용량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;1a89a3e5-493f-5ef0-8980-ea7ece6a7448&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 점검 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;604454d2-8868-5f30-89fa-404ade22cc25&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 구현 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    }
+  ]
+}</pre></details></article><article><h2>dev-person-02-revoked</h2><p>B/C 원문 동일: False · 문맥 문서 B 4 / C 2</p><h3>A_no_rag · 94 tokens · eos</h3><pre>1. 구현: 데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.
+2. 점검: 작성한 사례 수, 확인 불가.
+3. 교육: 과정, 시간, 확인 불가.
+4. 확인 불가.
+5. 향후 학습: 데이터 분석 기술을 습득하고 업데이트할 예정.</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: []
+}</pre></details><h3>B_naive_rag · 115 tokens · eos</h3><pre>1. 구현: Python으로 월별 이용량 기능 5개, 확인 불가
+2. 점검: 데이터 정제 사례 9건, 확인 불가
+3. 교육: 자전거 이용 실습 18시간, 확인 불가
+4. 미확인: 자전거 이용 참여 기록, 확인 불가
+5. 향후 학습: 자전거 이용 프로젝트에서 월별 이용량 작업을 담당한 경험, 확인 불가</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: [
+    {
+      &quot;record_id&quot;: &quot;5ce86ffa-4a7d-5257-b982-8724b49b9389&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 교육 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 18시간이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;5c125dd7-f872-51ce-9747-d07bd1bf6b42&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 참여 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 자전거 이용 프로젝트에서 월별 이용량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;34af6393-fb08-5fe7-a01d-114d04a73199&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 점검 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;ba0bbac3-c3f5-5277-b77f-4f656ad87aff&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 구현 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    }
+  ]
+}</pre></details><h3>C_verified_rag · 157 tokens · eos</h3><pre>1. 구현: 자전거 이용 점검 기록 9건, 자전거 이용 구현 기록 5건
+2. 점검: 자전거 이용 점검 기록 9건, 자전거 이용 구현 기록 5건
+3. 이수: 자전거 이용 점검 기록 9건, 자전거 이용 구현 기록 5건
+4. 확인 불가: 자전거 이용 점검 기록 9건, 자전거 이용 구현 기록 5건
+5. 향후 학습: 자전거 이용 점검 기록 9건, 자전거 이용 구현 기록 5건</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: [
+    {
+      &quot;record_id&quot;: &quot;34af6393-fb08-5fe7-a01d-114d04a73199&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 점검 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;ba0bbac3-c3f5-5277-b77f-4f656ad87aff&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 구현 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    }
+  ]
+}</pre></details></article><article><h2>dev-person-02-untrusted_issuer</h2><p>B/C 원문 동일: False · 문맥 문서 B 4 / C 2</p><h3>A_no_rag · 94 tokens · eos</h3><pre>1. 구현: 데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.
+2. 점검: 작성한 사례 수, 확인 불가.
+3. 교육: 과정, 시간, 확인 불가.
+4. 확인 불가.
+5. 향후 학습: 데이터 분석 기술을 습득하고 업데이트할 예정.</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: []
+}</pre></details><h3>B_naive_rag · 66 tokens · eos</h3><pre>1. 구현: Python으로 월별 이용량 기능 5개 개수, ② 점검: 자전거 이용 프로젝트에서 작성한 데이터 정제 사례 9건 수, ③ 이수: 자전거 이용 실습 18시간 시간</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: [
+    {
+      &quot;record_id&quot;: &quot;e6a4a225-33cf-5d19-9d5a-48d6a091d439&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 NORTH&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 교육 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 18시간이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;ca217e7f-5afb-52ce-9959-60cced2bc919&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 NORTH&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 참여 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 자전거 이용 프로젝트에서 월별 이용량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;110adbb9-f846-503e-b50d-e7e3b1752705&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 점검 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;5f3f6a27-e04b-5a1a-9960-1e34004462ce&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 구현 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    }
+  ]
+}</pre></details><h3>C_verified_rag · 222 tokens · eos</h3><pre>1. 구현: 자전거 이용 점검 기록 9건, 자전거 이용 구현 기록 5건
+2. 점검: 자전거 이용 점검 기록 9건, 자전거 이용 구현 기록 5건
+3. 이수: 자전거 이용 점검 기록 9건, 자전거 이용 구현 기록 5건
+4. 확인 불가: JD 요구 중 확인되지 않은 사항 한 문장: &quot;데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.&quot;
+5. 향후 학습: 향후 학습 제안 한 문장: &quot;자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능을 활용한 데이터 분석 및 시각화를 통해 데이터 정제, 집계, 분석 결과를 설명하는 능력을 향상시킬 수 있는 기회를 제공한다.&quot;</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: [
+    {
+      &quot;record_id&quot;: &quot;110adbb9-f846-503e-b50d-e7e3b1752705&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 점검 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;5f3f6a27-e04b-5a1a-9960-1e34004462ce&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 구현 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    }
+  ]
+}</pre></details></article><article><h2>dev-person-02-valid_conflict</h2><p>B/C 원문 동일: True · 문맥 문서 B 4 / C 4</p><h3>A_no_rag · 94 tokens · eos</h3><pre>1. 구현: 데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.
+2. 점검: 작성한 사례 수, 확인 불가.
+3. 교육: 과정, 시간, 확인 불가.
+4. 확인 불가.
+5. 향후 학습: 데이터 분석 기술을 습득하고 업데이트할 예정.</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: []
+}</pre></details><h3>B_naive_rag · 122 tokens · eos</h3><pre>1. 구현: Python으로 월별 이용량 기능 5개, 확인 불가
+2. 점검: 자전거 이용 프로젝트에서 작성한 데이터 정제 사례 9건, 확인 불가
+3. 이수: 자전거 이용 실습 18시간, 확인 불가
+4. 확인 불가
+5. 향후 학습: 자전거 이용 프로젝트에서 자전거 이용 실습을 통해 학습한 자전거 이용 실습 기술, 확인 불가</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: [
+    {
+      &quot;record_id&quot;: &quot;1521a4f2-9b16-51ee-b14b-6a9e42672aaf&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 교육 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 18시간이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;9bee65cd-330a-5ce0-8e09-93fcc839cf01&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 교육 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 78시간이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;d699227d-3c34-5fed-9463-6a86fb829f4f&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 점검 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;6f2f43a4-af95-59be-8bed-55685a625cfb&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 구현 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    }
+  ]
+}</pre></details><h3>C_verified_rag · 122 tokens · eos</h3><pre>1. 구현: Python으로 월별 이용량 기능 5개, 확인 불가
+2. 점검: 자전거 이용 프로젝트에서 작성한 데이터 정제 사례 9건, 확인 불가
+3. 이수: 자전거 이용 실습 18시간, 확인 불가
+4. 확인 불가
+5. 향후 학습: 자전거 이용 프로젝트에서 자전거 이용 실습을 통해 학습한 자전거 이용 실습 기술, 확인 불가</pre><details><summary>실제 모델 입력 확인</summary><pre>{
+  &quot;jd&quot;: &quot;데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.&quot;,
+  &quot;profile&quot;: &quot;합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.&quot;,
+  &quot;request&quot;: &quot;JD에 맞춰 제공된 기록에서 다음 세 항목을 각각 최대 한 문장으로 정리하라: ① 구현한 기능·사용 기술·개수, ② 점검 또는 검증 활동·사례 수, ③ 이수 교육·시간. 확인되는 사실에는 제공된 실제 record_id를 인용하라. 근거가 없는 항목은 확인 불가로 표시하고, 기록끼리 충돌하는 항목은 충돌을 표시하며 임의로 하나를 선택하지 마라. 이어서 JD 요구 중 확인되지 않은 사항 한 문장과 향후 학습 제안 한 문장을 쓰라.&quot;,
+  &quot;evidence&quot;: [
+    {
+      &quot;record_id&quot;: &quot;1521a4f2-9b16-51ee-b14b-6a9e42672aaf&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 교육 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 18시간이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;9bee65cd-330a-5ce0-8e09-93fcc839cf01&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 교육 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 이용 실습」의 총 이수 시간은 정확히 78시간이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;d699227d-3c34-5fed-9463-6a86fb829f4f&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 WEST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 점검 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 자전거 이용 프로젝트에서 작성한 데이터 정제 사례의 총수는 정확히 9건이다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    },
+    {
+      &quot;record_id&quot;: &quot;6f2f43a4-af95-59be-8bed-55685a625cfb&quot;,
+      &quot;issuer&quot;: {
+        &quot;name&quot;: &quot;교육기록센터 EAST&quot;
+      },
+      &quot;achievement&quot;: {
+        &quot;name&quot;: &quot;자전거 이용 구현 기록&quot;,
+        &quot;description&quot;: &quot;2025년 1월부터 5월까지 자전거 이용 프로젝트에서 Python로 구현한 월별 이용량 기능의 총수는 정확히 5개다.&quot;,
+        &quot;criteria_narrative&quot;: &quot;기록된 활동 내용에 대한 발급 기록.&quot;
+      },
+      &quot;skills&quot;: [],
+      &quot;issued_at&quot;: &quot;2025-06-01T00:00:00Z&quot;,
+      &quot;awarded_date&quot;: &quot;2025-06-01T00:00:00Z&quot;
+    }
+  ]
+}</pre></details></article>

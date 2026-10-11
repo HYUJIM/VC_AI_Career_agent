@@ -1,0 +1,18 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "b24d3554-b343-4058-a141-4c9f888ddf58",
+  "case_id": "dev-person-02-none",
+  "condition": "B_naive_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "length",
+  "answer": "1. 구현: Python으로 월별 이용량 기능 5개 개수, ② 점검: 자전거 이용 프로젝트에서 작성한 데이터 정제 사례 9건 수, ③ 이수: 자전거 이용 실습 18시간 시간 [604454d2-8868-5f30-89fa-404ade22cc25]\n\n2. 점검: 자전거 이용 프로젝트에서 작성한 데이터 정제 사례 9건 수, ② 검증: 자전거 이용 프로젝트에서 작성한 데이터 정제 사례 9건 수, ③ 교육: 자전거 이용 실습 18시간 시간 [ae5803a2-bac6-54a8-b16b-66e28e61eb14]\n\n3. 이수: 자전거 이용 실습 18시간 시간, ② 학습: 자전거 이용 프로젝트에서 작성한 데이터 정제 사례 9건 수, ③ 교육: 자전",
+  "context_record_ids": [
+    "0c2f4592-1f59-5b46-bbe6-18b0476e0dfd",
+    "ae5803a2-bac6-54a8-b16b-66e28e61eb14",
+    "1a89a3e5-493f-5ef0-8980-ea7ece6a7448",
+    "604454d2-8868-5f30-89fa-404ade22cc25"
+  ],
+  "input_tokens": 1312,
+  "output_tokens": 256
+}

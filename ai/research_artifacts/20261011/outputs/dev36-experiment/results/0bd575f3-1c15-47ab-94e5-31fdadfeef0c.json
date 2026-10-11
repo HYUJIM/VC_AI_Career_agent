@@ -1,0 +1,16 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "0bd575f3-1c15-47ab-94e5-31fdadfeef0c",
+  "case_id": "dev-person-01-forged_signature",
+  "condition": "C_verified_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현한 기능: 도서 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 6건이다.\n2. 점검 또는 검증 활동: 도서 대여 구현 기록에서 Java로 구현한 대여 상태 조회 기능의 총수는 3개다.\n3. 이수 교육: 확인 불가.\n\n해당 record_id: dc9e75c0-90ab-59fb-a9d5-24586d62462b\n\nJD 요구 중 확인되지 않은 사항: API 구현\n\n향후 학습 제안: 향후 학습은 Java로 도서 대여 프로젝트에서 구현한 기능을 확장하고, 대여 상태 조회 기능을 확장하는 것을 추천한다.",
+  "context_record_ids": [
+    "dc9e75c0-90ab-59fb-a9d5-24586d62462b",
+    "3dc7f5af-d69c-5c8a-a2cf-e00429be8fc3"
+  ],
+  "input_tokens": 919,
+  "output_tokens": 194
+}
