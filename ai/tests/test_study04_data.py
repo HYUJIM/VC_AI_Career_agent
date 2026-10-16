@@ -6,7 +6,7 @@ import pytest
 from src.rag import study02_eval as ev
 from src.rag import study04_data as sd
 
-DATA = Path(r'C:\Users\bje10\OneDrive\문서\Codex\2026-10-12\new-chat\outputs\VC_AI_STUDY_04_20261015\data')
+DATA = Path(__file__).resolve().parents[1] / 'research_artifacts' / 'study04_data'
 
 
 def test_world_shape_and_templates():

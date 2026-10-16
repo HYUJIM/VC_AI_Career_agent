@@ -1,0 +1,18 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "981634ff-1f65-47c0-8620-12bc746cc2dc",
+  "case_id": "test-person-03-none",
+  "condition": "B_naive_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현한 기능: 동아리 회비 점검 기록, 동아리 회비 구현 기록, 동아리 회비 교육 기록\n2. 점검 또는 검증 활동: 동아리 회비 점검 기록, 동아리 회비 구현 기록\n3. 이수 교육: 「동아리 회비 실습」\n4. 확인 불가\n5. 향후 학습: 동아리 회비 프로젝트에서 납부 내역 조회 작업을 담당한 경험을 바탕으로 동아리 회비 프로젝트에서 납부 내역 조회 기능을 구현하는 연습을 통해 향후 학습을 진행할 예정이다.",
+  "context_record_ids": [
+    "9d494258-f8f4-5523-831b-1ecdfdebfe23",
+    "fd309561-91c8-55ab-9aea-e38f90f52307",
+    "018a4830-1c6c-594b-824c-af2483bfd946",
+    "7324d5fb-8ddc-54fd-beee-9fb76bbef0fc"
+  ],
+  "input_tokens": 1322,
+  "output_tokens": 172
+}

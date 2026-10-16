@@ -1,0 +1,13 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "14e69878-db47-42fc-8061-ad49aebabde6",
+  "case_id": "test-person-03-forged_signature",
+  "condition": "A_no_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현: API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.\n2. 점검: 작성한 사례 수, 검증 수행, 통과, 숙련도 확인 불가.\n3. 교육: 과정, 시간 확인 불가.\n4. 확인 불가: 주니어 백엔드 개발 직무 요구 사항 중 일부 확인 불가.\n5. 향후 학습: 향후 학습 제안: 데이터 분석 및 트래픽 관리에 대한 자격증 취득.",
+  "context_record_ids": [],
+  "input_tokens": 533,
+  "output_tokens": 140
+}

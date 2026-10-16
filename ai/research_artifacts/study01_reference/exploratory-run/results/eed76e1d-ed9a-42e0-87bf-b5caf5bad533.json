@@ -1,0 +1,18 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "eed76e1d-ed9a-42e0-87bf-b5caf5bad533",
+  "case_id": "test-person-06-expired",
+  "condition": "B_naive_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현: 데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무. \n2. 점검: 4건의 중복 행 제거 사례 작성.\n3. 이수: 「온라인 매출 실습」의 총 이수 시간은 82시간이다.\n\n해당 record_id: 06efd712-0b08-58e3-ad8f-f44b22a0cd1d",
+  "context_record_ids": [
+    "04823c90-2a50-54f0-b269-08e7bbf7eebb",
+    "06efd712-0b08-58e3-ad8f-f44b22a0cd1d",
+    "24e02795-2b0c-594b-9127-6027b4f4a105",
+    "03bfbb36-a61b-5aba-b744-727cae03c667"
+  ],
+  "input_tokens": 1308,
+  "output_tokens": 113
+}

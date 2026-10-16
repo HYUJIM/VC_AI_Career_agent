@@ -1,0 +1,18 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "95794748-f4a9-427c-b6e1-0e719866c296",
+  "case_id": "test-person-03-forged_signature",
+  "condition": "B_naive_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현한 기능: 동아리 회비 점검 기록, 동아리 회비 구현 기록, 동아리 회비 교육 기록\n2. 점검 또는 검증 활동: 동아리 회비 점검 기록, 동아리 회비 구현 기록, 동아리 회비 교육 기록\n3. 이수 교육: 「동아리 회비 실습」\n4. 확인 불가: 동아리 회비 참여 기록\n5. 향후 학습: 동아리 회비 프로젝트에서 납부 내역 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+  "context_record_ids": [
+    "01a652bd-37c2-5e82-a489-87d03f68a663",
+    "511ba71f-9fa9-5c41-bb84-a38c14440c7c",
+    "4860330d-43cd-5a38-9302-e13b63245ab6",
+    "5a74c4dd-16b0-5b3e-ae6c-3d4d75869445"
+  ],
+  "input_tokens": 1335,
+  "output_tokens": 163
+}

@@ -1,0 +1,18 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "4b9aefb3-220a-4f9f-99d8-c65f33d7f019",
+  "case_id": "test-person-07-expired",
+  "condition": "B_naive_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현: SQL로 시간대별 방문량 기능을 구현한 9개의 기능 개수.\n2. 점검: 14건의 집계 질의 검증 사례를 작성한 활동 수.\n3. 이수: 「공공도서관 방문 실습」 과정을 40시간 동안 이수한 시간 수.\n\n해당 record_id: 2be27c29-2680-5bec-aed7-44011c47f450\n\n미확인: JD 요구 중 확인되지 않은 사항 한 문장: \"데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.\"\n\n향후 학습 제안 한 문장: \"공공도서관 방문 실습 과정을 통해 데이터 분석 능력을 향상시키고, SQL로 데이터를 정제하고 분석하는 기술을 습득할 수 있는 기회를 제공받아 데이터 분석 분야에 대한 전문성을 향상시킬 수 있다.\"",
+  "context_record_ids": [
+    "7d2f59b9-9e80-5039-a1d9-54cda5a091da",
+    "e79e08bb-f275-570e-b656-5bd044866894",
+    "2be27c29-2680-5bec-aed7-44011c47f450",
+    "a45350d2-f1d0-5406-972a-2599f290380f"
+  ],
+  "input_tokens": 1336,
+  "output_tokens": 246
+}

@@ -40,6 +40,7 @@ def main():
     ap.add_argument('--source', required=True)
     ap.add_argument('--out', required=True)
     ap.add_argument('--split', choices=('dev', 'test'), required=True)
+    ap.add_argument('--allow-download', action='store_true', help='fetch the pinned model revision if not cached')
     a = ap.parse_args()
     src, out = Path(a.source), Path(a.out)
     bundle_text = (src / 'bundle.json').read_text(encoding='utf-8')
@@ -56,7 +57,7 @@ def main():
     report = study03.audit(built, bundle['entries'], results, verification['records'])
 
     from transformers import AutoTokenizer
-    tok = AutoTokenizer.from_pretrained(MODEL_ID, revision=REVISION, local_files_only=True)
+    tok = AutoTokenizer.from_pretrained(MODEL_ID, revision=REVISION, local_files_only=not a.allow_download)
     for key, arms in built['payloads'].items():
         p = arms['input']
         rendered, n = measure_messages(tok, p['messages'])

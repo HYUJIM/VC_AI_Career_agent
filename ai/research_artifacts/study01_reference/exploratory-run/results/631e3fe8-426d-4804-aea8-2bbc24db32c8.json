@@ -1,0 +1,18 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "631e3fe8-426d-4804-aea8-2bbc24db32c8",
+  "case_id": "test-person-08-forged_signature",
+  "condition": "B_naive_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현: Python으로 요일별 사용량 기능을 구현한 총 5개의 기능.\n2. 점검: 10건의 이상값 표시 사례를 작성한 총 10건의 점검 활동.\n3. 교육: 「건물 전력 실습」 과정을 92시간 동안 이수한 총 1개의 교육 활동.\n\n해당 record_id: e797ea27-6dff-5ca6-9013-832618dc4dda\n\n미확인: 데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.",
+  "context_record_ids": [
+    "e797ea27-6dff-5ca6-9013-832618dc4dda",
+    "a5659a71-10c7-5343-a0f6-0558fcd6e329",
+    "fa12343a-2be7-5375-9cea-36049e75c786",
+    "cc0fe85e-585b-5b48-a8f1-846724f136be"
+  ],
+  "input_tokens": 1296,
+  "output_tokens": 163
+}

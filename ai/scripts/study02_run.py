@@ -24,7 +24,9 @@ def counts(rows, results):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--split-dir', required=True)
-    d = Path(ap.parse_args().split_dir)
+    ap.add_argument('--allow-download', action='store_true', help='fetch the pinned model revision if not cached')
+    args = ap.parse_args()
+    d = Path(args.split_dir)
     lock_path = d / 'payloads.lock.json'
     lock_hash = sha(lock_path.read_text(encoding='utf-8'))
     lock = read_json(lock_path)
@@ -41,7 +43,7 @@ def main():
     results = {}
     try:
         llm = TransformersLLM(revision=REVISION, max_new_tokens=256, max_input_tokens=2048,
-                              seed=42, local_files_only=True)
+                              seed=42, local_files_only=not args.allow_download)
         write_json(run / 'runtime.json', copy.deepcopy(llm.runtime_metadata))
         ledger['status'] = 'running'
         for row in rows:

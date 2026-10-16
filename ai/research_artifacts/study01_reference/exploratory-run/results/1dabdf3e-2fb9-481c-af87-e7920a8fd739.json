@@ -1,0 +1,18 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "1dabdf3e-2fb9-481c-af87-e7920a8fd739",
+  "case_id": "test-person-03-expired",
+  "condition": "B_naive_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현한 기능: 동아리 회비 점검 기록, 동아리 회비 구현 기록, 동아리 회비 교육 기록\n2. 점검 또는 검증 활동: 동아리 회비 점검 기록, 동아리 회비 구현 기록, 동아리 회비 교육 기록\n3. 이수 교육: 「동아리 회비 실습」\n4. 확인 불가: 동아리 회비 참여 기록\n5. 향후 학습: 동아리 회비 프로젝트에서 납부 내역 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+  "context_record_ids": [
+    "9251f873-34f0-5129-9b17-da8b8625a44c",
+    "dc986f19-c53d-581b-aea9-7e12479f30cb",
+    "a3cede24-dea5-59e9-919b-8a45bfc5c3cf",
+    "6be1329f-a905-55f0-b72b-6a391397d631"
+  ],
+  "input_tokens": 1329,
+  "output_tokens": 163
+}

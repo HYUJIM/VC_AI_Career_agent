@@ -6,3 +6,7 @@ outputs/paper_study/manual-pilot-v1/** -text whitespace=trailing-space,space-bef
 
 # Preserve original pilot evidence and historical helper scripts byte-for-byte.
 research_artifacts/20261011/** -text whitespace=trailing-space,space-before-tab,cr-at-eol
+
+# Study 02-04 reference inputs: keep frozen bytes (hash-checked by the study scripts).
+research_artifacts/study01_reference/** -text whitespace=trailing-space,space-before-tab,cr-at-eol
+research_artifacts/study04_data/** -text whitespace=trailing-space,space-before-tab,cr-at-eol

@@ -1,0 +1,18 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "74346def-fbc9-4b2b-873f-3eaddfdf34d2",
+  "case_id": "test-person-05-valid_conflict",
+  "condition": "B_naive_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현: Python으로 대기질 관측 프로젝트에서 일별 오염도 기능을 구현한 총 8개의 기능.\n2. 점검: 대기질 관측 프로젝트에서 작성한 결측치 점검 사례의 총 12건.\n3. 이수: 대기질 관측 교육 과정에서 총 116시간의 이수 시간.\n\n해당 record_id: 8c1d4c88-18e7-5ff3-94e7-cadf32ba2157\n\n미확인: 대기질 관측 교육 기록에 대한 점검 활동과 검증 수행 활동의 확인 불가.",
+  "context_record_ids": [
+    "8c1d4c88-18e7-5ff3-94e7-cadf32ba2157",
+    "86d78cdb-cd21-5c4b-8082-8b0bef21c4a9",
+    "2c7a335c-8cc6-5d3b-bd48-ea1b250218cd",
+    "afe58558-b4ad-5f57-99c4-89db7a00dc3c"
+  ],
+  "input_tokens": 1321,
+  "output_tokens": 172
+}

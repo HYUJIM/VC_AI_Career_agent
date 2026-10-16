@@ -1,0 +1,16 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "2b247c72-2506-4b78-a804-604c10801df8",
+  "case_id": "test-person-06-revoked",
+  "condition": "C_verified_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현: 온라인 매출 점검 기록에서 4건의 중복 행 제거 사례를 작성했다. [1911ae6d-edd8-5c17-ba84-b0f68d479a48]\n2. 점검: 온라인 매출 구현 기록에서 3개의 품목별 매출 기능을 R로 구현했다. [c65ba27e-e819-5172-a88d-c130673973ff]\n3. 이수 교육: 확인 불가. [해당 record_id]",
+  "context_record_ids": [
+    "1911ae6d-edd8-5c17-ba84-b0f68d479a48",
+    "c65ba27e-e819-5172-a88d-c130673973ff"
+  ],
+  "input_tokens": 925,
+  "output_tokens": 153
+}

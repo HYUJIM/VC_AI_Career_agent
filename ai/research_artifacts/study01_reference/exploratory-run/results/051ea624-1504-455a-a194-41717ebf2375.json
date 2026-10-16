@@ -1,0 +1,13 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "051ea624-1504-455a-a194-41717ebf2375",
+  "case_id": "test-person-05-revoked",
+  "condition": "A_no_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현: 데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.\n2. 점검: 작성한 사례 수, 확인 불가.\n3. 교육: 과정, 시간, 확인 불가.\n4. 확인 불가.\n5. 향후 학습: 데이터 분석 기술을 습득하고 업데이트할 예정.",
+  "context_record_ids": [],
+  "input_tokens": 528,
+  "output_tokens": 94
+}

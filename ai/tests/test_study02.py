@@ -6,7 +6,7 @@ import pytest
 from src.rag import study02
 from src.rag import study02_eval as ev
 
-STUDY01 = Path(r'C:\Users\bje10\OneDrive\문서\Codex\2026-10-12\new-chat\outputs\VC_AI_MAIN_STUDY_01_20261012')
+STUDY01 = Path(__file__).resolve().parents[1] / 'research_artifacts' / 'study01_reference'
 
 FAM01 = dict(
     family_id='test-person-01', job='backend', jd='API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.',

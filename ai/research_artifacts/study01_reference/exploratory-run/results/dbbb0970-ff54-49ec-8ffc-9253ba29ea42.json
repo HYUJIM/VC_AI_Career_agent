@@ -1,0 +1,18 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "dbbb0970-ff54-49ec-8ffc-9253ba29ea42",
+  "case_id": "test-person-04-expired",
+  "condition": "B_naive_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현한 기능: 전시 입장권 프로젝트에서 Kotlin로 잔여 좌석 조회 기능을 구현한 총 7개의 기능을 개발했다.\n2. 점검 또는 검증 활동: 전시 입장권 프로젝트에서 작성한 트랜잭션 검토 사례를 8건으로 점검했다.\n3. 이수 교육: 「전시 입장권 실습」 과정을 96시간 동안 이수했다.\n\n해당 record_id: cb60115b-8b67-5b6e-a0fe-99129571df52",
+  "context_record_ids": [
+    "df213c0f-77ed-52db-92ff-8383e4a4f714",
+    "55a6c426-5d45-5ebf-9c1e-be4c11344c7a",
+    "54832360-ccb5-5825-8823-a5ad089a1e8b",
+    "cb60115b-8b67-5b6e-a0fe-99129571df52"
+  ],
+  "input_tokens": 1307,
+  "output_tokens": 154
+}

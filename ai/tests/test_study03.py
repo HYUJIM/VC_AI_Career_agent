@@ -5,8 +5,8 @@ import pytest
 
 from src.rag import study03
 
-STUDY01 = Path(r'C:\Users\bje10\OneDrive\문서\Codex\2026-10-12\new-chat\outputs\VC_AI_MAIN_STUDY_01_20261012')
-LIVE = Path(r'C:\Users\bje10\OneDrive\문서\Codex\2026-10-12\new-chat\outputs\VC_AI_STUDY_03_20261014\live_verification.json')
+STUDY01 = Path(__file__).resolve().parents[1] / 'research_artifacts' / 'study01_reference'
+LIVE = STUDY01 / 'live_verification.json'
 needs_data = pytest.mark.skipif(not (STUDY01 / 'bundle.json').exists() or not LIVE.exists(), reason='study data not present')
 
 GOLD = {'S1.count': 4, 'S2.count': 7, 'S3.hours': 30, 'S1.tech': 'Python', 'names': ['주문 접수', '오류 응답 처리', '동네 상점 주문 실습']}

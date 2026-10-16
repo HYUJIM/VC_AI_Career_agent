@@ -1,0 +1,16 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "0f60df93-43ca-4b74-b965-d7325c81bfaf",
+  "case_id": "test-person-03-untrusted_issuer",
+  "condition": "C_verified_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현한 기능: 동아리 회비 점검 기록에서 5건의 접근 권한 검사 사례가 작성되었다.\n2. 점검 또는 검증 활동: 동아리 회비 구현 기록에서 2개의 납부 내역 조회 기능이 구현되었다.\n3. 이수 교육: 확인 불가.",
+  "context_record_ids": [
+    "68175635-0c89-50c3-887a-21ce930ccdb7",
+    "82fd8f45-b32c-5fde-a9b4-e0b0547a7b27"
+  ],
+  "input_tokens": 929,
+  "output_tokens": 84
+}
