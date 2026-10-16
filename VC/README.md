@@ -175,3 +175,15 @@ VC/
 - **DB**: `CredentialRecord`/`SkillClaim` 필드 그대로 테이블/벡터 스키마 설계에 반영하면 됩니다.
 
 질문이나 스키마 변경이 필요하면 팀 채널에 먼저 공지 후 `schema_version`을 올려주세요.
+
+## 11. 연구용 스크립트 (AI 환각 실험)
+
+AI 파트의 논문 실험에서 쓰는 스크립트입니다. 기존 `fixtures/`와 키는 건드리지 않고, 새 폴더에만 씁니다.
+
+| 스크립트 | 용도 |
+|---|---|
+| `scripts/prepare-paper-study.ts` | 1차 연구용 합성 VC 서명과 검증 (지원자 10명) |
+| `scripts/verify-study03.ts` | 저장된 서명 원본(compact JWS)을 실행 시점에 다시 검증 (3·4차). 저장된 상태값은 읽지 않음 |
+| `scripts/prepare-study04.ts` | 4차 규모(지원자 44명, VC 1,056개) 서명. 1차 절차와 같고 지원자 수 제한만 없음 |
+
+이 스크립트들은 AI 쪽 `ai/scripts/study03_prepare.py`, `study04_build_data.py`가 `npx tsx`로 호출합니다. 서명용 비밀키는 실행 중에만 만들고 저장하지 않습니다. 실행 방법은 [ai/docs/STUDIES_RUN.md](../ai/docs/STUDIES_RUN.md)를 참고하세요.

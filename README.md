@@ -1,7 +1,25 @@
 # VC_AI_Career_agent
 [종합설계프로젝트1] 디지털 배지 및 자격증명 기반 초개인화 AI 커리어 에이전트 지갑 개발 과제
 
+| 폴더 | 내용 | 안내 |
+|---|---|---|
+| `VC/` | 검증 이력 지갑 코어: VC 파싱·정규화·검증 파이프라인과 Mock 서버 | [VC/README.md](VC/README.md) |
+| `ai/` | AI 커리어 에이전트와 "VC 검증이 AI 이력서 환각을 줄이는가" 연구 | [ai/README.md](ai/README.md) |
+| `report/` | 발표·보고 자료 | |
 
-## AI 논문 연구 이어가기
+## AI 연구 현황 (2026-10-16 기준, `AI` 브랜치)
 
-[정리 및 다음 작업 안내](ai/docs/CLEANUP_AND_NEXT_WORK_20261012.md) · [최신 36건 개발 실험 자료](ai/research_artifacts/20261011/README.md)
+VC 기록을 읽고 지원 문장을 쓰는 AI가 기록에 없는 내용을 만들거나 부풀리는지, 그리고 VC 검증이 이를 막는지 네 차례 실험했습니다.
+
+| 차수 | 무엇을 비교했나 | 규모 | 핵심 결과 |
+|---|---|---|---|
+| 1차 | 근거 없음 vs 전체 기록 vs 검증 기록 | 답변 144건 | 검증 필터가 거짓 교육시간 전파를 15/16 → 0/16으로 막음 (사후 분석) |
+| 2차 | 일반 문서 vs 미검증 VC vs 검증 VC | 답변 272건 | 필터는 거짓을 막지만 참인 정보도 함께 지움. VC 형식 자체의 효과는 없음 |
+| 3차 | 저장된 "verified" 표시 vs 실행 시점 VC 재검증 (DB 변조 상황) | 답변 448건 | 변조 160개를 VC 실검증은 모두, 표시 신뢰 시스템은 하나도 막지 못함 |
+| 4차 | 3차 설계를 VC 1,008개 + 같은 내용의 더미 1,008개로 확대 | 답변 2,352건 | 3차 결과가 그대로 재현됨 (840 대 0). 플래그 + 사후 대조가 참인 정보를 더 살림 |
+
+모든 판정은 자동 판정 초안이며 사람 검토 전입니다. 데이터는 합성 지원자이고, VC는 연구용 테스트 키로 서명했습니다.
+
+- 재현 방법: [ai/docs/STUDIES_RUN.md](ai/docs/STUDIES_RUN.md)
+- 설계 문서: [2차](ai/docs/paper_experiment2_design_v1.md) · [3차](ai/docs/paper_experiment3_design_v1.md) · [4차](ai/docs/paper_experiment4_design_v1.md)
+- 이전 정리: [정리 및 다음 작업 안내](ai/docs/CLEANUP_AND_NEXT_WORK_20261012.md) · [36건 개발 실험 자료](ai/research_artifacts/20261011/README.md)
