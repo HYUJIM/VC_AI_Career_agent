@@ -9,10 +9,12 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { getApiErrorMessage } from '@/lib/apiClient';
+import { PREVIEW_ENABLED, PREVIEW_USER } from '@/lib/preview';
 import { useAuthStore } from '@/store/authStore';
 
 const loginSchema = z.object({
   email: z.string().email('올바른 이메일 형식이 아닙니다.'),
+  password: z.string().min(1, '비밀번호를 입력해주세요.'),
 });
 
 type LoginForm = z.infer<typeof loginSchema>;
@@ -55,6 +57,14 @@ export function LoginPage() {
             error={errors.email?.message}
             {...register('email')}
           />
+          <Input
+            id="password"
+            type="password"
+            label="비밀번호"
+            autoComplete="current-password"
+            error={errors.password?.message}
+            {...register('password')}
+          />
           {errorMessage && <p className="text-sm text-[var(--color-danger)]">{errorMessage}</p>}
           <Button type="submit" isLoading={mutation.isPending}>
             로그인
@@ -66,6 +76,19 @@ export function LoginPage() {
             회원가입
           </Link>
         </p>
+        {PREVIEW_ENABLED && (
+          <Button
+            type="button"
+            variant="secondary"
+            className="mt-4 w-full"
+            onClick={() => {
+              setUser(PREVIEW_USER);
+              navigate('/dashboard');
+            }}
+          >
+            미리보기로 입장 (개발용)
+          </Button>
+        )}
       </Card>
     </div>
   );

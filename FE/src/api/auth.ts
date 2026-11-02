@@ -4,10 +4,12 @@ import type { LoginResponse, RegisterResponse } from '@/types/api';
 export interface RegisterPayload {
   name: string;
   email: string;
+  password: string;
 }
 
 export interface LoginPayload {
   email: string;
+  password: string;
 }
 
 /** POST /api/v1/users/register */

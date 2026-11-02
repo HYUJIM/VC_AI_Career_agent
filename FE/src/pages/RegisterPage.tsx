@@ -14,6 +14,11 @@ import { useAuthStore } from '@/store/authStore';
 const registerSchema = z.object({
   name: z.string().min(1, '이름을 입력해주세요.'),
   email: z.string().email('올바른 이메일 형식이 아닙니다.'),
+  password: z.string().min(8, '비밀번호는 8자 이상이어야 합니다.'),
+  passwordConfirm: z.string(),
+}).refine((v) => v.password === v.passwordConfirm, {
+  message: '비밀번호가 일치하지 않습니다.',
+  path: ['passwordConfirm'],
 });
 
 type RegisterForm = z.infer<typeof registerSchema>;
@@ -40,7 +45,7 @@ export function RegisterPage() {
 
   function onSubmit(values: RegisterForm) {
     setErrorMessage(null);
-    mutation.mutate(values);
+    mutation.mutate({ name: values.name, email: values.email, password: values.password });
   }
 
   return (
@@ -62,6 +67,23 @@ export function RegisterPage() {
             placeholder="hong@test.com"
             error={errors.email?.message}
             {...register('email')}
+          />
+          <Input
+            id="password"
+            type="password"
+            label="비밀번호"
+            placeholder="8자 이상"
+            autoComplete="new-password"
+            error={errors.password?.message}
+            {...register('password')}
+          />
+          <Input
+            id="passwordConfirm"
+            type="password"
+            label="비밀번호 확인"
+            autoComplete="new-password"
+            error={errors.passwordConfirm?.message}
+            {...register('passwordConfirm')}
           />
           {errorMessage && <p className="text-sm text-[var(--color-danger)]">{errorMessage}</p>}
           <Button type="submit" isLoading={mutation.isPending}>
