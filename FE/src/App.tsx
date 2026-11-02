@@ -3,6 +3,7 @@ import { Layout } from '@/components/Layout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { IssueCredentialPage } from '@/pages/IssueCredentialPage';
+import { PortfolioBuilderPage } from '@/pages/PortfolioBuilderPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { RegisterPage } from '@/pages/RegisterPage';
 
@@ -26,6 +27,14 @@ function App() {
           element={
             <ProtectedRoute>
               <IssueCredentialPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/portfolio"
+          element={
+            <ProtectedRoute>
+              <PortfolioBuilderPage />
             </ProtectedRoute>
           }
         />
