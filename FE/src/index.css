@@ -1,20 +1,23 @@
 @import 'tailwindcss';
 
 :root {
-  --color-bg: #ffffff;
-  --color-surface: #f8f7fb;
-  --color-border: #e5e4e7;
-  --color-text: #08060d;
-  --color-text-muted: #6b6375;
-  --color-primary: #7c3aed;
-  --color-primary-hover: #6d28d9;
-  --color-success: #16a34a;
-  --color-warning: #d97706;
-  --color-danger: #dc2626;
-  --color-info: #2563eb;
+  --color-bg: #0b0e14;
+  --color-surface: #0f131b;
+  --color-card: #141925;
+  --color-card-hover: #1a2030;
+  --color-border: #232b3b;
+  --color-text: #e6e9f0;
+  --color-text-muted: #8b93a7;
+  --color-primary: #22d3ee;
+  --color-primary-hover: #67e8f9;
+  --color-primary-fg: #04181d;
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
+  --color-danger: #f87171;
+  --color-info: #60a5fa;
 
-  color-scheme: light dark;
-  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: dark;
+  font-family: 'Pretendard', system-ui, 'Segoe UI', Roboto, 'Noto Sans KR', sans-serif;
 }
 
 html,
@@ -25,6 +28,14 @@ body,
 
 body {
   margin: 0;
-  background: var(--color-surface);
+  background:
+    radial-gradient(900px 400px at 85% -10%, rgba(34, 211, 238, 0.08), transparent 60%),
+    radial-gradient(700px 400px at 0% 0%, rgba(99, 102, 241, 0.07), transparent 60%),
+    var(--color-bg);
+  background-attachment: fixed;
   color: var(--color-text);
+}
+
+.font-mono-did {
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
 }

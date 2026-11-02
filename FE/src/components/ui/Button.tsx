@@ -10,11 +10,11 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantClasses: Record<Variant, string> = {
   primary:
-    'bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)] disabled:bg-gray-300',
+    'bg-[var(--color-primary)] text-[var(--color-primary-fg)] font-semibold hover:bg-[var(--color-primary-hover)] disabled:bg-[var(--color-border)] disabled:text-[var(--color-text-muted)]',
   secondary:
-    'bg-white text-[var(--color-text)] border border-[var(--color-border)] hover:bg-gray-50',
-  ghost: 'bg-transparent text-[var(--color-text-muted)] hover:bg-gray-100',
-  danger: 'bg-[var(--color-danger)] text-white hover:opacity-90',
+    'bg-[var(--color-card-hover)] text-[var(--color-text)] border border-[var(--color-border)] hover:border-[var(--color-primary)]',
+  ghost: 'bg-transparent text-[var(--color-text-muted)] hover:bg-[var(--color-card-hover)]',
+  danger: 'bg-[var(--color-danger)] text-[#1a0606] hover:opacity-90',
 };
 
 export function Button({

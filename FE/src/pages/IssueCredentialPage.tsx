@@ -15,6 +15,12 @@ const DEFAULT_TEMPLATE_ID = 'f9499c5f-6611-45c6-b5a8-683a99040aab';
 
 type Step = 'issue' | 'verify' | 'done';
 
+const STEPS: { key: Step; title: string; desc: string }[] = [
+  { key: 'issue', title: '1단계: 배지 발급', desc: 'Mock Issuer에서 VC(JWT) 발급' },
+  { key: 'verify', title: '2단계: 검증 및 저장', desc: 'DXWorks API로 검증 후 지갑에 저장' },
+  { key: 'done', title: '3단계: 완료', desc: '자격증명 지갑에서 확인' },
+];
+
 export function IssueCredentialPage() {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
@@ -46,13 +52,25 @@ export function IssueCredentialPage() {
 
   if (!user) return null;
 
+  const currentIndex = STEPS.findIndex((s) => s.key === step);
+
   return (
-    <div className="mx-auto flex max-w-xl flex-col gap-6">
-      <h1 className="text-2xl font-bold">자격증명 발급 및 검증</h1>
-      <p className="text-sm text-[var(--color-text-muted)]">
-        테스트용 모의 발급 서버(Mock Issuer)에서 배지를 발급받고, BE가 DXWorks API로 검증한 뒤
-        지갑에 저장합니다.
-      </p>
+    <div className="mx-auto flex max-w-3xl flex-col gap-6">
+      <div>
+        <span className="text-xs font-semibold tracking-widest text-[var(--color-primary)]">
+          CREDENTIAL ISSUANCE
+        </span>
+        <h1 className="mt-1 text-3xl font-bold">자격증명 발급 및 검증</h1>
+        <p className="mt-2 text-sm text-[var(--color-text-muted)]">
+          테스트용 모의 발급 서버(Mock Issuer)에서 배지를 발급받고, BE가 DXWorks API로 검증한 뒤
+          지갑에 저장합니다.
+        </p>
+      </div>
+
+      <Card className="flex flex-col gap-1 p-5">
+        <span className="text-xs text-[var(--color-text-muted)]">내 DID</span>
+        <span className="font-mono-did break-all text-sm text-emerald-300">{user.did}</span>
+      </Card>
 
       {errorMessage && (
         <Card className="border-[var(--color-danger)]">
@@ -60,29 +78,42 @@ export function IssueCredentialPage() {
         </Card>
       )}
 
-      <Card className="flex flex-col gap-4">
-        <div className="flex items-center gap-2 text-sm font-semibold">
-          <span
-            className={step === 'issue' ? 'text-[var(--color-primary)]' : 'text-green-600'}
-          >
-            1. 배지 발급
-          </span>
-          <span>→</span>
-          <span
-            className={
-              step === 'verify'
-                ? 'text-[var(--color-primary)]'
-                : step === 'done'
-                  ? 'text-green-600'
-                  : 'text-[var(--color-text-muted)]'
-            }
-          >
-            2. 검증 및 저장
-          </span>
-        </div>
+      <Card accent className="flex flex-col gap-6">
+        <ol className="flex flex-col gap-3">
+          {STEPS.map((s, i) => {
+            const done = i < currentIndex || step === 'done';
+            const active = i === currentIndex && step !== 'done';
+            return (
+              <li
+                key={s.key}
+                className={`flex items-center gap-3 rounded-lg border px-4 py-3 ${
+                  active
+                    ? 'border-[var(--color-primary)] bg-cyan-400/5'
+                    : 'border-[var(--color-border)]'
+                }`}
+              >
+                <span
+                  className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
+                    done
+                      ? 'bg-emerald-400 text-[#04140d]'
+                      : active
+                        ? 'bg-[var(--color-primary)] text-[var(--color-primary-fg)]'
+                        : 'bg-[var(--color-border)] text-[var(--color-text-muted)]'
+                  }`}
+                >
+                  {done ? '✓' : i + 1}
+                </span>
+                <div>
+                  <p className="text-sm font-semibold">{s.title}</p>
+                  <p className="text-xs text-[var(--color-text-muted)]">{s.desc}</p>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
 
         {step === 'issue' && (
-          <>
+          <div className="flex flex-col gap-4">
             <Input
               id="templateId"
               label="Template ID"
@@ -98,12 +129,12 @@ export function IssueCredentialPage() {
             >
               모의 배지 발급받기
             </Button>
-          </>
+          </div>
         )}
 
         {step === 'verify' && jwt && (
-          <>
-            <p className="break-all rounded-lg bg-gray-50 p-3 text-xs text-[var(--color-text-muted)]">
+          <div className="flex flex-col gap-4">
+            <p className="font-mono-did break-all rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-xs text-[var(--color-text-muted)]">
               발급된 JWT: {jwt.slice(0, 60)}...
             </p>
             <Button
@@ -115,16 +146,16 @@ export function IssueCredentialPage() {
             >
               검증하고 지갑에 저장하기
             </Button>
-          </>
+          </div>
         )}
 
         {step === 'done' && (
-          <>
-            <p className="text-sm text-green-700">
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-emerald-300">
               검증 및 저장이 완료되었습니다. 지갑 대시보드에서 확인하세요.
             </p>
-            <Button onClick={() => navigate('/dashboard')}>대시보드로 이동</Button>
-          </>
+            <Button onClick={() => navigate('/dashboard')}>자격증명 지갑으로 이동 →</Button>
+          </div>
         )}
       </Card>
     </div>

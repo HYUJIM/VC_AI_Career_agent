@@ -15,7 +15,7 @@ export function Input({ label, error, id, className = '', ...rest }: InputProps)
       )}
       <input
         id={id}
-        className={`rounded-lg border px-3 py-2 text-sm outline-none transition-colors focus:border-[var(--color-primary)] ${
+        className={`rounded-lg border bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)] outline-none transition-colors placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)] ${
           error ? 'border-[var(--color-danger)]' : 'border-[var(--color-border)]'
         } ${className}`}
         {...rest}

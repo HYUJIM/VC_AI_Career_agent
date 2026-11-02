@@ -1,23 +1,23 @@
 import type { CredentialStatus } from '@/types/api';
 
 const STATUS_STYLE: Record<string, { label: string; className: string }> = {
-  verified: { label: '검증됨', className: 'bg-green-100 text-green-700' },
-  invalid: { label: '유효하지 않음', className: 'bg-red-100 text-red-700' },
-  revoked: { label: '취소됨', className: 'bg-red-100 text-red-700' },
-  expired: { label: '만료됨', className: 'bg-amber-100 text-amber-700' },
-  unverifiable: { label: '검증 불가', className: 'bg-gray-100 text-gray-700' },
-  pending: { label: '대기 중', className: 'bg-blue-100 text-blue-700' },
+  verified: { label: 'VERIFIED VC', className: 'bg-emerald-400/10 text-emerald-300 border-emerald-400/30' },
+  invalid: { label: '유효하지 않음', className: 'bg-red-400/10 text-red-300 border-red-400/30' },
+  revoked: { label: '취소됨', className: 'bg-red-400/10 text-red-300 border-red-400/30' },
+  expired: { label: '만료됨', className: 'bg-amber-400/10 text-amber-300 border-amber-400/30' },
+  unverifiable: { label: '검증 불가', className: 'bg-slate-400/10 text-slate-300 border-slate-400/30' },
+  pending: { label: '대기 중', className: 'bg-blue-400/10 text-blue-300 border-blue-400/30' },
 };
 
 export function StatusBadge({ status }: { status: CredentialStatus }) {
   const style = STATUS_STYLE[status] ?? {
     label: status,
-    className: 'bg-gray-100 text-gray-700',
+    className: 'bg-slate-400/10 text-slate-300 border-slate-400/30',
   };
 
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${style.className}`}
+      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold tracking-wide ${style.className}`}
     >
       {style.label}
     </span>
