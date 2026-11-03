@@ -1,755 +1,514 @@
 openapi: 3.1.0
 info:
-  title: VC AI Career Agent — BE Mock API
-  version: 0.1.0
+  title: VC AI Career Agent — BE API
+  version: 0.2.0
   description: |
-    BE 파트의 OpenAPI 명세. VC 파트의 `docs/openapi.yaml` 스키마를 그대로 참조하여 이중 정의를 방지한다.
+    BE(FastAPI) 파트의 OpenAPI 명세. FE(`FE/src/api/*.ts`, `FE/src/types/api.ts`)가 실제로 호출하는
+    계약을 기준으로 작성했다.
 
-    ## 아키텍처: BFF (Backend For Frontend) 방식 채택
-    BE는 VC 지갑 서버(`localhost:4000`)를 단순히 통과시키는 프록시(Proxy)가 아닌,
-    VC 서버를 내부에서 직접 호출(Axios/Fetch)하고 자체 DB(PostgreSQL) 데이터와 조립하여
-    FE/AI에게 완성된 단일 응답을 제공하는 BFF 패턴을 채택한다.
+    ## 아키텍처: BFF (Backend For Frontend)
+    BE는 DXWorks API(발급/검증)를 내부에서 호출하고, 그 결과를 자체 DB(PostgreSQL)에 저장한 뒤
+    FE/AI가 바로 쓸 수 있는 형태로 조립해서 응답한다.
 
-    논문 기간(~10/23) 동안은 Prism mock 서버(`localhost:4010`)로 AI/FE 팀에 제공하며,
-    논문 이후 NestJS 실 비즈니스 로직으로 교체한다.
+    ## 응답/에러 규칙
+    - 성공 응답 중 쓰기 계열(`register`, `login`, `verify`, `mock-issuer/issue`)은
+      `{ success, message, ... }` 봉투(envelope)를 쓴다. 조회 계열(`careers`)은 봉투 없이 본문을 바로 반환한다.
+    - 에러는 FastAPI 기본 형식 `{ "detail": "..." }` 으로 반환한다.
+      FE는 `detail → message → error` 순서로 메시지를 읽는다 (`FE/src/lib/apiClient.ts`).
+    - 요청 본문 검증 실패는 FastAPI 기본 422 응답(`detail` 배열)이다.
 
-    핵심 원칙: `status` 쿼리 파라미터를 생략하면 항상 `verified` 자격증명만 반환한다.
-    "근거 없는 스펙 기재 원천 차단" 요구사항을 API 기본값으로 강제하기 위함이다.
+    ## 인증
+    현재 별도 토큰/세션이 없다. FE는 로그인 응답의 사용자 정보(`did` 포함)를 localStorage에 보관하고
+    이후 요청 경로에 DID를 넣어 호출한다.
   contact:
     name: BE 파트
 
 servers:
-  - url: http://localhost:4010
-    description: Prism Mock 서버 (논문 기간)
-  - url: http://localhost:4000
-    description: VC 지갑 코어 실서버 (fixture 모드)
+  - url: http://localhost:3000
+    description: 로컬 개발 서버 (docker compose). FE 개발 서버는 `/api` 프록시로 이 주소에 연결한다.
+
+# 현재 인증 없음 (info.description의 "인증" 참고)
+security: []
 
 tags:
   - name: health
     description: 서버 상태 확인
-  - name: credentials
-    description: 자격증명(CredentialRecord) 조회
-  - name: skills
-    description: 정규화된 공통 역량(SkillClaim) 조회
+  - name: users
+    description: 회원가입 / 로그인
+  - name: careers
+    description: AI/FE용 사용자 프로필 + 자격증명 조회
   - name: verify
-    description: 온디맨드 재검증
+    description: 자격증명 검증 후 저장
+  - name: mock-issuer
+    description: 테스트용 모의 배지 발급
 
 paths:
   /health:
     get:
       tags: [health]
-      summary: 서버 상태 및 로드된 레코드 수 확인
+      summary: 서버 상태 확인
       operationId: getHealth
       responses:
         "200":
-          description: 정상
+          description: 서버 정상
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthResponse"
-              example:
-                status: ok
-                mode: fixture
-                recordCount: 9
 
-  /v1/subjects/{did}/credentials:
-    get:
-      tags: [credentials]
-      summary: 특정 subject(사용자/학생)의 자격증명 목록 조회
+  /api/v1/users/register:
+    post:
+      tags: [users]
+      summary: 회원가입 (DID 자동 발급)
       description: |
-        `status` 쿼리를 생략하면 **항상 verified만** 반환한다.
-        미검증 데이터를 받으려면 `?status=all` 또는 `?status=invalid,revoked`처럼 명시적으로 요청해야 한다.
-      operationId: listCredentialsBySubject
-      parameters:
-        - $ref: "#/components/parameters/SubjectDid"
-        - name: status
-          in: query
-          required: false
-          description: |
-            쉼표로 구분된 상태 목록, 또는 `all`(전체). 생략 시 기본값은 `verified`.
-          schema:
-            type: string
-            examples: ["verified", "all", "invalid,revoked"]
+        이메일로 사용자를 만들고 임시 DID(`did:key:z6MkMock...`)를 발급한다.
+        FE는 응답의 `data`를 그대로 로그인 상태로 저장한다.
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
       responses:
         "200":
-          description: 자격증명 목록 (요약 필드만 포함, 전체 내용은 /v1/records/{id} 참조)
+          description: 가입 완료
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CredentialListResponse"
+                $ref: "#/components/schemas/AuthResponse"
               example:
-                subject_did: "did:fixture:student-001"
-                status_filter: ["verified"]
-                count: 4
-                records:
-                  - record_id: "3f444a85-191b-51a4-83a6-73fad567c272"
-                    format: "OB2.0"
-                    achievement_name: "백엔드 개발 기초"
-                    issuer_name: "ACME University"
-                    status: "verified"
-                    issued_at: "2026-03-01T00:00:00Z"
-                  - record_id: "a1b2c3d4-e5f6-5a7b-8c9d-0e1f2a3b4c5d"
-                    format: "OB2.0"
-                    achievement_name: "데이터베이스 설계 인증"
-                    issuer_name: "ACME University"
-                    status: "verified"
-                    issued_at: "2026-05-15T00:00:00Z"
-                  - record_id: "b2c3d4e5-f6a7-5b8c-9d0e-1f2a3b4c5d6e"
-                    format: "OB3.0"
-                    achievement_name: "머신러닝 프로젝트 수료"
-                    issuer_name: "Globex Academy"
-                    status: "verified"
-                    issued_at: "2026-06-01T00:00:00Z"
-                  - record_id: "c3d4e5f6-a7b8-5c9d-0e1f-2a3b4c5d6e7f"
-                    format: "OB3.0"
-                    achievement_name: "블록체인 응용 캡스톤"
-                    issuer_name: "ACME University"
-                    status: "verified"
-                    issued_at: "2026-04-20T00:00:00Z"
-
-  /v1/records/{id}:
-    get:
-      tags: [credentials]
-      summary: 단일 CredentialRecord 전체 조회
-      description: |
-        status 필터가 적용되지 않는다.
-        record_id만 알면 상태와 무관하게 조회된다 (기업용 원클릭 검증 뷰 등 근거 확인 용도).
-      operationId: getRecordById
-      parameters:
-        - $ref: "#/components/parameters/RecordId"
-      responses:
-        "200":
-          description: CredentialRecord 전체
+                success: true
+                message: 회원가입 완료. 발급된 DID를 프론트엔드에서 보관하세요.
+                data:
+                  id: 3f2b9c1e-6a7d-4e1f-9b2a-1c3d5e7f9a0b
+                  name: 홍길동
+                  email: hong@test.com
+                  did: did:key:z6MkMock1a2b3c4d5e6f
+        "400":
+          description: 이미 가입된 이메일
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CredentialRecord"
+                $ref: "#/components/schemas/ErrorResponse"
               example:
-                record_id: "3f444a85-191b-51a4-83a6-73fad567c272"
-                subject_did: "did:fixture:student-001"
-                schema_version: "0.1.0"
-                normalized_at: "2026-09-28T11:00:00.000Z"
-                source:
-                  provider: "hosted_url"
-                  external_id: "cred-ob2-hosted-001"
-                  fetched_at: "2026-09-28T11:00:00.000Z"
-                format: "OB2.0"
-                issuer:
-                  did: "did:fixture:acme-university"
-                  name: "ACME University"
-                  url: "https://acme-university.example.com"
-                  trust_level: "accredited"
-                achievement:
-                  id: "https://acme-university.example.com/badges/backend-basics"
-                  name: "백엔드 개발 기초"
-                  description: "백엔드 개발의 기초를 다루는 과정 수료"
-                  achievement_type: "Completion"
-                evidence: []
-                issued_at: "2026-03-01T00:00:00Z"
-                expires_at: null
-                awarded_date: "2026-03-01"
-                skills:
-                  - skill_id: "SK.DEV.BACKEND"
-                    label_ko: "백엔드 개발"
-                    label_en: "Backend Development"
-                    taxonomy:
-                      source: "NCS"
-                      code: "2001010401"
-                      version: "2024"
-                    level: null
-                    level_basis: "completion"
-                    confidence: 1
-                    mapping_method: "alias_dict"
-                    source_record_ids:
-                      - "3f444a85-191b-51a4-83a6-73fad567c272"
-                verification:
-                  status: "verified"
-                  checks:
-                    - check: "schema"
-                      result: "pass"
-                      checked_at: "2026-09-28T11:00:00.000Z"
-                    - check: "did_resolution"
-                      result: "pass"
-                      checked_at: "2026-09-28T11:00:00.000Z"
-                    - check: "signature"
-                      result: "skip"
-                      detail: "OB2.0 Hosted 방식은 서명 없음"
-                      checked_at: "2026-09-28T11:00:00.000Z"
-                    - check: "issuer_trust"
-                      result: "pass"
-                      checked_at: "2026-09-28T11:00:00.000Z"
-                    - check: "revocation"
-                      result: "pass"
-                      checked_at: "2026-09-28T11:00:00.000Z"
-                    - check: "anchor_match"
-                      result: "skip"
-                      detail: "DX Ledger Builder API 미연동 (논문 기간 skip)"
-                      checked_at: "2026-09-28T11:00:00.000Z"
-                    - check: "expiration"
-                      result: "pass"
-                      checked_at: "2026-09-28T11:00:00.000Z"
-                  proof:
-                    type: "HostedVerification"
-                  anchor:
-                    chain: null
-                    tx_id: null
-                    block_no: null
-                    anchored_hash: null
-                    computed_hash: null
-                    match: null
-                  verified_at: "2026-09-28T11:00:00.000Z"
-                  verifier_version: "vc-core-mock/0.1.0"
-                raw_hash: "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2"
+                detail: Email already registered
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/users/login:
+    post:
+      tags: [users]
+      summary: 로그인
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: 로그인 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+              example:
+                success: true
+                message: 로그인 성공
+                data:
+                  id: 3f2b9c1e-6a7d-4e1f-9b2a-1c3d5e7f9a0b
+                  name: 홍길동
+                  email: hong@test.com
+                  did: did:key:z6MkMock1a2b3c4d5e6f
         "404":
-          $ref: "#/components/responses/NotFound"
-
-  /v1/records/{id}/verification:
-    get:
-      tags: [credentials]
-      summary: 특정 레코드의 VerificationResult만 조회
-      description: |
-        7개 체크(schema/did_resolution/signature/issuer_trust/revocation/anchor_match/expiration)가
-        항상 전부 포함된다.
-      operationId: getVerificationByRecordId
-      parameters:
-        - $ref: "#/components/parameters/RecordId"
-      responses:
-        "200":
-          description: VerificationResult
+          description: 가입되지 않은 이메일
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/VerificationResult"
+                $ref: "#/components/schemas/ErrorResponse"
               example:
-                status: "verified"
-                checks:
-                  - check: "schema"
-                    result: "pass"
-                    checked_at: "2026-09-28T11:00:00.000Z"
-                  - check: "did_resolution"
-                    result: "pass"
-                    checked_at: "2026-09-28T11:00:00.000Z"
-                  - check: "signature"
-                    result: "pass"
-                    checked_at: "2026-09-28T11:00:00.000Z"
-                  - check: "issuer_trust"
-                    result: "pass"
-                    checked_at: "2026-09-28T11:00:00.000Z"
-                  - check: "revocation"
-                    result: "pass"
-                    checked_at: "2026-09-28T11:00:00.000Z"
-                  - check: "anchor_match"
-                    result: "skip"
-                    detail: "DX Ledger Builder API 미연동 (논문 기간 skip)"
-                    checked_at: "2026-09-28T11:00:00.000Z"
-                  - check: "expiration"
-                    result: "pass"
-                    checked_at: "2026-09-28T11:00:00.000Z"
-                proof:
-                  type: "VC-JWT"
-                  alg: "EdDSA"
-                  verification_method: "did:fixture:acme-university#key-1"
-                anchor:
-                  chain: null
-                  tx_id: null
-                  block_no: null
-                  anchored_hash: null
-                  computed_hash: null
-                  match: null
-                verified_at: "2026-09-28T11:00:00.000Z"
-                verifier_version: "vc-core-mock/0.1.0"
+                detail: User not found
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/subjects/{did}/careers:
+    get:
+      tags: [careers]
+      summary: 사용자 프로필과 자격증명 목록 조회
+      description: |
+        DID로 사용자를 찾고, 그 사용자의 자격증명을 `issued_at` 최신순으로 반환한다.
+        FE 대시보드와 AI 포트폴리오 빌더가 사용한다.
+
+        현재는 `status`와 관계없이 모든 자격증명을 반환한다. 화면/AI 쪽에서 `status`로 걸러 써야 한다.
+      operationId: getCareersByDid
+      parameters:
+        - $ref: "#/components/parameters/Did"
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CareersResponse"
+              example:
+                user_profile:
+                  id: 3f2b9c1e-6a7d-4e1f-9b2a-1c3d5e7f9a0b
+                  did: did:key:z6MkMock1a2b3c4d5e6f
+                  email: hong@test.com
+                  name: 홍길동
+                verified_credentials:
+                  - record_id: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+                    issuer: 한국산업인력공단 (HRDK)
+                    achievement_name: 정보처리기사
+                    status: verified
+                    issued_at: "2026-09-01T00:00:00+00:00"
+                    raw_data: {}
         "404":
-          $ref: "#/components/responses/NotFound"
-
-  /v1/subjects/{did}/skills:
-    get:
-      tags: [skills]
-      summary: subject의 정규화된 공통 역량(SkillClaim) 목록 조회
-      description: |
-        `verified` 상태 레코드에서 나온 스킬만 집계한다 (미검증 데이터 기반 스킬은 절대 노출되지 않음).
-        같은 skill_id가 여러 자격증명에서 나오면 하나로 합치고 `source_record_ids`에 근거를 모두 남긴다.
-      operationId: listSkillsBySubject
-      parameters:
-        - $ref: "#/components/parameters/SubjectDid"
-      responses:
-        "200":
-          description: SkillClaim 목록
+          description: 해당 DID의 사용자가 없음
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SkillListResponse"
+                $ref: "#/components/schemas/ErrorResponse"
               example:
-                subject_did: "did:fixture:student-001"
-                count: 4
-                skills:
-                  - skill_id: "SK.DEV.BACKEND"
-                    label_ko: "백엔드 개발"
-                    label_en: "Backend Development"
-                    taxonomy:
-                      source: "NCS"
-                      code: "2001010401"
-                      version: "2024"
-                    level: null
-                    level_basis: "completion"
-                    confidence: 1
-                    mapping_method: "alias_dict"
-                    source_record_ids:
-                      - "3f444a85-191b-51a4-83a6-73fad567c272"
-                  - skill_id: "SK.DEV.DATABASE"
-                    label_ko: "데이터베이스 설계"
-                    label_en: "Database Design"
-                    taxonomy:
-                      source: "NCS"
-                      code: "2001010305"
-                      version: "2024"
-                    level: null
-                    level_basis: "completion"
-                    confidence: 1
-                    mapping_method: "alias_dict"
-                    source_record_ids:
-                      - "a1b2c3d4-e5f6-5a7b-8c9d-0e1f2a3b4c5d"
-                  - skill_id: "SK.AI.MACHINE_LEARNING"
-                    label_ko: "머신러닝"
-                    label_en: "Machine Learning"
-                    taxonomy:
-                      source: "ESCO"
-                      code: "S1.2.1"
-                      version: "1.2.0"
-                    level: null
-                    level_basis: "completion"
-                    confidence: 1
-                    mapping_method: "alias_dict"
-                    source_record_ids:
-                      - "b2c3d4e5-f6a7-5b8c-9d0e-1f2a3b4c5d6e"
-                  - skill_id: "SK.SEC.BLOCKCHAIN"
-                    label_ko: "블록체인 응용"
-                    label_en: "Blockchain Application"
-                    taxonomy:
-                      source: "NCS"
-                      code: "2003020104"
-                      version: "2024"
-                    level: null
-                    level_basis: "completion"
-                    confidence: 1
-                    mapping_method: "alias_dict"
-                    source_record_ids:
-                      - "c3d4e5f6-a7b8-5c9d-0e1f-2a3b4c5d6e7f"
+                detail: User not found or not verified yet.
+        "500":
+          $ref: "#/components/responses/InternalError"
 
-  /v1/verify:
+  /api/v1/verify:
     post:
       tags: [verify]
-      summary: external_id로 지정한 원본 자격증명을 그 자리에서 재검증
+      summary: 자격증명 검증 후 DB 저장
       description: |
-        캐시된 값이 아니라 파이프라인을 즉시 재실행한다.
-        AI 팀 MCP `wallet.verify_credential` 툴이 감쌀 엔드포인트이며, 데모/디버깅 목적으로도 쓴다.
-      operationId: verifyCredentialOnDemand
+        `type`에 따라 DXWorks 검증 API를 호출하고, 검증에 성공하면 DB에 저장한다.
+
+        - `identity`: VP 토큰을 검증하고 사용자 정보를 저장/갱신한다 (`subject_did` 기준 upsert).
+        - `badge`: OB3 VC-JWT를 검증하고 자격증명을 저장/갱신한다
+          (`user_id + source_provider + source_external_id` 기준 upsert).
+          수신자 DID의 사용자가 없으면 테스트용 임시 사용자를 자동으로 만든다.
+
+        검증 자체가 실패해도 HTTP 200에 `success: false`로 응답한다.
+        DXWorks 호출 오류 등 예외는 500이다.
+      operationId: verifyCredential
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: "#/components/schemas/VerifyRequest"
-            example:
-              external_id: "cred-ob2-hosted-001"
+            examples:
+              badge:
+                summary: 배지 검증 (mock-issuer/issue로 받은 vcJwt)
+                value:
+                  type: badge
+                  token: eyJhbGciOiJFZERTQSJ9...
+              identity:
+                summary: 신원 VP 검증
+                value:
+                  type: identity
+                  token: eyJhbGciOiJFZERTQSJ9...
       responses:
         "200":
-          description: 재검증된 CredentialRecord
+          description: |
+            요청 처리 완료. 검증 성공 여부는 `success`로 판단한다.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CredentialRecord"
+                $ref: "#/components/schemas/VerifyResponse"
+              examples:
+                badgeVerified:
+                  summary: 배지 검증 성공
+                  value:
+                    success: true
+                    message: Badge verified and saved.
+                    data:
+                      valid: true
+                      badge:
+                        name: 정보처리기사
+                        issuedAt: "2026-09-01T00:00:00Z"
+                      checks:
+                        issuer: { issuerName: 한국산업인력공단 }
+                        issuerTrust: { trusted: true }
+                        credentialId: { id: "urn:uuid:7c9e6679-7425-40de-944b-e07fc1f90ae7", credentialStatus: VALID }
+                        recipient: { subjectId: "did:key:z6MkMock1a2b3c4d5e6f" }
+                badgeFailed:
+                  summary: 배지 검증 실패
+                  value:
+                    success: false
+                    message: Badge verification failed.
+                    data:
+                      valid: false
+                identityVerified:
+                  summary: 신원 검증 성공
+                  value:
+                    success: true
+                    message: Identity verified and saved.
+                    data:
+                      verified: true
+                      holderDid: did:key:z6MkMock1a2b3c4d5e6f
+                      claims: { name: 홍길동, email: hong@test.com }
         "400":
-          description: external_id 누락 등 잘못된 요청
+          description: 지원하지 않는 `type`
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          $ref: "#/components/responses/NotFound"
+              example:
+                detail: 'Invalid type. Use "identity" or "badge"'
         "422":
-          description: "파이프라인 실행 중 처리 불가능한 오류 (예: 알 수 없는 자격증명 포맷)"
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/mock-issuer/issue:
+    post:
+      tags: [mock-issuer]
+      summary: 모의 배지 발급 (테스트용)
+      description: |
+        DXWorks OB3 발급 API로 배지를 발급하고 서명된 VC-JWT를 돌려준다.
+        FE 발급 화면은 이 `vcJwt`를 그대로 `POST /api/v1/verify` (`type: badge`)에 넘긴다.
+        `.env`의 `DXWORKS_API_KEY`가 필요하다.
+      operationId: issueMockBadge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IssueMockBadgeRequest"
+      responses:
+        "200":
+          description: 발급 성공
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/IssueMockBadgeResponse"
+              example:
+                success: true
+                message: Successfully issued a mock badge
+                vcJwt: eyJhbGciOiJFZERTQSJ9...
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
 components:
   parameters:
-    SubjectDid:
+    Did:
       name: did
       in: path
       required: true
-      description: 조회 대상 subject의 DID
+      description: 조회 대상 사용자의 DID (`users.subject_did`). 경로에 넣을 때 URL 인코딩한다.
       schema:
         type: string
-      example: "did:fixture:student-001"
-    RecordId:
-      name: id
-      in: path
-      required: true
-      description: CredentialRecord.record_id (externalId 기반 결정적 UUID)
-      schema:
-        type: string
-        format: uuid
+      example: did:key:z6MkMock1a2b3c4d5e6f
 
   responses:
-    NotFound:
-      description: 대상을 찾을 수 없음
+    ValidationError:
+      description: 요청 본문 검증 실패 (FastAPI 기본 형식)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ValidationErrorResponse"
+    InternalError:
+      description: 서버 내부 오류 (DB/DXWorks 호출 실패 등). `detail`에 원인 메시지가 들어간다.
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
 
   schemas:
-    # ── 공통 응답 ──────────────────────────────────────────────
+    # ── 공통 ──────────────────────────────────────────────────
     ErrorResponse:
       type: object
-      required: [error, message]
+      required: [detail]
       properties:
-        error:
+        detail:
           type: string
-          enum: [not_found, bad_request, verification_failed]
-        message:
-          type: string
+          description: 사람이 읽을 수 있는 에러 메시지
+
+    ValidationErrorResponse:
+      type: object
+      properties:
+        detail:
+          type: array
+          items:
+            type: object
+            properties:
+              loc:
+                type: array
+                items:
+                  oneOf: [{ type: string }, { type: integer }]
+              msg:
+                type: string
+              type:
+                type: string
 
     HealthResponse:
       type: object
-      required: [status, mode, recordCount]
+      required: [status, message]
       properties:
         status:
           type: string
-          enum: [ok, starting]
-        mode:
+          const: ok
+        message:
           type: string
-          enum: [fixture, dxledger]
-        recordCount:
-          type: integer
+          example: VC AI Career Agent BE (FastAPI) is running
 
-    VerifyRequest:
+    # ── 사용자 ────────────────────────────────────────────────
+    UserProfile:
       type: object
-      required: [external_id]
-      properties:
-        external_id:
-          type: string
-
-    # ── 목록 응답 봉투(envelope) ────────────────────────────────
-    CredentialListItem:
-      type: object
-      required: [record_id, format, issuer_name, status, issued_at]
-      properties:
-        record_id:
-          type: string
-          format: uuid
-        format:
-          $ref: "#/components/schemas/CredentialFormat"
-        achievement_name:
-          type: string
-        issuer_name:
-          type: string
-        status:
-          $ref: "#/components/schemas/VerificationStatus"
-        issued_at:
-          type: string
-          format: date-time
-
-    CredentialListResponse:
-      type: object
-      required: [subject_did, status_filter, count, records]
-      properties:
-        subject_did:
-          type: string
-        status_filter:
-          type: array
-          items:
-            $ref: "#/components/schemas/VerificationStatus"
-        count:
-          type: integer
-        records:
-          type: array
-          items:
-            $ref: "#/components/schemas/CredentialListItem"
-
-    SkillListResponse:
-      type: object
-      required: [subject_did, count, skills]
-      properties:
-        subject_did:
-          type: string
-        count:
-          type: integer
-        skills:
-          type: array
-          items:
-            $ref: "#/components/schemas/SkillClaim"
-
-    # ── 열거형 타입 (VC 파트와 동일) ──────────────────────────
-    CredentialFormat:
-      type: string
-      enum: ["OB2.0", "OB3.0", "VC1.1", "VC2.0"]
-
-    CredentialProvider:
-      type: string
-      enum: [dx_ledger_wallet, dx_ledger_badge, hosted_url, upload]
-
-    IssuerTrustLevel:
-      type: string
-      enum: [accredited, known, unknown]
-
-    VerificationStatus:
-      type: string
-      enum: [verified, invalid, revoked, expired, unverifiable, pending]
-
-    VerificationCheckName:
-      type: string
-      enum: [schema, did_resolution, signature, issuer_trust, revocation, anchor_match, expiration]
-
-    VerificationCheckResult:
-      type: string
-      enum: [pass, fail, warn, skip]
-
-    ProofType:
-      type: string
-      enum: ["VC-JWT", "DataIntegrityProof", "HostedVerification"]
-
-    SkillMappingMethod:
-      type: string
-      enum: [exact_alignment, alias_dict, embedding_knn, manual]
-
-    SkillLevelBasis:
-      type: string
-      enum: [assessed, completion, participation, declared]
-
-    # ── 도메인 스키마 (VC 파트 credential-record.schema.json과 1:1 일치) ──
-    Source:
-      type: object
-      required: [provider, external_id, fetched_at]
-      properties:
-        provider:
-          $ref: "#/components/schemas/CredentialProvider"
-        external_id:
-          type: string
-        fetched_at:
-          type: string
-          format: date-time
-
-    IssuerProfile:
-      type: object
-      required: [did, name, trust_level]
-      properties:
-        did:
-          type: string
-        name:
-          type: string
-        url:
-          type: string
-          format: uri
-        trust_level:
-          $ref: "#/components/schemas/IssuerTrustLevel"
-
-    Alignment:
-      type: object
-      properties:
-        framework:
-          type: string
-        code:
-          type: string
-        name:
-          type: string
-        url:
-          type: string
-          format: uri
-
-    Achievement:
-      type: object
-      required: [id, name]
+      required: [id, did, email, name]
       properties:
         id:
           type: string
+          format: uuid
+        did:
+          type: string
+          description: 사용자 DID (`users.subject_did`)
+        email:
+          type: string
+          format: email
         name:
           type: string
-        description:
-          type: string
-        criteria_narrative:
-          type: string
-        achievement_type:
-          type: string
-        image_url:
-          type: string
-        tags:
-          type: array
-          items:
-            type: string
-        alignments:
-          type: array
-          items:
-            $ref: "#/components/schemas/Alignment"
 
-    Evidence:
+    RegisterRequest:
       type: object
+      required: [name, email, password]
       properties:
         name:
           type: string
-        description:
+        email:
           type: string
-        url:
+          format: email
+        password:
           type: string
-          format: uri
+          format: password
+          description: |
+            FE가 전송하는 값. **현재 BE는 이 필드를 받지만 저장/검증하지 않는다** (TODO: 해시 저장).
 
-    SkillTaxonomyRef:
+    LoginRequest:
       type: object
-      required: [source, code, version]
+      required: [email, password]
       properties:
-        source:
+        email:
           type: string
-          enum: [NCS, ESCO, internal]
-        code:
+          format: email
+        password:
           type: string
-        version:
-          type: string
+          format: password
+          description: |
+            FE가 전송하는 값. **현재 BE는 이 필드를 검증하지 않고 이메일만으로 로그인한다** (TODO).
 
-    SkillClaim:
+    AuthResponse:
       type: object
-      required: [skill_id, label_ko, taxonomy, confidence, mapping_method, source_record_ids]
+      description: 회원가입/로그인 공통 응답 (FE `RegisterResponse`, `LoginResponse`)
+      required: [success, message, data]
       properties:
-        skill_id:
+        success:
+          type: boolean
+        message:
           type: string
-        label_ko:
-          type: string
-        label_en:
-          type: string
-        taxonomy:
-          $ref: "#/components/schemas/SkillTaxonomyRef"
-        level:
-          type: ["integer", "null"]
-          minimum: 1
-          maximum: 5
-        level_basis:
-          $ref: "#/components/schemas/SkillLevelBasis"
-        confidence:
-          type: number
-          minimum: 0
-          maximum: 1
-        mapping_method:
-          $ref: "#/components/schemas/SkillMappingMethod"
-        source_record_ids:
-          type: array
-          items:
-            type: string
-            format: uuid
-          minItems: 1
+        data:
+          $ref: "#/components/schemas/UserProfile"
 
-    VerificationCheck:
-      type: object
-      required: [check, result, checked_at]
-      properties:
-        check:
-          $ref: "#/components/schemas/VerificationCheckName"
-        result:
-          $ref: "#/components/schemas/VerificationCheckResult"
-        detail:
-          type: string
-        checked_at:
-          type: string
-          format: date-time
+    # ── 자격증명 ──────────────────────────────────────────────
+    CredentialStatus:
+      type: string
+      description: DB `verification_status` ENUM과 같은 값 집합
+      enum: [verified, invalid, revoked, expired, unverifiable, pending]
 
-    Proof:
+    VerifiedCredential:
       type: object
-      properties:
-        type:
-          $ref: "#/components/schemas/ProofType"
-        alg:
-          type: string
-        verification_method:
-          type: string
-
-    Anchor:
-      type: object
-      properties:
-        chain:
-          type: ["string", "null"]
-        tx_id:
-          type: ["string", "null"]
-        block_no:
-          type: ["integer", "null"]
-        anchored_hash:
-          type: ["string", "null"]
-        computed_hash:
-          type: ["string", "null"]
-        match:
-          type: ["boolean", "null"]
-
-    VerificationResult:
-      type: object
-      required: [status, checks, verified_at, verifier_version]
-      properties:
-        status:
-          $ref: "#/components/schemas/VerificationStatus"
-        checks:
-          type: array
-          minItems: 7
-          maxItems: 7
-          items:
-            $ref: "#/components/schemas/VerificationCheck"
-        proof:
-          $ref: "#/components/schemas/Proof"
-        anchor:
-          $ref: "#/components/schemas/Anchor"
-        verified_at:
-          type: string
-          format: date-time
-        verifier_version:
-          type: string
-
-    CredentialRecord:
-      type: object
-      required:
-        - record_id
-        - subject_did
-        - schema_version
-        - normalized_at
-        - source
-        - format
-        - issuer
-        - achievement
-        - verification
-        - raw_hash
+      required: [record_id, issuer, achievement_name, status, issued_at, raw_data]
       properties:
         record_id:
           type: string
           format: uuid
-        subject_did:
-          type: string
-        schema_version:
-          type: string
-        normalized_at:
-          type: string
-          format: date-time
-        source:
-          $ref: "#/components/schemas/Source"
-        format:
-          $ref: "#/components/schemas/CredentialFormat"
         issuer:
-          $ref: "#/components/schemas/IssuerProfile"
-        achievement:
-          $ref: "#/components/schemas/Achievement"
-        evidence:
-          type: array
-          items:
-            $ref: "#/components/schemas/Evidence"
+          type: string
+          description: 발급 기관명 (`credentials.issuer_name`)
+        achievement_name:
+          type: string
+          description: 배지/자격명
+        status:
+          $ref: "#/components/schemas/CredentialStatus"
         issued_at:
           type: string
           format: date-time
-        expires_at:
-          type: ["string", "null"]
-          format: date-time
-        awarded_date:
-          type: ["string", "null"]
-        skills:
+        raw_data:
+          type: object
+          additionalProperties: true
+          description: 원본 VC JSON 전문
+
+    CareersResponse:
+      type: object
+      required: [user_profile, verified_credentials]
+      properties:
+        user_profile:
+          $ref: "#/components/schemas/UserProfile"
+        verified_credentials:
           type: array
+          description: |
+            이름과 달리 현재는 검증 상태와 관계없이 모든 자격증명이 들어 있다. `status`로 구분한다.
           items:
-            $ref: "#/components/schemas/SkillClaim"
-        verification:
-          $ref: "#/components/schemas/VerificationResult"
-        raw_hash:
+            $ref: "#/components/schemas/VerifiedCredential"
+
+    # ── 검증 ──────────────────────────────────────────────────
+    VerifyRequest:
+      type: object
+      required: [type, token]
+      properties:
+        type:
           type: string
-          pattern: "^[a-f0-9]{64}$"
+          enum: [identity, badge]
+        token:
+          type: string
+          description: "`identity`면 VP 토큰, `badge`면 OB3 VC-JWT"
+
+    VerifyResponse:
+      type: object
+      required: [success, message, data]
+      properties:
+        success:
+          type: boolean
+          description: 검증 성공 + DB 저장 완료 여부
+        message:
+          type: string
+        data:
+          type: object
+          additionalProperties: true
+          description: |
+            DXWorks 검증 API 응답 원문. 형식은 DXWorks가 정하며 BE가 쓰는 필드는 다음과 같다.
+            - `identity`: `verified`, `holderDid`, `claims.name`, `claims.email`
+            - `badge`: `valid`, `badge.name`, `badge.issuedAt`, `checks.issuer.issuerName`,
+              `checks.issuerTrust.trusted`, `checks.credentialId.id`, `checks.credentialId.credentialStatus`,
+              `checks.recipient.subjectId`
+
+    # ── 모의 발급 ─────────────────────────────────────────────
+    IssueMockBadgeRequest:
+      type: object
+      required: [templateId, holderDid]
+      properties:
+        templateId:
+          type: string
+          description: DXWorks 배지 템플릿 ID
+        holderDid:
+          type: string
+          description: 배지를 받을 사용자 DID
+
+    IssueMockBadgeResponse:
+      type: object
+      required: [success, message, vcJwt]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        vcJwt:
+          type: string
+          description: DXWorks가 서명한 OB3 VC-JWT
