@@ -1,4 +1,4 @@
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { issueMockBadge, verifyCredential } from '@/api/credentials';
@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { getApiErrorMessage } from '@/lib/apiClient';
 import { useAuthStore } from '@/store/authStore';
+import type { BadgeVerifyData } from '@/types/api';
 
 /**
  * BE README "[Step 1] 테스트용 임시 발급 서버(Mock Issuer)" 에서 사용하는 샘플 템플릿 ID.
@@ -28,6 +29,8 @@ export function IssueCredentialPage() {
   const [jwt, setJwt] = useState<string | null>(null);
   const [step, setStep] = useState<Step>('issue');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [verified, setVerified] = useState<BadgeVerifyData | null>(null);
+  const queryClient = useQueryClient();
 
   const issueMutation = useMutation({
     mutationFn: () => issueMockBadge(templateId, user!.did),
@@ -41,10 +44,14 @@ export function IssueCredentialPage() {
   const verifyMutation = useMutation({
     mutationFn: () => verifyCredential({ type: 'badge', token: jwt! }),
     onSuccess: (res) => {
+      // BE는 검증 실패도 HTTP 200 + success:false 로 응답한다.
       if (res.success) {
+        setVerified(res.data as BadgeVerifyData);
         setStep('done');
+        // 대시보드/포트폴리오가 새로 저장된 자격증명을 다시 불러오도록 캐시 무효화
+        queryClient.invalidateQueries({ queryKey: ['careers'] });
       } else {
-        setErrorMessage(res.message ?? '검증에 실패했습니다.');
+        setErrorMessage(`배지 검증에 실패했습니다. (${res.message})`);
       }
     },
     onError: (error) => setErrorMessage(getApiErrorMessage(error)),
@@ -154,6 +161,27 @@ export function IssueCredentialPage() {
             <p className="text-sm text-emerald-300">
               검증 및 저장이 완료되었습니다. 지갑 대시보드에서 확인하세요.
             </p>
+            {verified && (verified.badge?.name || verified.checks?.issuer?.issuerName) && (
+              <dl className="flex flex-col gap-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-xs">
+                {verified.badge?.name && (
+                  <div className="flex justify-between gap-2">
+                    <dt className="text-[var(--color-text-muted)]">배지</dt>
+                    <dd>{verified.badge.name}</dd>
+                  </div>
+                )}
+                {verified.checks?.issuer?.issuerName && (
+                  <div className="flex justify-between gap-2">
+                    <dt className="text-[var(--color-text-muted)]">발급 기관</dt>
+                    <dd>
+                      {verified.checks.issuer.issuerName}
+                      {verified.checks.issuerTrust?.trusted && (
+                        <span className="ml-1 text-emerald-300">(신뢰된 발급처)</span>
+                      )}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+            )}
             <Button onClick={() => navigate('/dashboard')}>자격증명 지갑으로 이동 →</Button>
           </div>
         )}

@@ -76,6 +76,13 @@ export function LoginPage() {
             회원가입
           </Link>
         </p>
+        {import.meta.env.DEV && (
+          <p className="mt-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs text-[var(--color-text-muted)]">
+            개발용 시드 계정: <span className="font-mono-did">user001@example.com</span> ~{' '}
+            <span className="font-mono-did">user045@example.com</span> / 비밀번호{' '}
+            <span className="font-mono-did">test1234</span>
+          </p>
+        )}
         {PREVIEW_ENABLED && (
           <Button
             type="button"

@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { getCareersByDid } from '@/api/credentials';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { getApiErrorMessage } from '@/lib/apiClient';
+import { getApiErrorMessage, getApiErrorStatus } from '@/lib/apiClient';
 import { useAuthStore } from '@/store/authStore';
 
 function StatCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
@@ -20,6 +20,8 @@ function StatCard({ label, value, hint }: { label: string; value: string; hint?:
 
 export function DashboardPage() {
   const user = useAuthStore((state) => state.user);
+  const logout = useAuthStore((state) => state.logout);
+  const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
 
   const { data, isLoading, isError, error } = useQuery({
@@ -30,11 +32,19 @@ export function DashboardPage() {
 
   if (!user) return null;
 
+  // BE careers API는 status와 무관하게 모든 자격증명을 반환한다 → 화면에서 status로 구분
   const credentials = data?.verified_credentials ?? [];
-  const verifiedCount = credentials.filter((c) => c.status === 'verified').length;
-  const issuerCount = new Set(credentials.map((c) => c.issuer)).size;
+  const verifiedCredentials = credentials.filter((c) => c.status === 'verified');
+  const verifiedCount = verifiedCredentials.length;
+  const issuerCount = new Set(verifiedCredentials.map((c) => c.issuer)).size;
+  const userNotFound = isError && getApiErrorStatus(error) === 404;
   const validity =
     credentials.length > 0 ? Math.round((verifiedCount / credentials.length) * 100) : 0;
+
+  function handleRelogin() {
+    logout();
+    navigate('/login');
+  }
 
   async function copyDid() {
     await navigator.clipboard.writeText(user!.did);
@@ -75,9 +85,20 @@ export function DashboardPage() {
       {isError && (
         <Card className="border-[var(--color-danger)]">
           <p className="text-sm text-[var(--color-danger)]">{getApiErrorMessage(error)}</p>
-          <p className="mt-2 text-xs text-[var(--color-text-muted)]">
-            아직 검증된 자격증명이 없다면 먼저 "자격증명 발급받기"를 통해 배지를 발급받고 검증하세요.
-          </p>
+          {userNotFound ? (
+            <div className="mt-3 flex flex-col items-start gap-2">
+              <p className="text-xs text-[var(--color-text-muted)]">
+                저장된 로그인 정보의 DID가 서버에 없습니다. (DB가 초기화되었을 수 있습니다)
+              </p>
+              <Button variant="secondary" onClick={handleRelogin}>
+                다시 로그인
+              </Button>
+            </div>
+          ) : (
+            <p className="mt-2 text-xs text-[var(--color-text-muted)]">
+              BE 서버(http://localhost:3000)가 실행 중인지 확인해주세요.
+            </p>
+          )}
         </Card>
       )}
 

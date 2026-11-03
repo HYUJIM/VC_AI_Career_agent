@@ -11,10 +11,18 @@ import { Input } from '@/components/ui/Input';
 import { getApiErrorMessage } from '@/lib/apiClient';
 import { useAuthStore } from '@/store/authStore';
 
+/** BE는 bcrypt 제약으로 UTF-8 기준 72바이트를 넘는 비밀번호를 거부한다(422). */
+const MAX_PASSWORD_BYTES = 72;
+
 const registerSchema = z.object({
   name: z.string().min(1, '이름을 입력해주세요.'),
   email: z.string().email('올바른 이메일 형식이 아닙니다.'),
-  password: z.string().min(8, '비밀번호는 8자 이상이어야 합니다.'),
+  password: z
+    .string()
+    .min(8, '비밀번호는 8자 이상이어야 합니다.')
+    .refine((v) => new TextEncoder().encode(v).length <= MAX_PASSWORD_BYTES, {
+      message: `비밀번호가 너무 깁니다. (최대 ${MAX_PASSWORD_BYTES}바이트, 한글은 글자당 3바이트)`,
+    }),
   passwordConfirm: z.string(),
 }).refine((v) => v.password === v.passwordConfirm, {
   message: '비밀번호가 일치하지 않습니다.',
@@ -72,7 +80,7 @@ export function RegisterPage() {
             id="password"
             type="password"
             label="비밀번호"
-            placeholder="8자 이상"
+            placeholder="8자 이상 (최대 72바이트)"
             autoComplete="new-password"
             error={errors.password?.message}
             {...register('password')}

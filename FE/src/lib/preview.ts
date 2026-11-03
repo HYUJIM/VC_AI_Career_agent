@@ -55,5 +55,19 @@ export async function previewIssue(): Promise<IssueMockBadgeResponse> {
 
 export async function previewVerify(): Promise<VerifyResponse> {
   await delay();
-  return { success: true, message: 'preview', data: {} };
+  // BE openapi.yaml 의 badgeVerified 예시와 같은 형태
+  return {
+    success: true,
+    message: 'Badge verified and saved.',
+    data: {
+      valid: true,
+      badge: { name: '정보처리기사', issuedAt: new Date().toISOString() },
+      checks: {
+        issuer: { issuerName: '한국산업인력공단' },
+        issuerTrust: { trusted: true },
+        credentialId: { id: 'urn:uuid:preview', credentialStatus: 'VALID' },
+        recipient: { subjectId: PREVIEW_USER.did },
+      },
+    },
+  };
 }
