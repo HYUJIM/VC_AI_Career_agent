@@ -17,7 +17,7 @@ export function Layout() {
   const navigate = useNavigate();
 
   function handleLogout() {
-    logout();
+    logout('loggedOut');
     navigate('/login');
   }
 

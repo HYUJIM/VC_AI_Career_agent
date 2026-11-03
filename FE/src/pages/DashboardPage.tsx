@@ -1,12 +1,20 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { getCareersByDid } from '@/api/credentials';
+import { CareersErrorAlert } from '@/components/CareersErrorAlert';
 import { StatusBadge } from '@/components/StatusBadge';
+import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { getApiErrorMessage, getApiErrorStatus } from '@/lib/apiClient';
 import { useAuthStore } from '@/store/authStore';
+
+/** 로그인/회원가입/발급 화면에서 대시보드로 이동할 때 전달하는 상태 */
+export interface DashboardLocationState {
+  welcome?: string;
+  newUser?: boolean;
+  issued?: string;
+}
 
 function StatCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -20,11 +28,13 @@ function StatCard({ label, value, hint }: { label: string; value: string; hint?:
 
 export function DashboardPage() {
   const user = useAuthStore((state) => state.user);
-  const logout = useAuthStore((state) => state.logout);
-  const navigate = useNavigate();
+  const location = useLocation();
+  const [banner, setBanner] = useState<DashboardLocationState | null>(
+    (location.state as DashboardLocationState | null) ?? null,
+  );
   const [copied, setCopied] = useState(false);
 
-  const { data, isLoading, isError, error } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['careers', user?.did],
     queryFn: () => getCareersByDid(user!.did),
     enabled: Boolean(user?.did),
@@ -37,14 +47,8 @@ export function DashboardPage() {
   const verifiedCredentials = credentials.filter((c) => c.status === 'verified');
   const verifiedCount = verifiedCredentials.length;
   const issuerCount = new Set(verifiedCredentials.map((c) => c.issuer)).size;
-  const userNotFound = isError && getApiErrorStatus(error) === 404;
   const validity =
     credentials.length > 0 ? Math.round((verifiedCount / credentials.length) * 100) : 0;
-
-  function handleRelogin() {
-    logout();
-    navigate('/login');
-  }
 
   async function copyDid() {
     await navigator.clipboard.writeText(user!.did);
@@ -54,6 +58,22 @@ export function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      {banner?.issued && (
+        <Alert variant="success" title="자격증명이 지갑에 저장되었습니다." onClose={() => setBanner(null)}>
+          {banner.issued} 배지가 검증을 통과해 목록에 추가되었습니다.
+        </Alert>
+      )}
+      {!banner?.issued && banner?.welcome && (
+        <Alert
+          variant="success"
+          title={banner.newUser ? '회원가입이 완료되었습니다.' : `${banner.welcome} 님, 환영합니다.`}
+          onClose={() => setBanner(null)}
+        >
+          {banner.newUser
+            ? `${banner.welcome} 님의 DID가 발급되었습니다. "새 자격증명 발급받기"로 첫 배지를 받아보세요.`
+            : '로그인되었습니다.'}
+        </Alert>
+      )}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <span className="text-xs font-semibold tracking-widest text-[var(--color-primary)]">
@@ -82,29 +102,14 @@ export function DashboardPage() {
 
       {isLoading && <Card>불러오는 중...</Card>}
 
-      {isError && (
-        <Card className="border-[var(--color-danger)]">
-          <p className="text-sm text-[var(--color-danger)]">{getApiErrorMessage(error)}</p>
-          {userNotFound ? (
-            <div className="mt-3 flex flex-col items-start gap-2">
-              <p className="text-xs text-[var(--color-text-muted)]">
-                저장된 로그인 정보의 DID가 서버에 없습니다. (DB가 초기화되었을 수 있습니다)
-              </p>
-              <Button variant="secondary" onClick={handleRelogin}>
-                다시 로그인
-              </Button>
-            </div>
-          ) : (
-            <p className="mt-2 text-xs text-[var(--color-text-muted)]">
-              BE 서버(http://localhost:3000)가 실행 중인지 확인해주세요.
-            </p>
-          )}
-        </Card>
-      )}
+      {isError && <CareersErrorAlert error={error} onRetry={() => refetch()} />}
 
       {data && credentials.length === 0 && (
-        <Card>
-          <p className="text-sm text-[var(--color-text-muted)]">아직 검증된 자격증명이 없습니다.</p>
+        <Card className="flex flex-col items-start gap-3">
+          <p className="text-sm text-[var(--color-text-muted)]">아직 지갑에 저장된 자격증명이 없습니다.</p>
+          <Link to="/issue">
+            <Button variant="secondary">첫 자격증명 발급받기</Button>
+          </Link>
         </Card>
       )}
 

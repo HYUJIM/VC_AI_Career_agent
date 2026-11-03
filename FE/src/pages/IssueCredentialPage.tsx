@@ -5,8 +5,10 @@ import { issueMockBadge, verifyCredential } from '@/api/credentials';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
-import { getApiErrorMessage } from '@/lib/apiClient';
+import { Alert } from '@/components/ui/Alert';
+import { type ApiErrorKind, getApiErrorKind, getApiErrorMessage } from '@/lib/apiClient';
 import { useAuthStore } from '@/store/authStore';
+import type { DashboardLocationState } from '@/pages/DashboardPage';
 import type { BadgeVerifyData } from '@/types/api';
 
 /**
@@ -15,6 +17,13 @@ import type { BadgeVerifyData } from '@/types/api';
 const DEFAULT_TEMPLATE_ID = 'f9499c5f-6611-45c6-b5a8-683a99040aab';
 
 type Step = 'issue' | 'verify' | 'done';
+
+interface IssueError {
+  stage: 'issue' | 'verify';
+  /** rejected: BE가 HTTP 200 + success:false 로 검증 실패를 알린 경우 */
+  kind: ApiErrorKind | 'rejected';
+  message: string;
+}
 
 const STEPS: { key: Step; title: string; desc: string }[] = [
   { key: 'issue', title: '1단계: 배지 발급', desc: 'Mock Issuer에서 VC(JWT) 발급' },
@@ -28,17 +37,22 @@ export function IssueCredentialPage() {
   const [templateId, setTemplateId] = useState(DEFAULT_TEMPLATE_ID);
   const [jwt, setJwt] = useState<string | null>(null);
   const [step, setStep] = useState<Step>('issue');
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [issueError, setIssueError] = useState<IssueError | null>(null);
   const [verified, setVerified] = useState<BadgeVerifyData | null>(null);
   const queryClient = useQueryClient();
 
   const issueMutation = useMutation({
     mutationFn: () => issueMockBadge(templateId, user!.did),
     onSuccess: (res) => {
+      if (!res.vcJwt || typeof res.vcJwt !== 'string') {
+        setIssueError({ stage: 'issue', kind: 'unknown', message: '발급 응답에 VC-JWT가 없습니다.' });
+        return;
+      }
       setJwt(res.vcJwt);
       setStep('verify');
     },
-    onError: (error) => setErrorMessage(getApiErrorMessage(error)),
+    onError: (error) =>
+      setIssueError({ stage: 'issue', kind: getApiErrorKind(error), message: getApiErrorMessage(error) }),
   });
 
   const verifyMutation = useMutation({
@@ -51,11 +65,68 @@ export function IssueCredentialPage() {
         // 대시보드/포트폴리오가 새로 저장된 자격증명을 다시 불러오도록 캐시 무효화
         queryClient.invalidateQueries({ queryKey: ['careers'] });
       } else {
-        setErrorMessage(`배지 검증에 실패했습니다. (${res.message})`);
+        setIssueError({ stage: 'verify', kind: 'rejected', message: res.message });
       }
     },
-    onError: (error) => setErrorMessage(getApiErrorMessage(error)),
+    onError: (error) =>
+      setIssueError({ stage: 'verify', kind: getApiErrorKind(error), message: getApiErrorMessage(error) }),
   });
+
+  function restart() {
+    setIssueError(null);
+    setJwt(null);
+    setVerified(null);
+    setStep('issue');
+  }
+
+  function renderIssueError(err: IssueError) {
+    const close = () => setIssueError(null);
+    if (err.kind === 'network') {
+      return (
+        <Alert variant="warning" title="서버에 연결할 수 없습니다." onClose={close}>
+          BE 서버(http://localhost:3000)가 실행 중인지 확인한 뒤 다시 시도해주세요.
+        </Alert>
+      );
+    }
+    if (err.stage === 'verify' && err.kind === 'rejected') {
+      return (
+        <Alert
+          variant="error"
+          title="배지 검증에 실패했습니다."
+          onClose={close}
+          actions={
+            <Button variant="secondary" className="px-3 py-1 text-xs" onClick={restart}>
+              처음부터 다시 발급
+            </Button>
+          }
+        >
+          DXWorks 검증을 통과하지 못해 지갑에 저장되지 않았습니다. (서버 메시지: {err.message})
+        </Alert>
+      );
+    }
+    if (err.kind === 'validation') {
+      return (
+        <Alert variant="warning" title="요청 값이 올바르지 않습니다." onClose={close}>
+          {err.message}
+        </Alert>
+      );
+    }
+    return (
+      <Alert
+        variant="error"
+        title={err.stage === 'issue' ? '배지 발급에 실패했습니다.' : '검증 요청 중 오류가 발생했습니다.'}
+        onClose={close}
+      >
+        {err.message}
+        {err.stage === 'issue' && (
+          <>
+            <br />
+            Template ID가 올바른지, BE의 DXWORKS_API_KEY 설정을 확인해주세요.
+          </>
+        )}
+      </Alert>
+    );
+  }
 
   if (!user) return null;
 
@@ -79,11 +150,7 @@ export function IssueCredentialPage() {
         <span className="font-mono-did break-all text-sm text-emerald-300">{user.did}</span>
       </Card>
 
-      {errorMessage && (
-        <Card className="border-[var(--color-danger)]">
-          <p className="text-sm text-[var(--color-danger)]">{errorMessage}</p>
-        </Card>
-      )}
+      {issueError && renderIssueError(issueError)}
 
       <Card accent className="flex flex-col gap-6">
         <ol className="flex flex-col gap-3">
@@ -129,9 +196,10 @@ export function IssueCredentialPage() {
             />
             <Button
               onClick={() => {
-                setErrorMessage(null);
+                setIssueError(null);
                 issueMutation.mutate();
               }}
+              disabled={!templateId.trim()}
               isLoading={issueMutation.isPending}
             >
               모의 배지 발급받기
@@ -146,7 +214,7 @@ export function IssueCredentialPage() {
             </p>
             <Button
               onClick={() => {
-                setErrorMessage(null);
+                setIssueError(null);
                 verifyMutation.mutate();
               }}
               isLoading={verifyMutation.isPending}
@@ -182,7 +250,18 @@ export function IssueCredentialPage() {
                 )}
               </dl>
             )}
-            <Button onClick={() => navigate('/dashboard')}>자격증명 지갑으로 이동 →</Button>
+            <Button
+              onClick={() =>
+                navigate('/dashboard', {
+                  state: { issued: verified?.badge?.name ?? '새' } satisfies DashboardLocationState,
+                })
+              }
+            >
+              자격증명 지갑으로 이동 →
+            </Button>
+            <Button variant="ghost" onClick={restart}>
+              다른 배지 발급하기
+            </Button>
           </div>
         )}
       </Card>

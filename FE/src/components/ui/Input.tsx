@@ -3,9 +3,12 @@ import type { InputHTMLAttributes } from 'react';
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
+  /** 메시지 없이 테두리만 에러 상태로 표시 (예: 로그인 실패 시 비밀번호 칸) */
+  invalid?: boolean;
 }
 
-export function Input({ label, error, id, className = '', ...rest }: InputProps) {
+export function Input({ label, error, invalid = false, id, className = '', ...rest }: InputProps) {
+  const hasError = Boolean(error) || invalid;
   return (
     <div className="flex flex-col gap-1">
       {label && (
@@ -15,8 +18,9 @@ export function Input({ label, error, id, className = '', ...rest }: InputProps)
       )}
       <input
         id={id}
+        aria-invalid={hasError || undefined}
         className={`rounded-lg border bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)] outline-none transition-colors placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)] ${
-          error ? 'border-[var(--color-danger)]' : 'border-[var(--color-border)]'
+          hasError ? 'border-[var(--color-danger)]' : 'border-[var(--color-border)]'
         } ${className}`}
         {...rest}
       />

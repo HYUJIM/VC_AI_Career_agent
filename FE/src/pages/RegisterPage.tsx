@@ -2,14 +2,21 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { registerUser } from '@/api/auth';
+import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
-import { getApiErrorMessage } from '@/lib/apiClient';
+import { type ApiErrorKind, getApiErrorKind, getApiErrorMessage } from '@/lib/apiClient';
 import { useAuthStore } from '@/store/authStore';
+
+interface RegisterError {
+  kind: ApiErrorKind;
+  message: string;
+  email: string;
+}
 
 /** BE는 bcrypt 제약으로 UTF-8 기준 72바이트를 넘는 비밀번호를 거부한다(422). */
 const MAX_PASSWORD_BYTES = 72;
@@ -33,34 +40,90 @@ type RegisterForm = z.infer<typeof registerSchema>;
 
 export function RegisterPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const prefillEmail = (location.state as { email?: string } | null)?.email ?? '';
   const setUser = useAuthStore((state) => state.setUser);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [registerError, setRegisterError] = useState<RegisterError | null>(null);
 
   const {
     register,
     handleSubmit,
+    setError,
     formState: { errors },
-  } = useForm<RegisterForm>({ resolver: zodResolver(registerSchema) });
+  } = useForm<RegisterForm>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: { name: '', email: prefillEmail, password: '', passwordConfirm: '' },
+  });
 
   const mutation = useMutation({
     mutationFn: registerUser,
     onSuccess: (res) => {
+      // BE가 가입과 동시에 사용자 정보(DID 포함)를 내려주므로 바로 로그인 상태로 전환
       setUser(res.data);
-      navigate('/dashboard');
+      navigate('/dashboard', { state: { welcome: res.data.name, newUser: true } });
     },
-    onError: (error) => setErrorMessage(getApiErrorMessage(error)),
+    onError: (error, variables) => {
+      const kind = getApiErrorKind(error);
+      setRegisterError({ kind, message: getApiErrorMessage(error), email: variables.email });
+      if (kind === 'conflict') {
+        setError('email', { message: '이미 가입된 이메일입니다.' }, { shouldFocus: true });
+      }
+    },
   });
 
   function onSubmit(values: RegisterForm) {
-    setErrorMessage(null);
+    setRegisterError(null);
     mutation.mutate({ name: values.name, email: values.email, password: values.password });
+  }
+
+  function renderRegisterError(err: RegisterError) {
+    switch (err.kind) {
+      case 'conflict':
+        return (
+          <Alert
+            variant="warning"
+            title="이미 가입된 이메일입니다."
+            onClose={() => setRegisterError(null)}
+            actions={
+              <Link to="/login" state={{ email: err.email }}>
+                <Button type="button" variant="secondary" className="px-3 py-1 text-xs">
+                  이 이메일로 로그인
+                </Button>
+              </Link>
+            }
+          >
+            <span className="font-mono-did">{err.email}</span> 은(는) 이미 사용 중입니다. 로그인하거나
+            다른 이메일을 사용해주세요.
+          </Alert>
+        );
+      case 'validation':
+        return (
+          <Alert variant="warning" title="입력값을 확인해주세요." onClose={() => setRegisterError(null)}>
+            {err.message}
+          </Alert>
+        );
+      case 'network':
+        return (
+          <Alert variant="warning" title="서버에 연결할 수 없습니다." onClose={() => setRegisterError(null)}>
+            BE 서버(http://localhost:3000)가 실행 중인지 확인한 뒤 다시 시도해주세요.
+          </Alert>
+        );
+      default:
+        return (
+          <Alert variant="error" title="회원가입 중 오류가 발생했습니다." onClose={() => setRegisterError(null)}>
+            {err.message}
+            <br />
+            잠시 후 다시 시도해주세요. 계속되면 BE 서버 로그(DB 마이그레이션 여부)를 확인해주세요.
+          </Alert>
+        );
+    }
   }
 
   return (
     <div className="flex min-h-[70vh] items-center justify-center">
       <Card className="w-full max-w-sm">
         <h1 className="mb-6 text-xl font-bold">회원가입</h1>
-        <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)}>
+        <form className="flex flex-col gap-4" noValidate onSubmit={handleSubmit(onSubmit)}>
           <Input
             id="name"
             label="이름"
@@ -93,7 +156,7 @@ export function RegisterPage() {
             error={errors.passwordConfirm?.message}
             {...register('passwordConfirm')}
           />
-          {errorMessage && <p className="text-sm text-[var(--color-danger)]">{errorMessage}</p>}
+          {registerError && renderRegisterError(registerError)}
           <Button type="submit" isLoading={mutation.isPending}>
             가입하고 DID 발급받기
           </Button>

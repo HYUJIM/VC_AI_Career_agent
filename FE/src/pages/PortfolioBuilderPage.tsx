@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getCareersByDid } from '@/api/credentials';
+import { CareersErrorAlert } from '@/components/CareersErrorAlert';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { useAuthStore } from '@/store/authStore';
@@ -22,7 +23,7 @@ export function PortfolioBuilderPage() {
   const [thinking, setThinking] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['careers', user?.did],
     queryFn: () => getCareersByDid(user!.did),
     enabled: Boolean(user?.did),
@@ -95,6 +96,8 @@ export function PortfolioBuilderPage() {
         <h1 className="mt-1 text-3xl font-bold">AI 공인 포트폴리오 빌더</h1>
       </div>
 
+      {isError && <CareersErrorAlert error={error} onRetry={() => refetch()} />}
+
       <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
         <Card className="flex h-fit flex-col gap-4 p-5">
           <h2 className="text-sm font-semibold">DID 데이터 동기화</h2>
@@ -107,7 +110,7 @@ export function PortfolioBuilderPage() {
               포함할 검증 자격증명 ({selected.size}/{credentials.length})
             </p>
             {isLoading && <p className="text-xs text-[var(--color-text-muted)]">불러오는 중...</p>}
-            {!isLoading && credentials.length === 0 && (
+            {!isLoading && !isError && credentials.length === 0 && (
               <p className="text-xs text-[var(--color-text-muted)]">
                 검증된 자격증명이 없습니다.{' '}
                 <Link to="/issue" className="text-[var(--color-primary)] hover:underline">
