@@ -44,14 +44,25 @@ npm run dev
 
 | 화면 | 설명 | 연동 BE 엔드포인트 |
 | --- | --- | --- |
-| `/register` | 회원가입 (DID 자동 발급) | `POST /api/v1/users/register` |
-| `/login` | 로그인 | `POST /api/v1/users/login` |
-| `/dashboard` | 검증된 자격증명 지갑 목록 | `GET /api/v1/subjects/{did}/careers` |
+| `/register` | 회원가입 (이름·이메일·비밀번호, DID 자동 발급) | `POST /api/v1/users/register` |
+| `/login` | 이메일 + 비밀번호 로그인 | `POST /api/v1/users/login` |
+| `/dashboard` | 자격증명 지갑 (status별 구분 표시) | `GET /api/v1/subjects/{did}/careers` |
 | `/issue` | 모의 배지 발급 → 검증 → 저장 (2단계 플로우) | `POST /api/mock-issuer/issue`, `POST /api/v1/verify` |
+| `/portfolio` | AI 포트폴리오 빌더 (verified 자격증명만 사용, AI 연동 전 모의 응답) | `GET /api/v1/subjects/{did}/careers` |
 
-> BE에는 별도의 인증 토큰/세션이 없고 DID 기반 간이 로그인만 존재합니다. FE는 로그인 성공 시 받은
-> `user_profile` 을 Zustand persist 로 로컬에 저장해 로그인 상태를 유지합니다. 운영 전환 시 BE에
-> JWT/세션이 추가되면 `lib/apiClient.ts` 에 인터셉터를 추가해 토큰을 주입하세요.
+API 계약은 BE 브랜치의 `BE/openapi.yaml`(v0.3.0)을 기준으로 합니다.
+
+- **비밀번호**: 회원가입 시 8자 이상, UTF-8 기준 72바이트 이하(bcrypt 제약). 로그인 실패는 이메일/비밀번호 구분 없이 `401 Invalid email or password`.
+- **시드 테스트 계정**: `user001@example.com` ~ `user045@example.com`, 비밀번호 `test1234`.
+- **에러 형식**: `{ detail: string }`, 요청 검증 실패(422)는 `{ detail: [...] }` 배열 → `lib/apiClient.ts` 의 `getApiErrorMessage` 가 한국어 메시지로 변환.
+- **careers API**: 상태와 무관하게 모든 자격증명을 반환하므로 FE에서 `status === 'verified'` 로 거른다.
+- **verify API**: 검증 실패도 HTTP 200 + `success: false` 로 응답한다.
+
+> 로그인 이후 토큰/세션은 아직 없습니다. FE는 로그인 응답의 사용자 정보(`did` 포함)를 Zustand persist 로
+> 로컬에 저장해 로그인 상태를 유지합니다. BE에 JWT/세션이 추가되면 `lib/apiClient.ts` 에 인터셉터를 추가하세요.
+>
+> BE 비밀번호 기능 추가 후 기존 DB를 쓰고 있다면 BE README의 마이그레이션(`04_users_password_hash.sql`)을
+> 실행하거나 `docker compose down -v && docker compose up -d --build` 로 DB를 다시 만들어야 로그인이 동작합니다.
 
 ## 스크립트
 
