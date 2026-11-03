@@ -2,19 +2,12 @@ import type { HTMLAttributes, ReactNode } from 'react';
 
 interface CardProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
-  /** 상단에 강조 라인(그라데이션)을 표시 */
-  accent?: boolean;
 }
 
-export function Card({ children, className = '', accent = false, ...rest }: CardProps) {
+/** 회색 배경 위의 흰 카드. 테두리·그림자 없이 면(surface)으로만 구분한다. */
+export function Card({ children, className = '', ...rest }: CardProps) {
   return (
-    <div
-      className={`relative overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-6 ${className}`}
-      {...rest}
-    >
-      {accent && (
-        <span className="pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-indigo-500 via-cyan-400 to-emerald-400" />
-      )}
+    <div className={`rounded-3xl bg-[var(--color-card)] p-6 ${className}`} {...rest}>
       {children}
     </div>
   );

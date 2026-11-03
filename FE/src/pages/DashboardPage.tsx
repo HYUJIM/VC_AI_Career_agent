@@ -16,13 +16,28 @@ export interface DashboardLocationState {
   issued?: string;
 }
 
-function StatCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function Stat({ label, value, unit }: { label: string; value: number | string; unit: string }) {
   return (
-    <Card className="flex flex-col gap-2 p-5">
-      <span className="text-xs text-[var(--color-text-muted)]">{label}</span>
-      <span className="text-3xl font-bold">{value}</span>
-      {hint && <span className="text-xs text-[var(--color-text-muted)]">{hint}</span>}
-    </Card>
+    <div className="flex flex-col gap-1">
+      <span className="text-[13px] text-[var(--color-text-muted)]">{label}</span>
+      <span className="text-[22px] font-bold tracking-tight">
+        {value}
+        <span className="ml-0.5 text-[15px] font-medium text-[var(--color-text-sub)]">{unit}</span>
+      </span>
+    </div>
+  );
+}
+
+/** 발급 기관 이름의 첫 글자로 만드는 아바타 (아이콘 리소스 없이 목록 구분용) */
+function IssuerAvatar({ issuer }: { issuer: string }) {
+  const initial = issuer.replace(/[^\p{L}\p{N}]/gu, '').charAt(0).toUpperCase() || '?';
+  return (
+    <span
+      aria-hidden="true"
+      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--color-surface)] text-[15px] font-bold text-[var(--color-text-sub)]"
+    >
+      {initial}
+    </span>
   );
 }
 
@@ -47,8 +62,6 @@ export function DashboardPage() {
   const verifiedCredentials = credentials.filter((c) => c.status === 'verified');
   const verifiedCount = verifiedCredentials.length;
   const issuerCount = new Set(verifiedCredentials.map((c) => c.issuer)).size;
-  const validity =
-    credentials.length > 0 ? Math.round((verifiedCount / credentials.length) * 100) : 0;
 
   async function copyDid() {
     await navigator.clipboard.writeText(user!.did);
@@ -57,7 +70,7 @@ export function DashboardPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="mx-auto flex max-w-2xl flex-col gap-4">
       {banner?.issued && (
         <Alert variant="success" title="자격증명이 지갑에 저장되었습니다." onClose={() => setBanner(null)}>
           {banner.issued} 배지가 검증을 통과해 목록에 추가되었습니다.
@@ -74,72 +87,83 @@ export function DashboardPage() {
             : '로그인되었습니다.'}
         </Alert>
       )}
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <span className="text-xs font-semibold tracking-widest text-[var(--color-primary)]">
-            DECENTRALIZED VAULT
+      <section className="flex flex-col gap-1 px-1">
+        <h1 className="text-[26px] font-bold leading-snug tracking-tight">
+          {user.name} 님의 자격증명
+        </h1>
+        <button
+          type="button"
+          onClick={copyDid}
+          className="group flex w-fit max-w-full items-center gap-2 text-left text-[13px] text-[var(--color-text-muted)]"
+          title="클릭하여 DID 복사"
+        >
+          <span className="font-mono-did truncate">{user.did}</span>
+          <span className="shrink-0 font-medium text-[var(--color-primary)] group-hover:underline">
+            {copied ? '복사됨' : '복사'}
           </span>
-          <h1 className="mt-1 text-3xl font-bold">나의 DID 검증 자격 및 인증서</h1>
-          <button
-            type="button"
-            onClick={copyDid}
-            className="font-mono-did mt-2 break-all text-left text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-            title="클릭하여 DID 복사"
-          >
-            {user.did} <span className="text-[var(--color-primary)]">{copied ? '✓ 복사됨' : '복사'}</span>
-          </button>
+        </button>
+      </section>
+
+      <Card className="flex flex-col gap-5">
+        <div className="grid grid-cols-2 gap-4">
+          <Stat label="검증된 자격증명" value={verifiedCount} unit="개" />
+          <Stat label="발급 기관" value={issuerCount} unit="곳" />
         </div>
-        <Link to="/issue">
-          <Button>+ 새 자격증명 발급받기</Button>
+        <Link to="/issue" className="block">
+          <Button size="lg" className="w-full">
+            새 자격증명 발급받기
+          </Button>
         </Link>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="검증 완료 자격" value={`${verifiedCount}`} hint={`/ ${credentials.length} Verified VC`} />
-        <StatCard label="인가 발급 기관" value={`${issuerCount}`} hint="신뢰된 발급처" />
-        <StatCard label="위변조 검증 무결성" value={`${validity}%`} hint="검증 상태 기준" />
-      </div>
-
-      {isLoading && <Card>불러오는 중...</Card>}
+      </Card>
 
       {isError && <CareersErrorAlert error={error} onRetry={() => refetch()} />}
 
-      {data && credentials.length === 0 && (
-        <Card className="flex flex-col items-start gap-3">
-          <p className="text-sm text-[var(--color-text-muted)]">아직 지갑에 저장된 자격증명이 없습니다.</p>
-          <Link to="/issue">
-            <Button variant="secondary">첫 자격증명 발급받기</Button>
-          </Link>
-        </Card>
-      )}
-
-      {credentials.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {credentials.map((credential) => (
-            <Card
-              key={credential.record_id}
-              accent
-              className="flex flex-col gap-3 transition-colors hover:bg-[var(--color-card-hover)]"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <p className="text-xs text-[var(--color-text-muted)]">{credential.issuer}</p>
-                <StatusBadge status={credential.status} />
-              </div>
-              <h2 className="text-lg font-semibold">{credential.achievement_name}</h2>
-              <dl className="mt-1 flex flex-col gap-1 border-t border-[var(--color-border)] pt-3 text-xs">
-                <div className="flex justify-between gap-2">
-                  <dt className="text-[var(--color-text-muted)]">발급일</dt>
-                  <dd>{new Date(credential.issued_at).toLocaleDateString('ko-KR')}</dd>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <dt className="text-[var(--color-text-muted)]">레코드 ID</dt>
-                  <dd className="font-mono-did truncate">{credential.record_id}</dd>
-                </div>
-              </dl>
-            </Card>
-          ))}
+      <Card className="px-0 py-4">
+        <div className="flex items-baseline justify-between px-6 pb-2">
+          <h2 className="text-[17px] font-bold">전체</h2>
+          {credentials.length > 0 && (
+            <span className="text-[13px] text-[var(--color-text-muted)]">{credentials.length}개</span>
+          )}
         </div>
-      )}
+
+        {isLoading && (
+          <p className="px-6 py-8 text-center text-[15px] text-[var(--color-text-muted)]">불러오는 중...</p>
+        )}
+
+        {data && credentials.length === 0 && (
+          <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
+            <p className="text-[15px] font-semibold">아직 저장된 자격증명이 없어요</p>
+            <p className="text-[13px] text-[var(--color-text-muted)]">
+              모의 발급 서버에서 첫 배지를 받아보세요.
+            </p>
+            <Link to="/issue" className="mt-1">
+              <Button variant="secondary" size="sm">
+                첫 자격증명 발급받기
+              </Button>
+            </Link>
+          </div>
+        )}
+
+        {credentials.length > 0 && (
+          <ul>
+            {credentials.map((credential) => (
+              <li
+                key={credential.record_id}
+                className="flex items-center gap-4 px-6 py-3.5 transition-colors hover:bg-[var(--color-card-hover)]"
+              >
+                <IssuerAvatar issuer={credential.issuer} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[16px] font-semibold">{credential.achievement_name}</p>
+                  <p className="truncate text-[13px] text-[var(--color-text-muted)]">
+                    {credential.issuer} · {new Date(credential.issued_at).toLocaleDateString('ko-KR')}
+                  </p>
+                </div>
+                <StatusBadge status={credential.status} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
     </div>
   );
 }

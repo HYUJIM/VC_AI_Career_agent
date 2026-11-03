@@ -1,23 +1,34 @@
 @import 'tailwindcss';
 
+/*
+ * 디자인 토큰 — 토스(TDS) 스타일의 밝은 화면 + 단색 포인트 컬러.
+ * 그라데이션·글로우·네온 컬러 없이 회색 배경 위 흰 카드로 위계를 만든다.
+ * 당근 스타일로 바꾸려면 --color-primary 계열만 #ff6f0f / #e55e00 / #fff2e8 로 교체하면 된다.
+ */
 :root {
-  --color-bg: #0b0e14;
-  --color-surface: #0f131b;
-  --color-card: #141925;
-  --color-card-hover: #1a2030;
-  --color-border: #232b3b;
-  --color-text: #e6e9f0;
-  --color-text-muted: #8b93a7;
-  --color-primary: #22d3ee;
-  --color-primary-hover: #67e8f9;
-  --color-primary-fg: #04181d;
-  --color-success: #34d399;
-  --color-warning: #fbbf24;
-  --color-danger: #f87171;
-  --color-info: #60a5fa;
+  --color-bg: #f2f4f6; /* 페이지 배경 */
+  --color-surface: #f2f4f6; /* 입력칸·보조 박스 채움 */
+  --color-card: #ffffff;
+  --color-card-hover: #f9fafb;
+  --color-border: #e5e8eb;
+  --color-text: #191f28; /* 제목·본문 */
+  --color-text-sub: #4e5968; /* 보조 본문 */
+  --color-text-muted: #8b95a1; /* 캡션·라벨 */
+  --color-primary: #3182f6;
+  --color-primary-hover: #1b64da;
+  --color-primary-weak: #e8f3ff;
+  --color-primary-fg: #ffffff;
+  --color-success: #03b26c;
+  --color-warning: #ff9f00;
+  --color-danger: #f04452;
+  --color-info: #3182f6;
 
-  color-scheme: dark;
-  font-family: 'Pretendard', system-ui, 'Segoe UI', Roboto, 'Noto Sans KR', sans-serif;
+  color-scheme: light;
+  font-family:
+    'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo',
+    'Noto Sans KR', 'Malgun Gothic', sans-serif;
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
 }
 
 html,
@@ -28,11 +39,7 @@ body,
 
 body {
   margin: 0;
-  background:
-    radial-gradient(900px 400px at 85% -10%, rgba(34, 211, 238, 0.08), transparent 60%),
-    radial-gradient(700px 400px at 0% 0%, rgba(99, 102, 241, 0.07), transparent 60%),
-    var(--color-bg);
-  background-attachment: fixed;
+  background: var(--color-bg);
   color: var(--color-text);
 }
 

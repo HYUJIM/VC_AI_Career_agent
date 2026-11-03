@@ -20,8 +20,8 @@ export function CareersErrorAlert({ error, onRetry }: { error: unknown; onRetry:
         title="계정 정보를 서버에서 찾을 수 없습니다."
         actions={
           <Button
-            variant="secondary"
-            className="px-3 py-1 text-xs"
+            variant="outline"
+            size="sm"
             onClick={() => {
               logout('sessionExpired');
               navigate('/login');
@@ -37,7 +37,7 @@ export function CareersErrorAlert({ error, onRetry }: { error: unknown; onRetry:
   }
 
   const retry = (
-    <Button variant="secondary" className="px-3 py-1 text-xs" onClick={onRetry}>
+    <Button variant="outline" size="sm" onClick={onRetry}>
       다시 시도
     </Button>
   );

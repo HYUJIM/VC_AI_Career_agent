@@ -26,9 +26,9 @@ interface IssueError {
 }
 
 const STEPS: { key: Step; title: string; desc: string }[] = [
-  { key: 'issue', title: '1단계: 배지 발급', desc: 'Mock Issuer에서 VC(JWT) 발급' },
-  { key: 'verify', title: '2단계: 검증 및 저장', desc: 'DXWorks API로 검증 후 지갑에 저장' },
-  { key: 'done', title: '3단계: 완료', desc: '자격증명 지갑에서 확인' },
+  { key: 'issue', title: '배지 발급', desc: 'Mock Issuer에서 VC(JWT)를 받아요' },
+  { key: 'verify', title: '검증 및 저장', desc: 'DXWorks API로 검증한 뒤 지갑에 저장해요' },
+  { key: 'done', title: '완료', desc: '자격증명 지갑에서 확인할 수 있어요' },
 ];
 
 export function IssueCredentialPage() {
@@ -95,7 +95,7 @@ export function IssueCredentialPage() {
           title="배지 검증에 실패했습니다."
           onClose={close}
           actions={
-            <Button variant="secondary" className="px-3 py-1 text-xs" onClick={restart}>
+            <Button variant="outline" size="sm" onClick={restart}>
               처음부터 다시 발급
             </Button>
           }
@@ -133,58 +133,61 @@ export function IssueCredentialPage() {
   const currentIndex = STEPS.findIndex((s) => s.key === step);
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6">
-      <div>
-        <span className="text-xs font-semibold tracking-widest text-[var(--color-primary)]">
-          CREDENTIAL ISSUANCE
-        </span>
-        <h1 className="mt-1 text-3xl font-bold">자격증명 발급 및 검증</h1>
-        <p className="mt-2 text-sm text-[var(--color-text-muted)]">
-          테스트용 모의 발급 서버(Mock Issuer)에서 배지를 발급받고, BE가 DXWorks API로 검증한 뒤
-          지갑에 저장합니다.
+    <div className="mx-auto flex max-w-2xl flex-col gap-4">
+      <section className="flex flex-col gap-2 px-1">
+        <h1 className="text-[26px] font-bold leading-snug tracking-tight">자격증명 발급받기</h1>
+        <p className="text-[15px] leading-relaxed text-[var(--color-text-sub)]">
+          모의 발급 서버에서 배지를 받고, 검증을 통과하면 지갑에 저장돼요.
         </p>
-      </div>
-
-      <Card className="flex flex-col gap-1 p-5">
-        <span className="text-xs text-[var(--color-text-muted)]">내 DID</span>
-        <span className="font-mono-did break-all text-sm text-emerald-300">{user.did}</span>
-      </Card>
+      </section>
 
       {issueError && renderIssueError(issueError)}
 
-      <Card accent className="flex flex-col gap-6">
-        <ol className="flex flex-col gap-3">
+      <Card className="flex flex-col gap-6">
+        <ol className="flex flex-col">
           {STEPS.map((s, i) => {
             const done = i < currentIndex || step === 'done';
             const active = i === currentIndex && step !== 'done';
+            const last = i === STEPS.length - 1;
             return (
-              <li
-                key={s.key}
-                className={`flex items-center gap-3 rounded-lg border px-4 py-3 ${
-                  active
-                    ? 'border-[var(--color-primary)] bg-cyan-400/5'
-                    : 'border-[var(--color-border)]'
-                }`}
-              >
-                <span
-                  className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
-                    done
-                      ? 'bg-emerald-400 text-[#04140d]'
-                      : active
-                        ? 'bg-[var(--color-primary)] text-[var(--color-primary-fg)]'
-                        : 'bg-[var(--color-border)] text-[var(--color-text-muted)]'
-                  }`}
-                >
-                  {done ? '✓' : i + 1}
-                </span>
-                <div>
-                  <p className="text-sm font-semibold">{s.title}</p>
-                  <p className="text-xs text-[var(--color-text-muted)]">{s.desc}</p>
+              <li key={s.key} className="flex gap-4">
+                <div className="flex flex-col items-center">
+                  <span
+                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[13px] font-bold ${
+                      done || active
+                        ? 'bg-[var(--color-primary)] text-white'
+                        : 'bg-[var(--color-surface)] text-[var(--color-text-muted)]'
+                    }`}
+                  >
+                    {done ? '✓' : i + 1}
+                  </span>
+                  {!last && (
+                    <span
+                      className={`my-1 w-0.5 flex-1 ${
+                        done ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'
+                      }`}
+                    />
+                  )}
+                </div>
+                <div className={last ? 'pb-0' : 'pb-5'}>
+                  <p
+                    className={`text-[15px] font-semibold ${
+                      done || active ? 'text-[var(--color-text)]' : 'text-[var(--color-text-muted)]'
+                    }`}
+                  >
+                    {s.title}
+                  </p>
+                  <p className="text-[13px] text-[var(--color-text-muted)]">{s.desc}</p>
                 </div>
               </li>
             );
           })}
         </ol>
+
+        <div className="rounded-2xl bg-[var(--color-surface)] px-4 py-3">
+          <p className="text-[13px] text-[var(--color-text-muted)]">받는 사람 DID</p>
+          <p className="font-mono-did mt-0.5 break-all text-[13px] text-[var(--color-text-sub)]">{user.did}</p>
+        </div>
 
         {step === 'issue' && (
           <div className="flex flex-col gap-4">
@@ -199,6 +202,7 @@ export function IssueCredentialPage() {
                 setIssueError(null);
                 issueMutation.mutate();
               }}
+              size="lg"
               disabled={!templateId.trim()}
               isLoading={issueMutation.isPending}
             >
@@ -209,10 +213,14 @@ export function IssueCredentialPage() {
 
         {step === 'verify' && jwt && (
           <div className="flex flex-col gap-4">
-            <p className="font-mono-did break-all rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-xs text-[var(--color-text-muted)]">
-              발급된 JWT: {jwt.slice(0, 60)}...
-            </p>
+            <div className="rounded-2xl bg-[var(--color-surface)] px-4 py-3">
+              <p className="text-[13px] text-[var(--color-text-muted)]">발급된 VC-JWT</p>
+              <p className="font-mono-did mt-0.5 break-all text-[13px] text-[var(--color-text-sub)]">
+                {jwt.slice(0, 60)}...
+              </p>
+            </div>
             <Button
+              size="lg"
               onClick={() => {
                 setIssueError(null);
                 verifyMutation.mutate();
@@ -226,24 +234,24 @@ export function IssueCredentialPage() {
 
         {step === 'done' && (
           <div className="flex flex-col gap-4">
-            <p className="text-sm text-emerald-300">
-              검증 및 저장이 완료되었습니다. 지갑 대시보드에서 확인하세요.
-            </p>
+            <p className="text-[17px] font-bold">지갑에 저장했어요</p>
             {verified && (verified.badge?.name || verified.checks?.issuer?.issuerName) && (
-              <dl className="flex flex-col gap-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-xs">
+              <dl className="flex flex-col gap-2 rounded-2xl bg-[var(--color-surface)] px-4 py-3 text-[15px]">
                 {verified.badge?.name && (
                   <div className="flex justify-between gap-2">
                     <dt className="text-[var(--color-text-muted)]">배지</dt>
-                    <dd>{verified.badge.name}</dd>
+                    <dd className="font-medium">{verified.badge.name}</dd>
                   </div>
                 )}
                 {verified.checks?.issuer?.issuerName && (
                   <div className="flex justify-between gap-2">
                     <dt className="text-[var(--color-text-muted)]">발급 기관</dt>
-                    <dd>
+                    <dd className="font-medium">
                       {verified.checks.issuer.issuerName}
                       {verified.checks.issuerTrust?.trusted && (
-                        <span className="ml-1 text-emerald-300">(신뢰된 발급처)</span>
+                        <span className="ml-1.5 text-[13px] font-semibold text-[var(--color-success)]">
+                          신뢰된 발급처
+                        </span>
                       )}
                     </dd>
                   </div>
@@ -251,15 +259,16 @@ export function IssueCredentialPage() {
               </dl>
             )}
             <Button
+              size="lg"
               onClick={() =>
                 navigate('/dashboard', {
                   state: { issued: verified?.badge?.name ?? '새' } satisfies DashboardLocationState,
                 })
               }
             >
-              자격증명 지갑으로 이동 →
+              지갑에서 확인하기
             </Button>
-            <Button variant="ghost" onClick={restart}>
+            <Button variant="tertiary" size="lg" onClick={restart}>
               다른 배지 발급하기
             </Button>
           </div>

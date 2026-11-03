@@ -86,7 +86,7 @@ export function RegisterPage() {
             onClose={() => setRegisterError(null)}
             actions={
               <Link to="/login" state={{ email: err.email }}>
-                <Button type="button" variant="secondary" className="px-3 py-1 text-xs">
+                <Button type="button" variant="outline" size="sm">
                   이 이메일로 로그인
                 </Button>
               </Link>
@@ -121,8 +121,13 @@ export function RegisterPage() {
 
   return (
     <div className="flex min-h-[70vh] items-center justify-center">
-      <Card className="w-full max-w-sm">
-        <h1 className="mb-6 text-xl font-bold">회원가입</h1>
+      <Card className="w-full max-w-md p-8">
+        <h1 className="text-[24px] font-bold leading-snug tracking-tight">
+          가입하고 DID를 받아보세요
+        </h1>
+        <p className="mb-8 mt-2 text-[15px] text-[var(--color-text-sub)]">
+          가입과 동시에 나만의 탈중앙 식별자(DID)가 발급돼요.
+        </p>
         <form className="flex flex-col gap-4" noValidate onSubmit={handleSubmit(onSubmit)}>
           <Input
             id="name"
@@ -157,13 +162,13 @@ export function RegisterPage() {
             {...register('passwordConfirm')}
           />
           {registerError && renderRegisterError(registerError)}
-          <Button type="submit" isLoading={mutation.isPending}>
-            가입하고 DID 발급받기
+          <Button type="submit" size="lg" className="mt-2" isLoading={mutation.isPending}>
+            가입하기
           </Button>
         </form>
-        <p className="mt-4 text-center text-sm text-[var(--color-text-muted)]">
+        <p className="mt-5 text-center text-[15px] text-[var(--color-text-muted)]">
           이미 계정이 있으신가요?{' '}
-          <Link to="/login" className="text-[var(--color-primary)] hover:underline">
+          <Link to="/login" className="font-semibold text-[var(--color-primary)] hover:underline">
             로그인
           </Link>
         </p>

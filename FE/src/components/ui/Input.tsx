@@ -10,21 +10,23 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 export function Input({ label, error, invalid = false, id, className = '', ...rest }: InputProps) {
   const hasError = Boolean(error) || invalid;
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-2">
       {label && (
-        <label htmlFor={id} className="text-sm font-medium text-[var(--color-text)]">
+        <label htmlFor={id} className="text-[13px] font-medium text-[var(--color-text-sub)]">
           {label}
         </label>
       )}
       <input
         id={id}
         aria-invalid={hasError || undefined}
-        className={`rounded-lg border bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)] outline-none transition-colors placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)] ${
-          hasError ? 'border-[var(--color-danger)]' : 'border-[var(--color-border)]'
+        className={`h-12 rounded-xl border-2 bg-[var(--color-surface)] px-4 text-[15px] text-[var(--color-text)] outline-none transition-colors placeholder:text-[#b0b8c1] focus:bg-white ${
+          hasError
+            ? 'border-[var(--color-danger)] bg-white'
+            : 'border-transparent focus:border-[var(--color-primary)]'
         } ${className}`}
         {...rest}
       />
-      {error && <span className="text-xs text-[var(--color-danger)]">{error}</span>}
+      {error && <span className="text-[13px] text-[var(--color-danger)]">{error}</span>}
     </div>
   );
 }

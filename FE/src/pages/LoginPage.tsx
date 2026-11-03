@@ -91,7 +91,7 @@ export function LoginPage() {
             onClose={() => setLoginError(null)}
             actions={
               <Link to="/register" state={{ email: err.email }}>
-                <Button type="button" variant="secondary" className="px-3 py-1 text-xs">
+                <Button type="button" variant="outline" size="sm">
                   이 이메일로 회원가입
                 </Button>
               </Link>
@@ -131,8 +131,13 @@ export function LoginPage() {
 
   return (
     <div className="flex min-h-[70vh] items-center justify-center">
-      <Card className="w-full max-w-sm">
-        <h1 className="mb-6 text-xl font-bold">로그인</h1>
+      <Card className="w-full max-w-md p-8">
+        <h1 className="text-[24px] font-bold leading-snug tracking-tight">
+          이메일로 로그인해주세요
+        </h1>
+        <p className="mb-8 mt-2 text-[15px] text-[var(--color-text-sub)]">
+          검증된 자격증명을 한곳에서 관리할 수 있어요.
+        </p>
         {notice === 'sessionExpired' && (
           <Alert variant="warning" title="로그인 정보가 만료되었습니다." className="mb-4" onClose={() => setNotice(null)}>
             저장된 계정 정보를 서버에서 찾을 수 없습니다. 다시 로그인해주세요.
@@ -160,18 +165,18 @@ export function LoginPage() {
             {...register('password')}
           />
           {loginError && renderLoginError(loginError)}
-          <Button type="submit" isLoading={mutation.isPending}>
+          <Button type="submit" size="lg" className="mt-2" isLoading={mutation.isPending}>
             로그인
           </Button>
         </form>
-        <p className="mt-4 text-center text-sm text-[var(--color-text-muted)]">
+        <p className="mt-5 text-center text-[15px] text-[var(--color-text-muted)]">
           계정이 없으신가요?{' '}
-          <Link to="/register" className="text-[var(--color-primary)] hover:underline">
+          <Link to="/register" className="font-semibold text-[var(--color-primary)] hover:underline">
             회원가입
           </Link>
         </p>
         {import.meta.env.DEV && (
-          <p className="mt-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs text-[var(--color-text-muted)]">
+          <p className="mt-6 rounded-xl bg-[var(--color-surface)] px-4 py-3 text-[13px] leading-relaxed text-[var(--color-text-muted)]">
             개발용 시드 계정: <span className="font-mono-did">user001@example.com</span> ~{' '}
             <span className="font-mono-did">user045@example.com</span> / 비밀번호{' '}
             <span className="font-mono-did">test1234</span>
@@ -180,8 +185,8 @@ export function LoginPage() {
         {PREVIEW_ENABLED && (
           <Button
             type="button"
-            variant="secondary"
-            className="mt-4 w-full"
+            variant="tertiary"
+            className="mt-3 w-full"
             onClick={() => {
               setUser(PREVIEW_USER);
               navigate('/dashboard');

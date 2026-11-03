@@ -88,71 +88,73 @@ export function PortfolioBuilderPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <span className="text-xs font-semibold tracking-widest text-[var(--color-primary)]">
-          AGENT CO-PILOT
-        </span>
-        <h1 className="mt-1 text-3xl font-bold">AI 공인 포트폴리오 빌더</h1>
-      </div>
+    <div className="flex flex-col gap-4">
+      <section className="flex flex-col gap-2 px-1">
+        <h1 className="text-[26px] font-bold leading-snug tracking-tight">AI 포트폴리오 만들기</h1>
+        <p className="text-[15px] text-[var(--color-text-sub)]">
+          검증된 자격증명만 골라서 포트폴리오의 근거로 사용해요.
+        </p>
+      </section>
 
       {isError && <CareersErrorAlert error={error} onRetry={() => refetch()} />}
 
       <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
-        <Card className="flex h-fit flex-col gap-4 p-5">
-          <h2 className="text-sm font-semibold">DID 데이터 동기화</h2>
-          <div>
-            <p className="text-xs text-[var(--color-text-muted)]">연결된 식별자</p>
-            <p className="font-mono-did mt-1 break-all text-xs text-emerald-300">{user.did}</p>
+        <Card className="flex h-fit flex-col gap-3 px-0 py-5">
+          <div className="flex items-baseline justify-between px-5">
+            <h2 className="text-[17px] font-bold">포함할 자격증명</h2>
+            <span className="text-[13px] text-[var(--color-text-muted)]">
+              {selected.size}/{credentials.length}
+            </span>
           </div>
-          <div>
-            <p className="mb-2 text-xs text-[var(--color-text-muted)]">
-              포함할 검증 자격증명 ({selected.size}/{credentials.length})
+          {isLoading && (
+            <p className="px-5 text-[13px] text-[var(--color-text-muted)]">불러오는 중...</p>
+          )}
+          {!isLoading && !isError && credentials.length === 0 && (
+            <p className="px-5 text-[13px] text-[var(--color-text-muted)]">
+              검증된 자격증명이 없어요.{' '}
+              <Link to="/issue" className="font-semibold text-[var(--color-primary)] hover:underline">
+                발급받기
+              </Link>
             </p>
-            {isLoading && <p className="text-xs text-[var(--color-text-muted)]">불러오는 중...</p>}
-            {!isLoading && !isError && credentials.length === 0 && (
-              <p className="text-xs text-[var(--color-text-muted)]">
-                검증된 자격증명이 없습니다.{' '}
-                <Link to="/issue" className="text-[var(--color-primary)] hover:underline">
-                  발급받기
-                </Link>
-              </p>
-            )}
-            <ul className="flex flex-col gap-2">
-              {credentials.map((c) => (
-                <li key={c.record_id}>
-                  <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-[var(--color-border)] px-3 py-2 text-xs hover:bg-[var(--color-card-hover)]">
-                    <input
-                      type="checkbox"
-                      checked={selected.has(c.record_id)}
-                      onChange={() => toggle(c.record_id)}
-                      className="mt-0.5 accent-cyan-400"
-                    />
-                    <span>
-                      <span className="block font-semibold">{c.achievement_name}</span>
-                      <span className="text-[var(--color-text-muted)]">{c.issuer}</span>
+          )}
+          <ul>
+            {credentials.map((c) => (
+              <li key={c.record_id}>
+                <label className="flex cursor-pointer items-center gap-3 px-5 py-2.5 hover:bg-[var(--color-card-hover)]">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(c.record_id)}
+                    onChange={() => toggle(c.record_id)}
+                    className="h-5 w-5 shrink-0 accent-[var(--color-primary)]"
+                  />
+                  <span className="min-w-0">
+                    <span className="block truncate text-[15px] font-semibold">{c.achievement_name}</span>
+                    <span className="block truncate text-[13px] text-[var(--color-text-muted)]">
+                      {c.issuer}
                     </span>
-                  </label>
-                </li>
-              ))}
-            </ul>
-          </div>
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
         </Card>
 
-        <Card accent className="flex h-[600px] flex-col gap-4 p-0">
-          <div className="flex items-center justify-between border-b border-[var(--color-border)] px-5 py-3">
-            <span className="text-sm font-semibold">VC AI 에이전트</span>
-            <span className="text-xs text-emerald-300">● Active</span>
+        <Card className="flex h-[600px] flex-col p-0">
+          <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-5 py-4">
+            <span className="text-[15px] font-bold">커리어 에이전트</span>
+            <span className="text-[13px] text-[var(--color-text-muted)]">
+              {thinking ? '답변 작성 중' : '대화 가능'}
+            </span>
           </div>
 
-          <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-5">
+          <div className="flex flex-1 flex-col gap-3 overflow-y-auto px-5 py-4">
             {messages.map((m) => (
               <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : ''}`}>
                 <p
-                  className={`max-w-[80%] whitespace-pre-wrap rounded-xl px-4 py-3 text-sm ${
+                  className={`max-w-[80%] whitespace-pre-wrap px-4 py-2.5 text-[15px] leading-relaxed ${
                     m.role === 'user'
-                      ? 'bg-indigo-600 text-white'
-                      : 'border border-[var(--color-border)] bg-[var(--color-surface)]'
+                      ? 'rounded-[20px] rounded-br-md bg-[var(--color-primary)] text-white'
+                      : 'rounded-[20px] rounded-bl-md bg-[var(--color-surface)] text-[var(--color-text)]'
                   }`}
                 >
                   {m.text}
@@ -160,19 +162,21 @@ export function PortfolioBuilderPage() {
               </div>
             ))}
             {thinking && (
-              <p className="text-xs text-[var(--color-text-muted)]">에이전트가 작성 중...</p>
+              <p className="w-fit rounded-[20px] rounded-bl-md bg-[var(--color-surface)] px-4 py-2.5 text-[15px] text-[var(--color-text-muted)]">
+                ···
+              </p>
             )}
             <div ref={bottomRef} />
           </div>
 
           <div className="flex flex-col gap-3 border-t border-[var(--color-border)] px-5 py-4">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex gap-2 overflow-x-auto">
               {SUGGESTIONS.map((s) => (
                 <button
                   key={s}
                   type="button"
                   onClick={() => send(s)}
-                  className="rounded-full border border-[var(--color-border)] px-3 py-1 text-xs text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-text)]"
+                  className="shrink-0 rounded-full bg-[var(--color-surface)] px-3 py-1.5 text-[13px] font-medium text-[var(--color-text-sub)] hover:bg-[var(--color-border)]"
                 >
                   {s}
                 </button>
@@ -188,8 +192,8 @@ export function PortfolioBuilderPage() {
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="AI 에이전트에게 추가 요구사항이나 강조하고 싶은 역량을 입력하세요..."
-                className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm outline-none placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)]"
+                placeholder="강조하고 싶은 역량을 알려주세요"
+                className="h-11 min-w-0 flex-1 rounded-xl border-2 border-transparent bg-[var(--color-surface)] px-4 text-[15px] outline-none placeholder:text-[#b0b8c1] focus:border-[var(--color-primary)] focus:bg-white"
               />
               <Button type="submit" disabled={!input.trim() || thinking}>
                 전송
