@@ -103,7 +103,8 @@ docker compose up -d
   ```json
   {
     "name": "홍길동",
-    "email": "hong@test.com"
+    "email": "hong@test.com",
+    "password": "password1234"
   }
   ```
 
@@ -113,9 +114,18 @@ docker compose up -d
 - **Body (JSON):**
   ```json
   {
-    "email": "hong@test.com"
+    "email": "hong@test.com",
+    "password": "password1234"
   }
   ```
+> **비밀번호:** 회원가입 시 8자 이상(최대 72바이트)이어야 하며 bcrypt 해시로 저장됩니다. 로그인 시 이메일이 없거나 비밀번호가 틀리면 똑같이 `401 Invalid email or password`가 반환됩니다. 시드 테스트 계정(`user001@example.com` ~ `user045@example.com`)의 비밀번호는 모두 `test1234`입니다.
+>
+> **기존 환경을 쓰고 있다면:** `bcrypt` 패키지가 추가되어 이미지를 다시 빌드해야 하고, DB에 비밀번호 컬럼이 없으면 회원가입/로그인이 500 에러를 냅니다. 아래 두 명령을 한 번 실행하세요. (DB를 통째로 새로 만들어도 되면 마이그레이션 대신 `docker compose down -v` 후 `docker compose up -d --build`)
+> ```bash
+> docker compose up -d --build
+> docker compose exec -T postgres psql -U postgres -d vc_career_agent < DB/migrations/04_users_password_hash.sql
+> ```
+
 > **Tip:** 위 API를 호출하면 응답 결과의 `data.did` 항목에 가짜 DID(예: `did:key:z6MkMock...`)가 반환됩니다. 이후 Step 1~3에서 이 DID를 사용하세요.
 
 ### [Step 1] 논문 테스트용 임시 발급 서버 (Mock Issuer)

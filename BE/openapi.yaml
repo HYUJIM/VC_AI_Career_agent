@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: VC AI Career Agent — BE API
-  version: 0.2.0
+  version: 0.3.0
   description: |
     BE(FastAPI) 파트의 OpenAPI 명세. FE(`FE/src/api/*.ts`, `FE/src/types/api.ts`)가 실제로 호출하는
     계약을 기준으로 작성했다.
@@ -18,8 +18,8 @@ info:
     - 요청 본문 검증 실패는 FastAPI 기본 422 응답(`detail` 배열)이다.
 
     ## 인증
-    현재 별도 토큰/세션이 없다. FE는 로그인 응답의 사용자 정보(`did` 포함)를 localStorage에 보관하고
-    이후 요청 경로에 DID를 넣어 호출한다.
+    이메일 + 비밀번호(bcrypt 해시 저장)로 로그인한다. 로그인 이후의 토큰/세션은 아직 없다.
+    FE는 로그인 응답의 사용자 정보(`did` 포함)를 localStorage에 보관하고 이후 요청 경로에 DID를 넣어 호출한다.
   contact:
     name: BE 파트
 
@@ -62,6 +62,7 @@ paths:
       summary: 회원가입 (DID 자동 발급)
       description: |
         이메일로 사용자를 만들고 임시 DID(`did:key:z6MkMock...`)를 발급한다.
+        비밀번호는 bcrypt 해시로 저장한다. 8자 미만 또는 72바이트 초과면 422.
         FE는 응답의 `data`를 그대로 로그인 상태로 저장한다.
       operationId: registerUser
       requestBody:
@@ -102,6 +103,10 @@ paths:
     post:
       tags: [users]
       summary: 로그인
+      description: |
+        이메일과 비밀번호를 확인한다. 이메일이 없거나, 비밀번호가 틀리거나,
+        비밀번호가 설정되지 않은 사용자(신원 VP 검증으로 생성된 사용자 등)는 모두 같은 401을 반환한다.
+        시드 테스트 계정(`user001@example.com` ~ `user045@example.com`)의 비밀번호는 `test1234`.
       operationId: loginUser
       requestBody:
         required: true
@@ -124,14 +129,14 @@ paths:
                   name: 홍길동
                   email: hong@test.com
                   did: did:key:z6MkMock1a2b3c4d5e6f
-        "404":
-          description: 가입되지 않은 이메일
+        "401":
+          description: 이메일 또는 비밀번호가 올바르지 않음
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
               example:
-                detail: User not found
+                detail: Invalid email or password
         "422":
           $ref: "#/components/responses/ValidationError"
         "500":
@@ -388,8 +393,8 @@ components:
         password:
           type: string
           format: password
-          description: |
-            FE가 전송하는 값. **현재 BE는 이 필드를 받지만 저장/검증하지 않는다** (TODO: 해시 저장).
+          minLength: 8
+          description: 8자 이상, UTF-8 기준 72바이트 이하 (bcrypt 제한). bcrypt 해시로 저장된다.
 
     LoginRequest:
       type: object
@@ -401,8 +406,6 @@ components:
         password:
           type: string
           format: password
-          description: |
-            FE가 전송하는 값. **현재 BE는 이 필드를 검증하지 않고 이메일만으로 로그인한다** (TODO).
 
     AuthResponse:
       type: object
