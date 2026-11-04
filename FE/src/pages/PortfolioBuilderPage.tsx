@@ -5,7 +5,10 @@ import { getCareersByDid } from '@/api/credentials';
 import { CareersErrorAlert } from '@/components/CareersErrorAlert';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { markPortfolioUsed } from '@/lib/onboarding';
+import { useCopy } from '@/lib/useCopy';
 import { useAuthStore } from '@/store/authStore';
+import type { UserProfile, VerifiedCredential } from '@/types/api';
 
 interface ChatMessage {
   id: number;
@@ -15,9 +18,41 @@ interface ChatMessage {
 
 const SUGGESTIONS = ['경력 중심으로 강조해줘', '해커톤 수상 내역 추가', 'GitHub 링크 반영'];
 
+type PanelTab = 'chat' | 'preview';
+
+/** 선택한 자격증명과 마지막 요청으로 만드는 포트폴리오 초안 (AI 연동 전 화면 확인용) */
+function buildDraft(user: UserProfile, items: VerifiedCredential[], direction: string | null): string {
+  const lines = [
+    `# ${user.name} 포트폴리오`,
+    '',
+    `- 이메일: ${user.email}`,
+    `- DID: ${user.did}`,
+    direction ? `- 작성 방향: ${direction}` : null,
+    '',
+    '## 검증된 자격증명',
+    ...(items.length > 0
+      ? [...items]
+          .sort((a, b) => +new Date(b.issued_at) - +new Date(a.issued_at))
+          .map(
+            (c) =>
+              `- ${c.achievement_name} — ${c.issuer} (${new Date(c.issued_at).toLocaleDateString('ko-KR')} 발급, 블록체인 검증 완료)`,
+          )
+      : ['- (선택된 자격증명이 없습니다)']),
+    '',
+    '## 요약',
+    items.length > 0
+      ? `${new Set(items.map((c) => c.issuer)).size}개 기관에서 발급한 ${items.length}개의 검증된 자격증명을 근거로 역량을 증명합니다.`
+      : '왼쪽에서 포함할 자격증명을 선택해주세요.',
+  ];
+  return lines.filter((l) => l !== null).join('\n');
+}
+
 export function PortfolioBuilderPage() {
   const user = useAuthStore((state) => state.user);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [tab, setTab] = useState<PanelTab>('chat');
+  const [direction, setDirection] = useState<string | null>(null);
+  const { copy, isCopied } = useCopy();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [thinking, setThinking] = useState(false);
@@ -69,6 +104,8 @@ export function PortfolioBuilderPage() {
     setMessages((prev) => [...prev, { id: Date.now(), role: 'user', text: trimmed }]);
     setInput('');
     setThinking(true);
+    setDirection(trimmed);
+    markPortfolioUsed(user!.did);
     // TODO: AI 서버 연동 시 실제 호출로 교체 (현재는 화면 확인용 모의 응답)
     setTimeout(() => {
       const names = credentials
@@ -87,6 +124,12 @@ export function PortfolioBuilderPage() {
     }, 900);
   }
 
+  const draft = buildDraft(
+    user,
+    credentials.filter((c) => selected.has(c.record_id)),
+    direction,
+  );
+
   return (
     <div className="flex flex-col gap-4">
       <section className="flex flex-col gap-2 px-1">
@@ -103,9 +146,31 @@ export function PortfolioBuilderPage() {
           <div className="flex items-baseline justify-between px-5">
             <h2 className="text-[17px] font-bold">포함할 자격증명</h2>
             <span className="text-[13px] text-[var(--color-text-muted)]">
-              {selected.size}/{credentials.length}
+              {selected.size}/{credentials.length} 선택됨
             </span>
           </div>
+          {credentials.length > 0 && (
+            <div className="flex gap-2 px-5">
+              <Button
+                variant="tertiary"
+                size="sm"
+                className="flex-1"
+                disabled={selected.size === credentials.length}
+                onClick={() => setSelected(new Set(credentials.map((c) => c.record_id)))}
+              >
+                전체 선택
+              </Button>
+              <Button
+                variant="tertiary"
+                size="sm"
+                className="flex-1"
+                disabled={selected.size === 0}
+                onClick={() => setSelected(new Set())}
+              >
+                전체 해제
+              </Button>
+            </div>
+          )}
           {isLoading && (
             <p className="px-5 text-[13px] text-[var(--color-text-muted)]">불러오는 중...</p>
           )}
@@ -140,14 +205,61 @@ export function PortfolioBuilderPage() {
         </Card>
 
         <Card className="flex h-[600px] flex-col p-0">
-          <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-5 py-4">
-            <span className="text-[15px] font-bold">커리어 에이전트</span>
-            <span className="text-[13px] text-[var(--color-text-muted)]">
-              {thinking ? '답변 작성 중' : '대화 가능'}
-            </span>
+          <div className="flex items-center justify-between gap-2 border-b border-[var(--color-border)] px-5 py-3">
+            <div className="flex items-center gap-2">
+              <span className="text-[15px] font-bold">커리어 에이전트</span>
+              <span className="hidden text-[13px] text-[var(--color-text-muted)] sm:inline">
+                {thinking ? '답변 작성 중' : '대화 가능'}
+              </span>
+            </div>
+            <div className="flex rounded-xl bg-[var(--color-surface)] p-1" role="tablist" aria-label="보기 전환">
+              {(
+                [
+                  ['chat', '대화'],
+                  ['preview', '미리보기'],
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === key}
+                  onClick={() => setTab(key)}
+                  className={`rounded-lg px-3 py-1 text-[13px] transition-colors ${
+                    tab === key
+                      ? 'bg-white font-semibold text-[var(--color-text)] shadow-sm'
+                      : 'text-[var(--color-text-muted)]'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="flex flex-1 flex-col gap-3 overflow-y-auto px-5 py-4">
+          {tab === 'preview' && (
+            <div className="flex flex-1 flex-col gap-3 overflow-hidden px-5 py-4">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[13px] text-[var(--color-text-muted)]">
+                  선택한 {selected.size}개 자격증명으로 만든 초안 (AI 연동 전 모의 초안)
+                </p>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => copy(draft)}
+                >
+                  {isCopied() ? '복사됨' : '초안 복사'}
+                </Button>
+              </div>
+              <pre className="flex-1 overflow-auto whitespace-pre-wrap rounded-2xl bg-[var(--color-surface)] px-4 py-3 text-[14px] leading-relaxed text-[var(--color-text)]">
+                {draft}
+              </pre>
+            </div>
+          )}
+
+          <div
+            className={`flex-1 flex-col gap-3 overflow-y-auto px-5 py-4 ${tab === 'chat' ? 'flex' : 'hidden'}`}
+          >
             {messages.map((m) => (
               <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : ''}`}>
                 <p
@@ -169,7 +281,9 @@ export function PortfolioBuilderPage() {
             <div ref={bottomRef} />
           </div>
 
-          <div className="flex flex-col gap-3 border-t border-[var(--color-border)] px-5 py-4">
+          <div
+            className={`flex-col gap-3 border-t border-[var(--color-border)] px-5 py-4 ${tab === 'chat' ? 'flex' : 'hidden'}`}
+          >
             <div className="flex gap-2 overflow-x-auto">
               {SUGGESTIONS.map((s) => (
                 <button
