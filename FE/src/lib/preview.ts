@@ -34,7 +34,11 @@ export async function previewCareers(): Promise<CareersResponse> {
     achievement_name: name,
     status,
     issued_at: new Date(now - i * 86400000 * 30).toISOString(),
-    raw_data: {},
+    raw_data: {
+      type: ['VerifiableCredential', 'OpenBadgeCredential'],
+      issuer: { name: issuer },
+      credentialSubject: { id: PREVIEW_USER.did, achievement: { name } },
+    },
   });
   return {
     user_profile: PREVIEW_USER,
