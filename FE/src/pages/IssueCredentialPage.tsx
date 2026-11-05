@@ -9,7 +9,8 @@ import { Alert } from '@/components/ui/Alert';
 import { type ApiErrorKind, getApiErrorKind, getApiErrorMessage } from '@/lib/apiClient';
 import { useAuthStore } from '@/store/authStore';
 import type { DashboardLocationState } from '@/pages/DashboardPage';
-import type { BadgeVerifyData } from '@/types/api';
+import { StatusBadge } from '@/components/StatusBadge';
+import type { BadgeVerifyData, CredentialStatus } from '@/types/api';
 
 /**
  * BE README "[Step 1] 테스트용 임시 발급 서버(Mock Issuer)" 에서 사용하는 샘플 템플릿 ID.
@@ -23,6 +24,10 @@ interface IssueError {
   /** rejected: BE가 HTTP 200 + success:false 로 검증 실패를 알린 경우 */
   kind: ApiErrorKind | 'rejected';
   message: string;
+  /** rejected 일 때 BE가 판정한 상태 (v0.4.0) */
+  status?: CredentialStatus;
+  /** rejected 여도 BE가 해당 status로 지갑에 저장했는지 (record_id 존재 여부, v0.4.0) */
+  saved?: boolean;
 }
 
 const STEPS: { key: Step; title: string; desc: string }[] = [
@@ -59,13 +64,17 @@ export function IssueCredentialPage() {
     mutationFn: () => verifyCredential({ type: 'badge', token: jwt! }),
     onSuccess: (res) => {
       // BE는 검증 실패도 HTTP 200 + success:false 로 응답한다.
+      // v0.4.0부터 폐기·만료 배지는 success:false 여도 해당 status로 저장된다(record_id 존재).
+      const saved = Boolean(res.record_id);
+      if (res.success || saved) {
+        // 대시보드/포트폴리오가 새로 저장된 자격증명을 다시 불러오도록 캐시 무효화
+        queryClient.invalidateQueries({ queryKey: ['careers'] });
+      }
       if (res.success) {
         setVerified(res.data as BadgeVerifyData);
         setStep('done');
-        // 대시보드/포트폴리오가 새로 저장된 자격증명을 다시 불러오도록 캐시 무효화
-        queryClient.invalidateQueries({ queryKey: ['careers'] });
       } else {
-        setIssueError({ stage: 'verify', kind: 'rejected', message: res.message });
+        setIssueError({ stage: 'verify', kind: 'rejected', message: res.message, status: res.status, saved });
       }
     },
     onError: (error) =>
@@ -95,12 +104,38 @@ export function IssueCredentialPage() {
           title="배지 검증에 실패했습니다."
           onClose={close}
           actions={
-            <Button variant="outline" size="sm" onClick={restart}>
-              처음부터 다시 발급
-            </Button>
+            <>
+              {err.saved && (
+                <Button variant="outline" size="sm" onClick={() => navigate('/dashboard')}>
+                  지갑에서 확인하기
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={restart}>
+                처음부터 다시 발급
+              </Button>
+            </>
           }
         >
-          DXWorks 검증을 통과하지 못해 지갑에 저장되지 않았습니다. (서버 메시지: {err.message})
+          {err.status && (
+            <span className="mr-1.5 align-middle">
+              <StatusBadge status={err.status} />
+            </span>
+          )}
+          {err.saved
+            ? '검증을 통과하지 못했지만 판정된 상태로 지갑에 기록되었습니다. 포트폴리오 근거로는 사용되지 않아요.'
+            : 'DXWorks 검증을 통과하지 못해 지갑에 저장되지 않았습니다.'}{' '}
+          (서버 메시지: {err.message})
+        </Alert>
+      );
+    }
+    if (err.kind === 'forbidden' || err.kind === 'notFound' || err.kind === 'conflict') {
+      return (
+        <Alert
+          variant="warning"
+          title={err.stage === 'issue' ? '배지를 발급할 수 없습니다.' : '배지를 저장할 수 없습니다.'}
+          onClose={close}
+        >
+          {err.message}
         </Alert>
       );
     }
@@ -121,7 +156,7 @@ export function IssueCredentialPage() {
         {err.stage === 'issue' && (
           <>
             <br />
-            Template ID가 올바른지, BE의 DXWORKS_API_KEY 설정을 확인해주세요.
+            Template ID가 올바른지, BE의 DXWORKS_API_KEY 설정을 확인해주세요. (DXWorks 오류 502 / 설정 누락 503)
           </>
         )}
       </Alert>

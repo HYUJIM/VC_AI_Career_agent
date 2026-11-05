@@ -42,7 +42,7 @@ export function RegisterPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const prefillEmail = (location.state as { email?: string } | null)?.email ?? '';
-  const setUser = useAuthStore((state) => state.setUser);
+  const setSession = useAuthStore((state) => state.setSession);
   const [registerError, setRegisterError] = useState<RegisterError | null>(null);
 
   const {
@@ -58,8 +58,8 @@ export function RegisterPage() {
   const mutation = useMutation({
     mutationFn: registerUser,
     onSuccess: (res) => {
-      // BE가 가입과 동시에 사용자 정보(DID 포함)를 내려주므로 바로 로그인 상태로 전환
-      setUser(res.data);
+      // BE가 가입과 동시에 사용자 정보(DID 포함)와 액세스 토큰을 내려주므로 바로 로그인 상태로 전환
+      setSession(res.data, res.access_token);
       navigate('/dashboard', { state: { welcome: res.data.name, newUser: true } });
     },
     onError: (error, variables) => {

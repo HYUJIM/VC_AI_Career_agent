@@ -63,6 +63,8 @@ export async function previewVerify(): Promise<VerifyResponse> {
   return {
     success: true,
     message: 'Badge verified and saved.',
+    status: 'verified',
+    record_id: 'rec-0000-preview',
     data: {
       valid: true,
       badge: { name: '정보처리기사', issuedAt: new Date().toISOString() },

@@ -1,6 +1,6 @@
 /**
  * BE(FastAPI) 요청/응답 타입 정의
- * 출처: BE/openapi.yaml (BE 브랜치, v0.3.0 — FE 연동 기준으로 작성된 명세)
+ * 출처: BE/openapi.yaml (BE 브랜치, v0.4.0 — JWT 인증, 검증 결과 status/record_id 추가)
  */
 
 export interface UserProfile {
@@ -10,17 +10,23 @@ export interface UserProfile {
   name: string;
 }
 
-export interface RegisterResponse {
+/**
+ * 회원가입/로그인 공통 응답 (openapi `AuthResponse`).
+ * v0.4.0부터 `data`(UserProfile)는 그대로 두고 토큰 필드가 최상위에 추가되었다.
+ */
+export interface AuthResponse {
   success: boolean;
   message: string;
   data: UserProfile;
+  /** JWT 액세스 토큰. 이후 요청에 `Authorization: Bearer <access_token>` 으로 보낸다. */
+  access_token: string;
+  token_type: 'bearer';
+  /** 토큰 만료까지 남은 초 (BE `JWT_EXPIRES_MINUTES`, 기본 1일) */
+  expires_in: number;
 }
 
-export interface LoginResponse {
-  success: boolean;
-  message: string;
-  data: UserProfile;
-}
+export type RegisterResponse = AuthResponse;
+export type LoginResponse = AuthResponse;
 
 export interface IssueMockBadgeResponse {
   success: boolean;
@@ -38,11 +44,18 @@ export interface VerifyRequest {
 /**
  * 검증 실패 시에도 HTTP 200 + success:false 로 응답한다 (BE openapi.yaml).
  * data 는 DXWorks 검증 API 응답 원문이며, BE가 사용하는 필드만 아래에 명시한다.
+ *
+ * v0.4.0 (`badge`만):
+ * - status: BE가 판정한 상태. success 는 `status === 'verified'` 일 때만 true.
+ * - record_id: 저장된 자격증명 ID. 폐기·만료 배지도 해당 status로 저장되므로
+ *   success:false 여도 record_id 가 있으면 지갑에 저장된 것이다. 원본을 해석하지 못하면 null.
  */
 export interface VerifyResponse<T = BadgeVerifyData | IdentityVerifyData> {
   success: boolean;
   message: string;
   data: T;
+  status?: CredentialStatus;
+  record_id?: string | null;
 }
 
 export interface BadgeVerifyData {

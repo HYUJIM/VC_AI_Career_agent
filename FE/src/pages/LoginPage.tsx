@@ -36,7 +36,7 @@ export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const locationState = (location.state ?? {}) as LoginLocationState;
-  const setUser = useAuthStore((state) => state.setUser);
+  const setSession = useAuthStore((state) => state.setSession);
   const clearLogoutReason = useAuthStore((state) => state.clearLogoutReason);
   const [loginError, setLoginError] = useState<LoginError | null>(null);
   // 로그아웃/세션 만료 안내는 스토어에서 한 번만 읽고 바로 비운다.
@@ -60,7 +60,7 @@ export function LoginPage() {
   const mutation = useMutation({
     mutationFn: loginUser,
     onSuccess: (res) => {
-      setUser(res.data);
+      setSession(res.data, res.access_token);
       navigate('/dashboard', { state: { welcome: res.data.name } });
     },
     onError: (error, variables) => {
@@ -140,7 +140,7 @@ export function LoginPage() {
         </p>
         {notice === 'sessionExpired' && (
           <Alert variant="warning" title="로그인 정보가 만료되었습니다." className="mb-4" onClose={() => setNotice(null)}>
-            저장된 계정 정보를 서버에서 찾을 수 없습니다. 다시 로그인해주세요.
+            로그인 유효 시간이 지났거나 서버에서 계정 정보를 찾을 수 없습니다. 다시 로그인해주세요.
           </Alert>
         )}
         {notice === 'loggedOut' && (
@@ -188,7 +188,7 @@ export function LoginPage() {
             variant="tertiary"
             className="mt-3 w-full"
             onClick={() => {
-              setUser(PREVIEW_USER);
+              setSession(PREVIEW_USER, null);
               navigate('/dashboard');
             }}
           >
