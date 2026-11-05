@@ -208,6 +208,29 @@ export async function previewCreatePortfolio(req: PortfolioCreateRequest): Promi
   return { success: true, message: 'Portfolio created.', data: portfolio };
 }
 
+const ROLE_PREFIX = '- 희망 직무: ';
+
+/** BE `rewrite_header` 와 같은 동작: 첫 `## ` 앞의 제목·희망 직무 줄만 바꾸고 근거 섹션은 그대로 둔다. */
+function previewRewriteHeader(content: string, title: string, targetRole: string | null): string {
+  const lines = content.split('\n');
+  const endIdx = lines.findIndex((l) => l.startsWith('## '));
+  const end = endIdx === -1 ? lines.length : endIdx;
+  const head = lines.slice(0, end).filter((l) => !l.startsWith(ROLE_PREFIX));
+  let titleIdx = head.findIndex((l) => l.startsWith('# '));
+  if (titleIdx === -1) {
+    head.unshift(`# ${title}`, '');
+    titleIdx = 0;
+  } else {
+    head[titleIdx] = `# ${title}`;
+  }
+  if (targetRole) {
+    const anchor = head.findIndex((l) => l.startsWith('- 이름: '));
+    if (anchor === -1) head.splice(titleIdx + 1, 0, '', `${ROLE_PREFIX}${targetRole}`);
+    else head.splice(anchor + 1, 0, `${ROLE_PREFIX}${targetRole}`);
+  }
+  return [...head, ...lines.slice(end)].join('\n');
+}
+
 export async function previewUpdatePortfolio(
   id: string,
   fields: PortfolioUpdateRequest,
@@ -215,8 +238,10 @@ export async function previewUpdatePortfolio(
   await delay(300);
   const found = previewPortfolios.find((p) => p.id === id);
   if (!found) throw new Error('포트폴리오를 찾을 수 없습니다.');
-  // BE와 같이 메타정보만 바꾸고 본문(content_markdown)은 그대로 둔다.
   Object.assign(found, fields, { updated_at: new Date().toISOString() });
+  if ('title' in fields || 'target_role' in fields) {
+    found.content_markdown = previewRewriteHeader(found.content_markdown, found.title, found.target_role);
+  }
   return { success: true, message: 'Portfolio updated.', data: found };
 }
 

@@ -15,7 +15,8 @@ const formatDate = (iso: string) => new Date(iso).toLocaleDateString('ko-KR');
 
 /**
  * 제목·희망 직무 수정 폼 (BE v0.6.0 PATCH /portfolios/{id}).
- * 본문(content_markdown)은 VC_ONLY라 수정할 수 없다. 바뀐 필드만 보낸다.
+ * 바뀐 필드만 보낸다. BE가 본문 머리(`# 제목`, `- 희망 직무:` 줄)도 함께 갱신하고,
+ * 근거 섹션(VC_ONLY)은 그대로 둔다.
  */
 function PortfolioEditForm({
   portfolio,
@@ -62,8 +63,8 @@ function PortfolioEditForm({
         className="bg-white"
       />
       <p className="text-[12px] leading-relaxed text-[var(--color-text-muted)]">
-        본문은 검증된 자격증명으로만 만들어져 수정할 수 없어요. 본문 첫 줄의 제목도 그대로 남아요.
-        본문까지 바꾸려면 새로 만들어주세요.
+        본문 맨 위의 제목·희망 직무도 함께 바뀌어요. 검증된 자격증명 내용은 그대로 유지되며 직접 수정할 수 없어요.
+        자격증명 구성을 바꾸려면 새로 만들어주세요.
       </p>
       <div className="flex gap-2">
         <Button type="button" variant="tertiary" size="sm" className="flex-1" onClick={onCancel}>
