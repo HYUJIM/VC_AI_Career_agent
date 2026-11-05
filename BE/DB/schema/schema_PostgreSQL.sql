@@ -17,7 +17,8 @@ CREATE TABLE users (
     name            VARCHAR(100) NOT NULL,
     subject_did     VARCHAR(255) UNIQUE NOT NULL, -- 지갑 소유자 식별자 (did:fixture:student-001)
     created_at      TIMESTAMPTZ DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ DEFAULT NOW()
+    updated_at      TIMESTAMPTZ DEFAULT NOW(),
+    password_hash   VARCHAR(255)                  -- bcrypt 해시. NULL이면 비밀번호 로그인 불가 (VP 검증으로 생성된 사용자 등)
 );
 CREATE INDEX idx_users_did ON users(subject_did);
 -- ====================================================================

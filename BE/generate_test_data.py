@@ -6,8 +6,12 @@ import csv
 from datetime import datetime, timedelta, timezone
 import psycopg
 from dotenv import load_dotenv
+from app.services.security import hash_password
 
 load_dotenv()
+
+# 생성되는 테스트 유저 전원의 공통 로그인 비밀번호
+TEST_PASSWORD = "test1234"
 
 # 다양한 배지 템플릿 풀 (논문 테스트용)
 BADGE_TEMPLATES = [
@@ -61,6 +65,7 @@ def main():
         with get_db_connection() as conn:
             with conn.cursor() as cur:
                 print("1. 유저 45명 생성 중...")
+                test_password_hash = hash_password(TEST_PASSWORD)
                 for i in range(45):
                     user_id = str(uuid.uuid4())
                     name = f"{random.choice(SURNAMES)}{random.choice(FIRST_NAMES)}"
@@ -69,8 +74,8 @@ def main():
                     now_str = datetime.now(timezone.utc).isoformat()
                     
                     cur.execute(
-                        "INSERT INTO users (id, email, name, subject_did, created_at, updated_at) VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING",
-                        (user_id, email, name, did, now_str, now_str)
+                        "INSERT INTO users (id, email, name, subject_did, password_hash, created_at, updated_at) VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING",
+                        (user_id, email, name, did, test_password_hash, now_str, now_str)
                     )
                     
                     badge_count = random.randint(5, 15)
@@ -130,6 +135,7 @@ def main():
                 
         print(f"완료! 총 45명의 유저와 {total_badges}개의 배지가 성공적으로 생성되었습니다.")
         print(f"유저 목록과 조회용 DID가 '{csv_filename}' 파일로 저장되었습니다. 열어서 확인해 보세요!")
+        print(f"모든 테스트 유저의 로그인 비밀번호는 '{TEST_PASSWORD}' 입니다.")
 
     except Exception as e:
         print(f"에러 발생: {e}")
