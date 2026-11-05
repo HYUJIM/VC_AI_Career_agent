@@ -36,8 +36,8 @@ export interface VerifyRequest {
 }
 
 /**
- * 검증 실패 시에도 HTTP 200 + success:false 로 응답한다 (BE openapi.yaml).
- * data 는 DXWorks 검증 API 응답 원문이며, BE가 사용하는 필드만 아래에 명시한다.
+ * 검증 실패 시에도 HTTP 200 + success:false 로 응답한다 (BE openapi.yaml v0.4.0).
+ * data 는 BE 공통 형식이다 (외부 검증기 응답 원문이 아님).
  */
 export interface VerifyResponse<T = BadgeVerifyData | IdentityVerifyData> {
   success: boolean;
@@ -45,23 +45,30 @@ export interface VerifyResponse<T = BadgeVerifyData | IdentityVerifyData> {
   data: T;
 }
 
+export interface VerificationCheck {
+  name: string;
+  result: 'pass' | 'fail' | 'warn' | 'skip';
+  detail: string | null;
+}
+
 export interface BadgeVerifyData {
-  valid?: boolean;
-  badge?: { name?: string; issuedAt?: string };
-  checks?: {
-    issuer?: { issuerName?: string };
-    issuerTrust?: { trusted?: boolean };
-    credentialId?: { id?: string; credentialStatus?: string };
-    recipient?: { subjectId?: string };
-  };
-  [key: string]: unknown;
+  /** 저장된 자격증명 ID. 원본을 해석할 수 없어 저장하지 않았으면 null */
+  record_id: string | null;
+  status: CredentialStatus;
+  valid: boolean;
+  achievement_name: string;
+  issuer_name: string;
+  issuer_trusted: boolean | null;
+  recipient_did: string | null;
+  issued_at: string;
+  expires_at: string | null;
+  checks: VerificationCheck[];
 }
 
 export interface IdentityVerifyData {
-  verified?: boolean;
-  holderDid?: string;
-  claims?: { name?: string; email?: string };
-  [key: string]: unknown;
+  verified: boolean;
+  holder_did: string | null;
+  claims: Record<string, unknown>;
 }
 
 /**

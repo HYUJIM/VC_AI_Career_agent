@@ -50,7 +50,10 @@ npm run dev
 | `/issue` | 모의 배지 발급 → 검증 → 저장 (2단계 플로우) | `POST /api/mock-issuer/issue`, `POST /api/v1/verify` |
 | `/portfolio` | AI 포트폴리오 빌더 (verified 자격증명만 사용, AI 연동 전 모의 응답) | `GET /api/v1/subjects/{did}/careers` |
 
-API 계약은 BE 브랜치의 `BE/openapi.yaml`(v0.3.0)을 기준으로 합니다.
+API 계약은 `BE/openapi.yaml`(v0.4.0)을 기준으로 합니다.
+
+- **협력사 자료 취급:** 템플릿 ID·API 주소 등 협력사에서 받은 값은 FE 코드에 넣지 않습니다. 발급 화면의 Template ID는 비워두면 BE 서버 설정의 기본 템플릿을 씁니다.
+- **verify 응답 `data`:** BE 공통 형식(`achievement_name`, `issuer_name`, `issuer_trusted`, `status`, `record_id`, `checks` 등)입니다. 외부 검증기 응답 원문이 아닙니다.
 
 - **비밀번호**: 회원가입 시 8자 이상, UTF-8 기준 72바이트 이하(bcrypt 제약). 로그인 실패는 이메일/비밀번호 구분 없이 `401 Invalid email or password`.
 - **시드 테스트 계정**: `user001@example.com` ~ `user045@example.com`, 비밀번호 `test1234`.
@@ -72,7 +75,7 @@ API 계약은 BE 브랜치의 `BE/openapi.yaml`(v0.3.0)을 기준으로 합니�
 | 회원가입 | 성공 | 200 | 바로 로그인 → 대시보드 "회원가입이 완료되었습니다" 배너 |
 | 대시보드·포트폴리오 | 저장된 DID가 서버에 없음 | 404 | "계정 정보를 찾을 수 없습니다" + 다시 로그인 |
 | 대시보드 | 자격증명 0개 | 200 | 빈 상태 + "첫 자격증명 발급받기" |
-| 발급 | 템플릿 오류 / DXWorks 오류 | 500 | "배지 발급에 실패했습니다" + 원인 안내 |
+| 발급 | 템플릿 오류 / 발급 인프라 오류 · 설정 누락 | 502 / 503 | "배지 발급에 실패했습니다" + 원인 안내 |
 | 발급 | 검증 실패 | 200 + `success:false` | "배지 검증에 실패했습니다" + 처음부터 다시 발급 |
 | 발급 | 성공 | 200 | 완료 단계(배지·발급기관 표시) → 대시보드 "지갑에 저장되었습니다" 배너 |
 | 전 화면 | BE 서버 미실행 | 연결 실패 (vite 프록시 502) | "서버에 연결할 수 없습니다" (+ 조회 화면은 다시 시도) |
