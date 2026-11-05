@@ -22,4 +22,4 @@ VC 기록을 읽고 지원 문장을 쓰는 AI가 기록에 없는 내용을 만
 
 - 재현 방법: [ai/docs/STUDIES_RUN.md](ai/docs/STUDIES_RUN.md)
 - 설계 문서: [2차](ai/docs/paper_experiment2_design_v1.md) · [3차](ai/docs/paper_experiment3_design_v1.md) · [4차](ai/docs/paper_experiment4_design_v1.md)
-- 이전 정리: [정리 및 다음 작업 안내](ai/docs/CLEANUP_AND_NEXT_WORK_20261012.md) · [36건 개발 실험 자료](ai/research_artifacts/20261011/README.md)
+- 이전 정리: [정리 및 다음 작업 안내](ai/docs/CLEANUP_AND_NEXT_WORK_20261012.md) · [36건 개발 실험 자료](https://github.com/HYUJIM/VC_AI_Career_agent/tree/d9d933e/ai/research_artifacts/20261011) (저장소에서 제외, 커밋 `d9d933e`에 보존)

@@ -2,3 +2,6 @@ __pycache__/
 .pytest_cache/
 .env
 outputs/
+
+# 실험 산출물: 코드/테스트에서 참조하지 않으므로 저장소에서 제외 (기록은 커밋 d9d933e에 보존)
+research_artifacts/20261011/
