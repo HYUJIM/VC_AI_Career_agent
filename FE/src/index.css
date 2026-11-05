@@ -23,6 +23,18 @@
   --color-danger: #f04452;
   --color-info: #3182f6;
 
+  /* Bklit UI 차트 토큰 — 위 디자인 토큰에 맞춘다 */
+  --border: var(--color-border);
+  --chart-background: var(--color-card);
+  --chart-foreground: var(--color-text);
+  --chart-foreground-muted: var(--color-text-muted);
+  --chart-label: var(--color-text-sub);
+  --chart-1: var(--color-success);
+  --chart-2: var(--color-warning);
+  --chart-3: var(--color-primary);
+  --chart-4: #8b5cf6;
+  --chart-5: var(--color-danger);
+
   color-scheme: light;
   font-family:
     'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo',

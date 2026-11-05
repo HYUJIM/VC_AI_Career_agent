@@ -4,5 +4,13 @@
   "rules": {
     "react/rules-of-hooks": "error",
     "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
+  },
+  "overrides": [
+    {
+      "files": ["src/components/charts/**"],
+      "rules": {
+        "react/only-export-components": "off"
+      }
+    }
+  ]
 }

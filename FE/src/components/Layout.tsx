@@ -1,4 +1,6 @@
-import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { motion } from 'motion/react';
+import { useEffect } from 'react';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ProfileMenu } from '@/components/ProfileMenu';
 import { Button } from '@/components/ui/Button';
 import { useAuthStore } from '@/store/authStore';
@@ -15,6 +17,12 @@ const NAV_ITEMS = [
 export function Layout() {
   const { user, isAuthenticated, logout } = useAuthStore();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+
+  // 페이지(탭)를 옮기면 항상 맨 위에서 시작한다. BrowserRouter는 스크롤 위치를 초기화하지 않는다.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
 
   function handleLogout() {
     logout('loggedOut');
@@ -42,14 +50,27 @@ export function Layout() {
                     key={item.to}
                     to={item.to}
                     className={({ isActive }) =>
-                      `rounded-lg px-3 py-2 text-[15px] transition-colors ${
+                      `relative rounded-lg px-3 py-2 text-[15px] transition-colors ${
                         isActive
                           ? 'font-semibold text-[var(--color-text)]'
                           : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-text-sub)]'
                       }`
                     }
                   >
-                    {item.label}
+                    {({ isActive }) => (
+                      <>
+                        {item.label}
+                        {/* Motion layoutId: 활성 탭 밑줄이 탭 사이를 미끄러지듯 이동한다 */}
+                        {isActive && (
+                          <motion.span
+                            layoutId="nav-underline"
+                            aria-hidden="true"
+                            className="absolute inset-x-3 -bottom-[13px] h-[2px] rounded-full bg-[var(--color-text)]"
+                            transition={{ type: 'spring', stiffness: 500, damping: 40 }}
+                          />
+                        )}
+                      </>
+                    )}
                   </NavLink>
                 ))}
               </nav>
@@ -85,7 +106,15 @@ export function Layout() {
         )}
       </header>
       <main className="mx-auto w-full max-w-5xl flex-1 px-5 py-8">
-        <Outlet />
+        {/* 경로가 바뀔 때마다 새로 마운트되며 살짝 떠오르듯 나타난다 */}
+        <motion.div
+          key={pathname}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25, ease: 'easeOut' }}
+        >
+          <Outlet />
+        </motion.div>
       </main>
       <footer className="mt-8 border-t border-[var(--color-border)] bg-white">
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 py-8 sm:flex-row sm:justify-between">

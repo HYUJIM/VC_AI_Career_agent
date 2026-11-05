@@ -1,3 +1,4 @@
+import { AnimatedNumber } from '@/components/ui/AnimatedNumber';
 import { Card } from '@/components/ui/Card';
 
 function Stat({
@@ -21,7 +22,7 @@ function Stat({
     <div className="flex flex-col gap-1 rounded-2xl bg-[var(--color-surface)] px-4 py-3">
       <span className="text-[13px] text-[var(--color-text-muted)]">{label}</span>
       <span className={`truncate text-[20px] font-bold tracking-tight ${color}`}>
-        {value}
+        {typeof value === 'number' ? <AnimatedNumber value={value} /> : value}
         {unit && <span className="ml-0.5 text-[14px] font-medium text-[var(--color-text-sub)]">{unit}</span>}
       </span>
     </div>

@@ -65,7 +65,7 @@ export function PortfolioBuilderPage() {
   const [thinking, setThinking] = useState(false);
   const [title, setTitle] = useState('');
   const [targetRole, setTargetRole] = useState('');
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const chatRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
   const { data, isLoading, isError, error, refetch } = useQuery({
@@ -111,8 +111,11 @@ export function PortfolioBuilderPage() {
     ]);
   }, [user]);
 
+  // 새 메시지가 오면 대화창 내부만 맨 아래로 스크롤한다.
+  // scrollIntoView는 페이지(window)까지 스크롤해서 탭 진입 시 화면이 중간부터 보이므로 쓰지 않는다.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const el = chatRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, [messages, thinking]);
 
   if (!user) return null;
@@ -329,6 +332,7 @@ export function PortfolioBuilderPage() {
           )}
 
           <div
+            ref={chatRef}
             className={`flex-1 flex-col gap-3 overflow-y-auto px-5 py-4 ${tab === 'chat' ? 'flex' : 'hidden'}`}
           >
             {messages.map((m) => (
@@ -349,7 +353,6 @@ export function PortfolioBuilderPage() {
                 ···
               </p>
             )}
-            <div ref={bottomRef} />
           </div>
 
           <div

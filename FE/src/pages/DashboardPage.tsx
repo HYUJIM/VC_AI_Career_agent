@@ -13,6 +13,7 @@ import {
   RecentActivityCard,
 } from '@/components/dashboard/SidePanel';
 import { StatsCard } from '@/components/dashboard/StatsCard';
+import { StatusRingCard } from '@/components/dashboard/StatusRingCard';
 import { Alert } from '@/components/ui/Alert';
 import { type StatusFilter, getStatusGroup } from '@/lib/credentialStatus';
 import { hasUsedPortfolio } from '@/lib/onboarding';
@@ -126,6 +127,12 @@ export function DashboardPage() {
 
         <aside className="flex flex-col gap-4">
           <ProfileCard user={user} />
+          <StatusRingCard
+            total={counts.all}
+            verified={counts.verified}
+            attention={counts.attention}
+            pending={counts.pending}
+          />
           <QuickActionsCard />
           <IssuerStatsCard stats={issuerStats} />
           <RecentActivityCard newestFirst={newestFirst} onSelect={setDetail} />

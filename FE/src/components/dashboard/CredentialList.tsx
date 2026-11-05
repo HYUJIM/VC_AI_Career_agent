@@ -1,3 +1,4 @@
+import { AnimatePresence, motion } from 'motion/react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { IssuerAvatar } from '@/components/IssuerAvatar';
@@ -55,14 +56,23 @@ export function CredentialList({ credentials, counts, isLoading, loaded, onSelec
               role="tab"
               aria-selected={active}
               onClick={() => setFilter(tab.key)}
-              className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[14px] transition-colors ${
+              className={`relative flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[14px] transition-colors ${
                 active
-                  ? 'bg-[var(--color-text)] font-semibold text-white'
+                  ? 'font-semibold text-white'
                   : 'text-[var(--color-text-sub)] hover:bg-[var(--color-surface)]'
               }`}
             >
-              {tab.label}
-              <span className={`text-[12px] ${active ? 'text-white/70' : 'text-[var(--color-text-muted)]'}`}>
+              {/* Motion layoutId: 선택된 필터 배경이 탭 사이를 이동한다 */}
+              {active && (
+                <motion.span
+                  layoutId="status-filter-pill"
+                  aria-hidden="true"
+                  className="absolute inset-0 rounded-full bg-[var(--color-text)]"
+                  transition={{ type: 'spring', stiffness: 500, damping: 38 }}
+                />
+              )}
+              <span className="relative">{tab.label}</span>
+              <span className={`relative text-[12px] ${active ? 'text-white/70' : 'text-[var(--color-text-muted)]'}`}>
                 {counts[tab.key]}
               </span>
             </button>
@@ -127,8 +137,17 @@ export function CredentialList({ credentials, counts, isLoading, loaded, onSelec
 
       {visible.length > 0 && (
         <ul>
-          {visible.map((credential) => (
-            <li key={credential.record_id}>
+          {/* Motion: 필터·정렬이 바뀌면 항목이 자리를 옮기고, 새 항목은 순서대로 떠오른다 */}
+          <AnimatePresence mode="popLayout">
+          {visible.map((credential, i) => (
+            <motion.li
+              key={credential.record_id}
+              layout
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2, delay: Math.min(i, 10) * 0.03 }}
+            >
               <button
                 type="button"
                 onClick={() => onSelect(credential)}
@@ -146,8 +165,9 @@ export function CredentialList({ credentials, counts, isLoading, loaded, onSelec
                   ›
                 </span>
               </button>
-            </li>
+            </motion.li>
           ))}
+          </AnimatePresence>
         </ul>
       )}
     </Card>

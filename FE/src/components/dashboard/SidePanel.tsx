@@ -1,10 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
+import { animate, stagger } from 'animejs';
+import { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { getMe } from '@/api/auth';
 import { IssuerAvatar } from '@/components/IssuerAvatar';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { prefersReducedMotion } from '@/lib/motion';
 import { useCopy } from '@/lib/useCopy';
 import type { UserProfile, VerifiedCredential } from '@/types/api';
 
@@ -69,6 +72,25 @@ export function QuickActionsCard() {
 /** 검증된 자격증명 기준 발급 기관별 개수 막대 */
 export function IssuerStatsCard({ stats }: { stats: [issuer: string, count: number][] }) {
   const max = stats[0]?.[1] ?? 1;
+  const listRef = useRef<HTMLUListElement>(null);
+  // 통계가 바뀔 때만 다시 그린다 (매 렌더마다 새 배열이 와도 내용이 같으면 건너뜀)
+  const statsKey = stats.map(([issuer, count]) => `${issuer}:${count}`).join('|');
+
+  // Anime.js: 막대가 왼쪽에서 차례로 차오른다
+  useEffect(() => {
+    const bars = listRef.current?.querySelectorAll<HTMLElement>('[data-bar]');
+    if (!bars?.length || prefersReducedMotion()) return;
+    const anim = animate(bars, {
+      scaleX: [0, 1],
+      duration: 700,
+      delay: stagger(80),
+      ease: 'outCubic',
+    });
+    return () => {
+      anim.revert();
+    };
+  }, [statsKey]);
+
   return (
     <Card className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between">
@@ -78,7 +100,7 @@ export function IssuerStatsCard({ stats }: { stats: [issuer: string, count: numb
       {stats.length === 0 ? (
         <p className="text-[13px] text-[var(--color-text-muted)]">검증된 자격증명이 생기면 표시돼요.</p>
       ) : (
-        <ul className="flex flex-col gap-2.5">
+        <ul ref={listRef} className="flex flex-col gap-2.5">
           {stats.map(([issuer, count]) => (
             <li key={issuer} className="flex flex-col gap-1">
               <div className="flex justify-between gap-2 text-[13px]">
@@ -87,7 +109,8 @@ export function IssuerStatsCard({ stats }: { stats: [issuer: string, count: numb
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-[var(--color-surface)]">
                 <div
-                  className="h-full rounded-full bg-[var(--color-primary)]"
+                  data-bar
+                  className="h-full origin-left rounded-full bg-[var(--color-primary)]"
                   style={{ width: `${(count / max) * 100}%` }}
                 />
               </div>
