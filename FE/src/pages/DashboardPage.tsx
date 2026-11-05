@@ -132,7 +132,8 @@ export function DashboardPage() {
         </aside>
       </div>
 
-      <CredentialDetailModal credential={detail} onClose={() => setDetail(null)} />
+      {/* key: 다른 자격증명을 열면 이전 재검증 결과를 초기화한다 */}
+      <CredentialDetailModal key={detail?.record_id} credential={detail} onClose={() => setDetail(null)} />
     </div>
   );
 }

@@ -7,7 +7,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE TYPE credential_format   AS ENUM ('OB2.0', 'OB3.0', 'VC1.1', 'VC2.0');
 CREATE TYPE verification_status AS ENUM ('verified', 'invalid', 'revoked', 'expired', 'unverifiable', 'pending');
 CREATE TYPE check_result        AS ENUM ('pass', 'fail', 'warn', 'skip');
-CREATE TYPE check_name_type     AS ENUM ('schema', 'did_resolution', 'signature', 'issuer_trust', 'revocation', 'anchor_match', 'expiration');
+CREATE TYPE check_name_type     AS ENUM ('schema', 'did_resolution', 'signature', 'issuer_trust', 'revocation', 'anchor_match', 'expiration', 'recipient');
 -- ====================================================================
 -- 1. 사용자 (학생/구직자)
 -- ====================================================================
@@ -21,6 +21,17 @@ CREATE TABLE users (
     password_hash   VARCHAR(255)                  -- bcrypt 해시. NULL이면 비밀번호 로그인 불가 (VP 검증으로 생성된 사용자 등)
 );
 CREATE INDEX idx_users_did ON users(subject_did);
+-- 관리형 홀더 키 (06 마이그레이션에서 추가). 개인키는 AES-256-GCM 암호문으로만 저장
+CREATE TABLE holder_keys (
+    user_id                 UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    did                     VARCHAR(255) UNIQUE NOT NULL,
+    key_type                VARCHAR(20) NOT NULL DEFAULT 'Ed25519',
+    public_key_multibase    VARCHAR(100) NOT NULL,
+    encrypted_private_key   BYTEA NOT NULL,
+    nonce                   BYTEA NOT NULL,
+    kek_id                  VARCHAR(32) NOT NULL,
+    created_at              TIMESTAMPTZ DEFAULT NOW()
+);
 -- ====================================================================
 -- 2. 자격증명
 -- ====================================================================
@@ -39,6 +50,9 @@ CREATE TABLE credentials (
     awarded_date        DATE,
     raw_data            JSONB NOT NULL,                 -- 원본 CredentialRecord JSON 전문
     created_at          TIMESTAMPTZ DEFAULT NOW(),
+    -- 아래 두 컬럼은 05 마이그레이션에서 추가. 시드 SQL이 컬럼 목록 없이 INSERT하므로 반드시 맨 뒤에 둔다.
+    raw_token           TEXT,                           -- 서명된 원본 (VC-JWT). 실행 시점 재검증용. 시드 데이터는 NULL
+    last_verified_at    TIMESTAMPTZ,                    -- 마지막 검증 시각
     UNIQUE (user_id, source_provider, source_external_id) -- 동일 배지 중복 적재 차단
 );
 CREATE INDEX idx_credentials_user ON credentials(user_id);
@@ -90,3 +104,19 @@ CREATE TABLE portfolios (
     updated_at              TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX idx_portfolios_user ON portfolios(user_id);
+-- ====================================================================
+-- 6. 선택 공개 링크 (07 마이그레이션에서 추가). 토큰은 해시만 저장
+-- ====================================================================
+CREATE TABLE shares (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash      CHAR(64) UNIQUE NOT NULL,
+    record_ids      UUID[] NOT NULL,
+    label           VARCHAR(100),
+    expires_at      TIMESTAMPTZ NOT NULL,
+    revoked_at      TIMESTAMPTZ,
+    view_count      INTEGER NOT NULL DEFAULT 0,
+    last_viewed_at  TIMESTAMPTZ,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_shares_user ON shares(user_id);

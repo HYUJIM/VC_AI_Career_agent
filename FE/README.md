@@ -17,10 +17,10 @@ BE(FastAPI, `../BE`)가 제공하는 REST API를 소비하는 **SPA(Single Page 
 
 ```
 src/
-├── api/            # BE 엔드포인트별 호출 함수 (auth.ts, credentials.ts)
-├── components/     # 공통 UI (Layout, ProtectedRoute, StatusBadge, ui/*)
-├── lib/            # axios 인스턴스, 에러 파싱 등 공용 유틸
-├── pages/          # 라우트 단위 페이지 (Login, Register, Dashboard, IssueCredential)
+├── api/            # BE 엔드포인트별 호출 함수 (auth.ts, credentials.ts, portfolios.ts, shares.ts)
+├── components/     # 공통 UI (Layout, ProtectedRoute, StatusBadge, VerificationChecks, dashboard/*, portfolio/*, ui/*)
+├── lib/            # axios 인스턴스, 에러 파싱, 개발용 미리보기 데이터 등 공용 유틸
+├── pages/          # 라우트 단위 페이지 (Login, Register, Dashboard, IssueCredential, PortfolioBuilder, SharedView)
 ├── store/          # Zustand 전역 상태 (authStore)
 └── types/          # BE 응답 타입 정의 (api.ts)
 ```
@@ -46,11 +46,22 @@ npm run dev
 | --- | --- | --- |
 | `/register` | 회원가입 (이름·이메일·비밀번호, DID 자동 발급) | `POST /api/v1/users/register` |
 | `/login` | 이메일 + 비밀번호 로그인 | `POST /api/v1/users/login` |
-| `/dashboard` | 자격증명 지갑 (status별 구분 표시) | `GET /api/v1/subjects/{did}/careers` |
+| `/dashboard` | 자격증명 지갑 (status별 구분 표시, 상세에서 **지금 다시 검증하기**, 관리형 지갑 표시) | `GET /api/v1/subjects/{did}/careers`, `POST /api/v1/credentials/{record_id}/reverify`, `GET /api/v1/users/me` |
 | `/issue` | 모의 배지 발급 → 검증 → 저장 (2단계 플로우) | `POST /api/mock-issuer/issue`, `POST /api/v1/verify` |
-| `/portfolio` | AI 포트폴리오 빌더 (verified 자격증명만 사용, AI 연동 전 모의 응답) | `GET /api/v1/subjects/{did}/careers` |
+| `/portfolio` | AI 포트폴리오 빌더 — 대화(AI 연동 전 모의 응답) + **검증 후 저장(VC_ONLY)** + 저장 목록 + **선택 공개 링크** | `GET /api/v1/subjects/{did}/careers`, `/api/v1/portfolios`, `/api/v1/shares` |
+| `/share/:token` | 기업용 조회 (로그인 불필요, 열 때마다 재검증, 서명 원본 제공) | `GET /api/v1/public/shares/{token}` |
 
-API 계약은 BE 브랜치의 `BE/openapi.yaml`(v0.4.0)을 기준으로 합니다.
+API 계약은 `BE/openapi.yaml`(v0.6.0)을 기준으로 합니다.
+
+- **협력사 자료 취급:** 템플릿 ID·API 주소 등 협력사에서 받은 값은 FE 코드에 넣지 않습니다. 발급 화면의 Template ID는 비워두면 BE 서버 설정의 기본 템플릿을 씁니다.
+- **verify 응답 `data`:** BE 공통 형식(`achievement_name`, `issuer_name`, `issuer_trusted`, `status`, `record_id`, `checks` 등)입니다. 외부 검증기 응답 원문이 아닙니다.
+- **실행 시점 재검증 (v0.6.0):** 지갑 상세의 "지금 다시 검증하기"는 저장된 서명 원본을 다시 검증하고 DB 상태도 갱신합니다.
+  서명 원본이 없는 자격증명(시드 데이터 등)은 `unverifiable` 로 표시됩니다.
+- **포트폴리오 (VC_ONLY, v0.6.0):** 자유 텍스트 본문은 보내지 않고 `title`·`target_role`·`record_ids`·`source: "VC_ONLY"` 만 보냅니다.
+  BE가 저장 직전에 재검증해 통과한 것만 본문에 넣고 나머지는 `excluded`(사유 포함)로 돌려줍니다. 통과한 것이 없으면 422.
+  저장 후에는 본문을 수정할 수 없습니다(제목·직무·상태만 PATCH 가능).
+- **선택 공개 (v0.6.0):** 고른 자격증명만 보이는 링크를 만듭니다. 링크 주소(토큰)는 **생성 직후 한 번만** 보이고 서버에는 해시만 저장됩니다.
+  기업은 `/share/{token}` 으로 로그인 없이 열며, 없는·철회·만료 링크는 모두 같은 404입니다. 공개 조회에는 로그인 토큰을 붙이지 않습니다.
 
 - **인증 (v0.4.0)**: 회원가입/로그인 응답의 `access_token`(JWT)을 `store/authStore.ts` 에 저장하고,
   `lib/apiClient.ts` 요청 인터셉터가 모든 요청에 `Authorization: Bearer <token>` 을 붙입니다.
@@ -62,8 +73,8 @@ API 계약은 BE 브랜치의 `BE/openapi.yaml`(v0.4.0)을 기준으로 합니�
 - **에러 형식**: `{ detail: string }`, 요청 검증 실패(422)는 `{ detail: [...] }` 배열 → `lib/apiClient.ts` 의 `getApiErrorMessage` 가 한국어 메시지로 변환.
   DXWorks 호출 실패는 502, DXWorks 설정 누락은 503, 그 외 내부 오류는 500 `Internal server error`(내부 메시지 미노출).
 - **careers API**: 상태와 무관하게 모든 자격증명을 반환하므로 FE에서 `status === 'verified'` 로 거른다.
-- **verify API**: 검증 실패도 HTTP 200 + `success: false` 로 응답한다. v0.4.0부터 `status`·`record_id` 가 추가되어,
-  폐기·만료 배지는 `success: false` 여도 해당 status로 지갑에 저장됩니다(`record_id` 존재).
+- **verify API**: 검증 실패도 HTTP 200 + `success: false` 로 응답한다. `data.status`·`data.record_id` 로
+  폐기·만료 배지는 `success: false` 여도 해당 status로 지갑에 저장됐는지 알 수 있습니다(`data.record_id` 존재).
 
 ### 에러/성공 화면 대응표
 
@@ -81,18 +92,23 @@ API 계약은 BE 브랜치의 `BE/openapi.yaml`(v0.4.0)을 기준으로 합니�
 | 대시보드·포트폴리오 | 저장된 DID ≠ 토큰의 DID | 403 | "로그인 정보가 일치하지 않습니다" + 다시 로그인 |
 | 전 화면 | 토큰 만료 / 위조 | 401 | 자동 로그아웃 → 로그인 화면 "로그인 정보가 만료되었습니다" |
 | 대시보드 | 자격증명 0개 | 200 | 빈 상태 + "첫 자격증명 발급받기" |
-| 발급 | 템플릿 오류 / DXWorks 오류·설정 누락 | 502 / 503 | "배지 발급에 실패했습니다" + 원인 안내 |
+| 발급 | 템플릿 오류 / 발급 인프라 오류 · 설정 누락 | 502 / 503 | "배지 발급에 실패했습니다" + 원인 안내 |
 | 발급 | 가입되지 않은 DID / 남의 DID / 다른 사용자에 이미 등록 | 404 / 403 / 409 | "배지를 발급(저장)할 수 없습니다" + 사유 |
-| 발급 | 검증 실패 (저장 안 됨) | 200 + `success:false`, `record_id:null` | "배지 검증에 실패했습니다" + 처음부터 다시 발급 |
-| 발급 | 폐기·만료 배지 (상태와 함께 저장됨) | 200 + `success:false`, `record_id` 있음 | 상태 배지 + "지갑에 기록되었습니다" + 지갑에서 확인하기 |
+| 발급 | 검증 실패 (저장 안 됨) | 200 + `success:false`, `data.record_id:null` | "배지 검증에 실패했습니다" + 처음부터 다시 발급 |
+| 발급 | 폐기·만료 배지 (상태와 함께 저장됨) | 200 + `success:false`, `data.record_id` 있음 | 상태 배지 + "지갑에 기록되었습니다" + 지갑에서 확인하기 |
 | 발급 | 성공 | 200 | 완료 단계(배지·발급기관 표시) → 대시보드 "지갑에 저장되었습니다" 배너 |
+| 지갑 상세 | 재검증 통과 / 실패 / 서명 원본 없음 | 200 + `success:true/false` | "지금도 유효한 자격증명이에요" / 갱신된 상태 + 점검 항목 / "서명 원본이 없어 다시 검증할 수 없어요" |
+| 포트폴리오 | 검증 후 저장 성공 (일부 제외) | 201 + `excluded` | 성공 배너 + 빠진 자격증명과 사유 + 서버가 만든 본문 |
+| 포트폴리오 | 고른 것 중 통과한 것 없음 | 422 `No verified credentials selected` | "선택한 자격증명 중 지금 검증을 통과한 것이 없습니다" |
+| 선택 공개 | 링크 생성 | 201 | 링크 주소(한 번만 표시) + 복사 버튼, 목록에 열람 수·만료일·철회 버튼 |
+| 기업용 조회 | 없는·철회·만료 링크 | 404 | "열 수 없는 링크입니다" |
 | 전 화면 | BE 서버 미실행 | 연결 실패 (vite 프록시 502) | "서버에 연결할 수 없습니다" (+ 조회 화면은 다시 시도) |
 
 > FE는 로그인 응답의 사용자 정보(`did` 포함)와 `access_token` 을 Zustand persist 로 로컬에 저장해 로그인 상태를 유지합니다.
 > BE는 전환 기간 동안 `AUTH_REQUIRED=false`(기본값)라 토큰 없는 요청도 받지만, FE는 이미 토큰을 보내므로 `true` 로 바꿔도 동작합니다.
 >
-> BE v0.4.0 업데이트 후 기존 BE 환경을 쓰고 있다면 BE README의 안내대로 `docker compose up -d --build` 와
-> 마이그레이션(`05_credentials_raw_token.sql`)을 실행하거나 `docker compose down -v && docker compose up -d --build` 로
+> BE v0.6.0 업데이트 후 기존 BE 환경을 쓰고 있다면 BE README의 안내대로 `docker compose up -d --build` 와
+> 마이그레이션(`05_credentials_raw_token.sql`, `06_holder_keys.sql`, `07_shares.sql`)을 실행하거나 `docker compose down -v && docker compose up -d --build` 로
 > DB를 다시 만들어야 합니다. BE `.env` 의 `JWT_SECRET` 을 비워두면 BE 재시작 때마다 토큰이 무효가 되어 다시 로그인해야 합니다.
 > BE `CORS_ORIGINS` 기본값은 `http://localhost:5173` 이며, 개발 중에는 vite 프록시를 쓰므로 CORS 영향이 없습니다.
 
@@ -107,7 +123,8 @@ API 계약은 BE 브랜치의 `BE/openapi.yaml`(v0.4.0)을 기준으로 합니�
 
 ## 다음 단계 (TODO)
 
-- [ ] `portfolios` 테이블은 BE DB 스키마에 존재하지만 API가 아직 없음 — BE팀과 엔드포인트 협의 필요
-- [ ] AI 브랜치(RAG 커리어 가이드) 연동 화면 설계
+- [x] BE v0.6.0 연동 — 실행 시점 재검증, 포트폴리오(VC_ONLY) 저장·목록·삭제, 선택 공개 링크·기업용 조회 화면
+- [ ] 포트폴리오 제목·직무·게시 상태 수정 UI (`PATCH /portfolios/{id}`, API 함수는 `api/portfolios.ts` 에 있음)
+- [ ] AI 브랜치(RAG 커리어 가이드) 연동 — 대화 탭의 모의 응답 교체, BE `GET /subjects/{did}/evidence` 근거 사용
 - [ ] Figma 디자인 확정 후 MCP/플러그인 기반 컴포넌트 교체
 - [x] BE JWT 인증(v0.4.0) 연동 — `apiClient` Bearer 인터셉터 + 401 자동 로그아웃

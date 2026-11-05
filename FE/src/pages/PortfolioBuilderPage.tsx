@@ -1,10 +1,17 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getCareersByDid } from '@/api/credentials';
+import { createPortfolio } from '@/api/portfolios';
 import { CareersErrorAlert } from '@/components/CareersErrorAlert';
+import { ExcludedList } from '@/components/portfolio/ExcludedList';
+import { SavedPortfolios } from '@/components/portfolio/SavedPortfolios';
+import { ShareLinksCard } from '@/components/portfolio/ShareLinksCard';
+import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { Input } from '@/components/ui/Input';
+import { getApiErrorMessage } from '@/lib/apiClient';
 import { markPortfolioUsed } from '@/lib/onboarding';
 import { useCopy } from '@/lib/useCopy';
 import { useAuthStore } from '@/store/authStore';
@@ -56,7 +63,10 @@ export function PortfolioBuilderPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [thinking, setThinking] = useState(false);
+  const [title, setTitle] = useState('');
+  const [targetRole, setTargetRole] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['careers', user?.did],
@@ -65,6 +75,24 @@ export function PortfolioBuilderPage() {
   });
 
   const credentials = (data?.verified_credentials ?? []).filter((c) => c.status === 'verified');
+  const credentialNames = new Map(credentials.map((c) => [c.record_id, c.achievement_name]));
+
+  // BE v0.6.0 VC_ONLY 포트폴리오: 자격증명 ID만 보내고, BE가 지금 다시 검증해 통과한 것으로만 본문을 만든다.
+  const save = useMutation({
+    mutationFn: () =>
+      createPortfolio({
+        title,
+        target_role: targetRole,
+        record_ids: credentials.filter((c) => selected.has(c.record_id)).map((c) => c.record_id),
+      }),
+    onSuccess: () => {
+      markPortfolioUsed(user!.did);
+      queryClient.invalidateQueries({ queryKey: ['portfolios'] });
+      // 재검증으로 상태가 바뀌었을 수 있으므로 지갑도 다시 불러온다.
+      queryClient.invalidateQueries({ queryKey: ['careers'] });
+    },
+  });
+  const saved = save.data?.data;
 
   // 검증된 자격증명은 기본으로 모두 포함
   useEffect(() => {
@@ -238,21 +266,64 @@ export function PortfolioBuilderPage() {
           </div>
 
           {tab === 'preview' && (
-            <div className="flex flex-1 flex-col gap-3 overflow-hidden px-5 py-4">
+            <div className="flex flex-1 flex-col gap-3 overflow-y-auto px-5 py-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Input
+                  id="portfolioTitle"
+                  label="제목"
+                  placeholder="예: 백엔드 개발자 지원용"
+                  maxLength={255}
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+                <Input
+                  id="portfolioRole"
+                  label="희망 직무 (선택)"
+                  placeholder="예: 백엔드 개발자"
+                  maxLength={100}
+                  value={targetRole}
+                  onChange={(e) => setTargetRole(e.target.value)}
+                />
+              </div>
+              <Button
+                disabled={!title.trim() || selected.size === 0}
+                isLoading={save.isPending}
+                onClick={() => save.mutate()}
+              >
+                검증 후 포트폴리오 저장
+              </Button>
+              <p className="text-[12px] leading-relaxed text-[var(--color-text-muted)]">
+                자유 텍스트 없이 고른 자격증명만 보내요(VC_ONLY). 서버가 저장 직전에 서명 원본을 다시 검증해 통과한
+                것만 본문에 넣어요.
+              </p>
+
+              {save.isError && (
+                <Alert variant="error" title="포트폴리오를 저장하지 못했습니다." onClose={() => save.reset()}>
+                  {getApiErrorMessage(save.error)}
+                </Alert>
+              )}
+              {saved && (
+                <Alert variant="success" title={`"${saved.title}" 포트폴리오를 저장했어요.`} onClose={() => save.reset()}>
+                  검증된 자격증명 {saved.credential_count}개로 본문을 만들었어요.
+                  {saved.excluded.length > 0 && (
+                    <div className="mt-2 flex flex-col gap-1.5">
+                      <span className="font-semibold">검증을 통과하지 못해 빠진 자격증명</span>
+                      <ExcludedList excluded={saved.excluded} names={credentialNames} />
+                    </div>
+                  )}
+                </Alert>
+              )}
+
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[13px] text-[var(--color-text-muted)]">
-                  선택한 {selected.size}개 자격증명으로 만든 초안 (AI 연동 전 모의 초안)
+                  {saved ? '서버가 만든 본문' : `선택한 ${selected.size}개 자격증명으로 만든 초안 (저장 전 미리보기)`}
                 </p>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => copy(draft)}
-                >
-                  {isCopied() ? '복사됨' : '초안 복사'}
+                <Button variant="secondary" size="sm" onClick={() => copy(saved?.content_markdown ?? draft)}>
+                  {isCopied() ? '복사됨' : '본문 복사'}
                 </Button>
               </div>
-              <pre className="flex-1 overflow-auto whitespace-pre-wrap rounded-2xl bg-[var(--color-surface)] px-4 py-3 text-[14px] leading-relaxed text-[var(--color-text)]">
-                {draft}
+              <pre className="min-h-40 flex-1 whitespace-pre-wrap rounded-2xl bg-[var(--color-surface)] px-4 py-3 text-[14px] leading-relaxed text-[var(--color-text)]">
+                {saved?.content_markdown ?? draft}
               </pre>
             </div>
           )}
@@ -315,6 +386,11 @@ export function PortfolioBuilderPage() {
             </form>
           </div>
         </Card>
+      </div>
+
+      <div className="grid items-start gap-4 lg:grid-cols-2">
+        <SavedPortfolios />
+        <ShareLinksCard selectedIds={credentials.filter((c) => selected.has(c.record_id)).map((c) => c.record_id)} />
       </div>
     </div>
   );

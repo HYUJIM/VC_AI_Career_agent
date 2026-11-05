@@ -18,11 +18,17 @@ export const apiClient = axios.create({
 
 /** 토큰이 필요 없는 엔드포인트(로그인/회원가입). 여기서 나는 401은 "비밀번호 오류"이지 세션 만료가 아니다. */
 const PUBLIC_PATHS = ['/v1/users/login', '/v1/users/register'];
+/** 로그인 없이 여는 기업용 공유 링크 조회 (v0.6.0). 열람자의 토큰을 보낼 이유가 없다. */
+const PUBLIC_PREFIXES = ['/v1/public/'];
+
+function isPublicPath(url: string): boolean {
+  return PUBLIC_PATHS.includes(url) || PUBLIC_PREFIXES.some((prefix) => url.startsWith(prefix));
+}
 
 /** BE v0.4.0: 로그인 사용자의 JWT를 모든 요청에 `Authorization: Bearer` 헤더로 붙인다. */
 apiClient.interceptors.request.use((config) => {
   const token = useAuthStore.getState().accessToken;
-  if (token && !PUBLIC_PATHS.includes(config.url ?? '')) {
+  if (token && !isPublicPath(config.url ?? '')) {
     config.headers.set('Authorization', `Bearer ${token}`);
   }
   return config;
@@ -56,9 +62,10 @@ export function getApiErrorStatus(error: unknown): number | undefined {
  *   또는 토큰 없음/만료/위조)
  * - forbidden: 403 (남의 DID에 접근 — BE v0.4.0)
  * - conflict: 400 (이미 가입된 이메일 등 요청 거부), 409 (다른 사용자에게 이미 등록된 자격증명)
- * - notFound: 404 (DID에 해당하는 사용자 없음 / 가입되지 않은 DID로 발급·검증)
- * - validation: 422 (요청 본문 검증 실패)
- * - server: BE가 detail과 함께 반환한 5xx (DXWorks 오류 502, DXWorks 설정 누락 503, 내부 오류 500)
+ * - notFound: 404 (DID에 해당하는 사용자 없음 / 가입되지 않은 DID로 발급·검증 / 없는 자격증명·포트폴리오,
+ *   없거나 철회·만료된 공유 링크)
+ * - validation: 422 (요청 본문 검증 실패 / 포트폴리오에 쓸 검증된 자격증명 없음)
+ * - server: BE가 detail과 함께 반환한 5xx (발급·검증 API 오류 502, 설정 누락 503, 내부 오류 500)
  */
 export type ApiErrorKind =
   | 'network'
@@ -112,6 +119,14 @@ const KNOWN_ERROR_MESSAGES: Record<string, string> = {
   'Credential already registered to another user': '이미 다른 사용자의 지갑에 등록된 자격증명입니다.',
   'Mock issuer is disabled': '모의 발급 서버가 비활성화되어 있습니다. (BE MOCK_ISSUER_ENABLED)',
   'Internal server error': '서버 내부 오류가 발생했습니다.',
+  // BE v0.6.0 재검증·포트폴리오·선택 공개
+  'Credential not found': '자격증명을 찾을 수 없습니다. 목록을 새로고침해주세요.',
+  'No verified credentials selected': '선택한 자격증명 중 지금 검증을 통과한 것이 없습니다.',
+  'Portfolio not found': '포트폴리오를 찾을 수 없습니다.',
+  'Nothing to update': '수정할 내용이 없습니다.',
+  'Title must not be blank': '제목을 입력해주세요.',
+  'Share not found': '공유 링크를 찾을 수 없습니다.',
+  'Share link not found or expired': '링크가 없거나 철회·만료되었습니다.',
 };
 
 function translate(message: string): string {
@@ -126,6 +141,12 @@ const FIELD_LABELS: Record<string, string> = {
   holderDid: 'DID',
   token: '토큰',
   type: '타입',
+  title: '제목',
+  target_role: '희망 직무',
+  record_ids: '자격증명',
+  source: '근거 출처',
+  label: '링크 이름',
+  expires_in_days: '유효 기간',
 };
 
 /** FastAPI 422 의 detail 배열을 한 줄 메시지로 합친다. */

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: VC AI Career Agent — BE API
-  version: 0.3.0
+  version: 0.6.0
   description: |
     BE(FastAPI) 파트의 OpenAPI 명세. FE(`FE/src/api/*.ts`, `FE/src/types/api.ts`)가 실제로 호출하는
     계약을 기준으로 작성했다.
@@ -16,10 +16,24 @@ info:
     - 에러는 FastAPI 기본 형식 `{ "detail": "..." }` 으로 반환한다.
       FE는 `detail → message → error` 순서로 메시지를 읽는다 (`FE/src/lib/apiClient.ts`).
     - 요청 본문 검증 실패는 FastAPI 기본 422 응답(`detail` 배열)이다.
+    - DXWorks 호출 실패는 502, DXWorks 설정 누락(API 키 없음)은 503이다. 그 외 내부 오류는 500 `Internal server error`
+      (내부 예외 메시지는 응답에 싣지 않는다).
 
-    ## 인증
-    이메일 + 비밀번호(bcrypt 해시 저장)로 로그인한다. 로그인 이후의 토큰/세션은 아직 없다.
-    FE는 로그인 응답의 사용자 정보(`did` 포함)를 localStorage에 보관하고 이후 요청 경로에 DID를 넣어 호출한다.
+    ## 인증 (v0.4.0)
+    이메일 + 비밀번호(bcrypt)로 로그인하면 JWT 액세스 토큰(`access_token`)을 준다.
+    이후 요청은 `Authorization: Bearer <access_token>` 헤더를 붙인다.
+
+    요청 주체는 세 가지다.
+    - **사용자 토큰**: 본인 DID의 데이터만 읽고 쓸 수 있다. 남의 DID면 403.
+    - **서비스 키** (`X-Service-Key`): AI 등 내부 서비스용. 읽기(`careers`)만 가능, 쓰기 API는 403.
+    - **인증 없음**: 서버 설정 `AUTH_REQUIRED=false`(FE/AI 토큰 연동 전 전환 기간)일 때만 허용한다.
+      `AUTH_REQUIRED=true`면 401 + `WWW-Authenticate: Bearer`.
+
+    잘못되었거나 만료된 토큰은 `AUTH_REQUIRED`와 관계없이 401이다.
+
+    ## 실행 시점 재검증 준비 (v0.4.0)
+    배지 검증 시 서명된 원본 VC-JWT를 `credentials.raw_token`에, 점검 항목 8개를 `verification_checks`에 저장한다.
+    (논문 RAG-VC: DB 사본이 아닌 서명 원본을 다시 검증하기 위한 전제)
   contact:
     name: BE 파트
 
@@ -27,8 +41,10 @@ servers:
   - url: http://localhost:3000
     description: 로컬 개발 서버 (docker compose). FE 개발 서버는 `/api` 프록시로 이 주소에 연결한다.
 
-# 현재 인증 없음 (info.description의 "인증" 참고)
-security: []
+# 기본은 사용자 토큰. AUTH_REQUIRED=false(전환 기간)이면 인증 없이도 호출 가능 (info.description "인증" 참고)
+security:
+  - bearerAuth: []
+  - {}
 
 tags:
   - name: health
@@ -41,6 +57,12 @@ tags:
     description: 자격증명 검증 후 저장
   - name: mock-issuer
     description: 테스트용 모의 배지 발급
+  - name: reverify
+    description: 실행 시점 재검증 (저장된 서명 원본을 요청 시점에 다시 검증)
+  - name: portfolios
+    description: 검증된 자격증명만으로 만드는 포트폴리오 (VC_ONLY)
+  - name: shares
+    description: 선택 공개 링크와 기업용 조회
 
 paths:
   /health:
@@ -48,6 +70,7 @@ paths:
       tags: [health]
       summary: 서버 상태 확인
       operationId: getHealth
+      security: []
       responses:
         "200":
           description: 서버 정상
@@ -61,10 +84,15 @@ paths:
       tags: [users]
       summary: 회원가입 (DID 자동 발급)
       description: |
-        이메일로 사용자를 만들고 임시 DID(`did:key:z6MkMock...`)를 발급한다.
+        이메일로 사용자를 만들고 DID를 발급한다.
+        - 서버에 `HOLDER_KEY_ENCRYPTION_KEY`가 설정되어 있으면(관리형 지갑) BE가 Ed25519 홀더 키를 만들어 암호화 보관하고,
+          그 공개키로 진짜 `did:key:z6Mk...`를 발급한다.
+        - 설정이 없으면 홀더 키 없이 임시 DID(`did:key:z6MkMock...`)를 발급한다.
         비밀번호는 bcrypt 해시로 저장한다. 8자 미만 또는 72바이트 초과면 422.
+        이메일은 소문자로 저장한다. 가입과 동시에 로그인 토큰(`access_token`)을 준다.
         FE는 응답의 `data`를 그대로 로그인 상태로 저장한다.
       operationId: registerUser
+      security: []
       requestBody:
         required: true
         content:
@@ -86,6 +114,9 @@ paths:
                   name: 홍길동
                   email: hong@test.com
                   did: did:key:z6MkMock1a2b3c4d5e6f
+                access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                token_type: bearer
+                expires_in: 86400
         "400":
           description: 이미 가입된 이메일
           content:
@@ -107,7 +138,9 @@ paths:
         이메일과 비밀번호를 확인한다. 이메일이 없거나, 비밀번호가 틀리거나,
         비밀번호가 설정되지 않은 사용자(신원 VP 검증으로 생성된 사용자 등)는 모두 같은 401을 반환한다.
         시드 테스트 계정(`user001@example.com` ~ `user045@example.com`)의 비밀번호는 `test1234`.
+        성공하면 `access_token`을 준다. 이메일은 대소문자를 구분하지 않는다.
       operationId: loginUser
+      security: []
       requestBody:
         required: true
         content:
@@ -129,6 +162,9 @@ paths:
                   name: 홍길동
                   email: hong@test.com
                   did: did:key:z6MkMock1a2b3c4d5e6f
+                access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                token_type: bearer
+                expires_in: 86400
         "401":
           description: 이메일 또는 비밀번호가 올바르지 않음
           content:
@@ -142,6 +178,52 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/v1/users/me:
+    get:
+      tags: [users]
+      summary: 내 정보 조회 (토큰 확인용)
+      description: |
+        토큰의 사용자 프로필을 돌려준다. `AUTH_REQUIRED`와 관계없이 사용자 토큰이 필요하다.
+        FE는 새로고침 후 저장된 토큰이 아직 유효한지 확인할 때 쓸 수 있다.
+      operationId: getMe
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, message, data]
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: "#/components/schemas/UserProfile"
+                  wallet:
+                    type: object
+                    required: [custody, key_type]
+                    description: 지갑(홀더 키) 상태
+                    properties:
+                      custody:
+                        type: string
+                        enum: [managed, none]
+                        description: "`managed`: BE가 홀더 키를 보관 (신원 자격증명 사용 가능). `none`: 키 없는 기존 사용자"
+                      key_type:
+                        type: [string, "null"]
+                        example: Ed25519
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: 토큰은 유효하지만 사용자가 삭제됨
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /api/v1/subjects/{did}/careers:
     get:
       tags: [careers]
@@ -151,7 +233,14 @@ paths:
         FE 대시보드와 AI 포트폴리오 빌더가 사용한다.
 
         현재는 `status`와 관계없이 모든 자격증명을 반환한다. 화면/AI 쪽에서 `status`로 걸러 써야 한다.
+
+        접근: 사용자 토큰은 본인 DID만(남의 DID면 403), 서비스 키(`X-Service-Key`)는 모든 DID 조회 가능.
+        응답 형식은 v0.3.0과 같다.
       operationId: getCareersByDid
+      security:
+        - bearerAuth: []
+        - serviceKey: []
+        - {}
       parameters:
         - $ref: "#/components/parameters/Did"
       responses:
@@ -174,6 +263,10 @@ paths:
                     status: verified
                     issued_at: "2026-09-01T00:00:00+00:00"
                     raw_data: {}
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           description: 해당 DID의 사용자가 없음
           content:
@@ -190,15 +283,19 @@ paths:
       tags: [verify]
       summary: 자격증명 검증 후 DB 저장
       description: |
-        `type`에 따라 DXWorks 검증 API를 호출하고, 검증에 성공하면 DB에 저장한다.
+        `type`에 따라 DXWorks 검증 API를 호출한다.
 
-        - `identity`: VP 토큰을 검증하고 사용자 정보를 저장/갱신한다 (`subject_did` 기준 upsert).
-        - `badge`: OB3 VC-JWT를 검증하고 자격증명을 저장/갱신한다
+        - `identity`: VP 토큰을 검증하고 결과만 돌려준다. **사용자를 만들거나 바꾸지 않는다** (v0.4.0 변경).
+          토큰 사용자의 DID와 VP 홀더 DID가 다르면 403.
+        - `badge`: OB3 VC-JWT를 검증하고 수신자(`credentialSubject.id`)의 자격증명으로 저장/갱신한다
           (`user_id + source_provider + source_external_id` 기준 upsert).
-          수신자 DID의 사용자가 없으면 테스트용 임시 사용자를 자동으로 만든다.
+          - 서명된 원본 VC-JWT(`raw_token`)와 점검 항목 8개(`verification_checks`)를 함께 저장한다.
+          - 검증에 실패해도 원본을 해석할 수 있고 수신자가 확인되면 `status`(revoked/expired/invalid)와 함께 저장한다.
+            원본을 해석할 수 없으면 저장하지 않고 `record_id: null`.
+          - 토큰 사용자와 수신자 DID가 다르면 403. 인증 없는 요청(전환 기간)은 수신자 DID로 가입한 사용자에게
+            저장하며, 가입하지 않은 DID면 404 (예전의 임시 사용자 자동 생성은 제거).
 
-        검증 자체가 실패해도 HTTP 200에 `success: false`로 응답한다.
-        DXWorks 호출 오류 등 예외는 500이다.
+        검증 실패는 HTTP 200에 `success: false`로 응답한다. 서비스 키로는 호출할 수 없다(403).
       operationId: verifyCredential
       requestBody:
         required: true
@@ -232,31 +329,50 @@ paths:
                     success: true
                     message: Badge verified and saved.
                     data:
+                      record_id: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+                      status: verified
                       valid: true
-                      badge:
-                        name: 정보처리기사
-                        issuedAt: "2026-09-01T00:00:00Z"
+                      achievement_name: 테스트 수료 배지
+                      issuer_name: 예시대학교
+                      issuer_trusted: true
+                      recipient_did: did:key:z6MkMock1a2b3c4d5e6f
+                      issued_at: "2026-09-01T00:00:00+00:00"
+                      expires_at: "2026-10-01T00:00:00+00:00"
                       checks:
-                        issuer: { issuerName: 한국산업인력공단 }
-                        issuerTrust: { trusted: true }
-                        credentialId: { id: "urn:uuid:7c9e6679-7425-40de-944b-e07fc1f90ae7", credentialStatus: VALID }
-                        recipient: { subjectId: "did:key:z6MkMock1a2b3c4d5e6f" }
-                badgeFailed:
-                  summary: 배지 검증 실패
+                        - { name: schema, result: pass, detail: null }
+                        - { name: recipient, result: pass, detail: "did:key:z6MkMock1a2b3c4d5e6f" }
+                        - { name: signature, result: pass, detail: null }
+                        - { name: issuer_trust, result: pass, detail: null }
+                        - { name: revocation, result: pass, detail: VALID }
+                        - { name: expiration, result: pass, detail: "2026-10-01T00:00:00+00:00" }
+                        - { name: did_resolution, result: skip, detail: 검증기 내부에서 처리 }
+                        - { name: anchor_match, result: skip, detail: 원장 앵커링 대조 미지원 }
+                badgeRevoked:
+                  summary: 배지 검증 실패 (폐기된 배지, 상태와 함께 저장됨)
                   value:
                     success: false
-                    message: Badge verification failed.
+                    message: Badge verification failed. Saved with status 'revoked'.
                     data:
+                      record_id: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+                      status: revoked
                       valid: false
+                      achievement_name: 테스트 수료 배지
+                      issuer_name: 예시대학교
+                      issuer_trusted: true
+                      recipient_did: did:key:z6MkMock1a2b3c4d5e6f
+                      issued_at: "2026-09-01T00:00:00+00:00"
+                      expires_at: null
+                      checks:
+                        - { name: revocation, result: fail, detail: REVOKED }
                 identityVerified:
                   summary: 신원 검증 성공
                   value:
                     success: true
-                    message: Identity verified and saved.
+                    message: Identity verified.
                     data:
                       verified: true
-                      holderDid: did:key:z6MkMock1a2b3c4d5e6f
-                      claims: { name: 홍길동, email: hong@test.com }
+                      holder_did: did:key:z6MkMock1a2b3c4d5e6f
+                      claims: { name: 홍길동 }
         "400":
           description: 지원하지 않는 `type`
           content:
@@ -265,10 +381,32 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
               example:
                 detail: 'Invalid type. Use "identity" or "badge"'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: 인증 없는 요청에서 수신자 DID로 가입한 사용자가 없음
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                detail: Recipient DID is not registered
+        "409":
+          description: 같은 자격증명이 이미 다른 사용자에게 등록됨
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "422":
           $ref: "#/components/responses/ValidationError"
         "500":
           $ref: "#/components/responses/InternalError"
+        "502":
+          $ref: "#/components/responses/ProviderError"
+        "503":
+          $ref: "#/components/responses/ProviderUnavailable"
 
   /api/mock-issuer/issue:
     post:
@@ -277,7 +415,12 @@ paths:
       description: |
         DXWorks OB3 발급 API로 배지를 발급하고 서명된 VC-JWT를 돌려준다.
         FE 발급 화면은 이 `vcJwt`를 그대로 `POST /api/v1/verify` (`type: badge`)에 넘긴다.
-        `.env`의 `DXWORKS_API_KEY`가 필요하다.
+        서버 `.env`의 `DXWORKS_API_HOST`, `DXWORKS_API_KEY`가 필요하다 (없으면 503).
+        `templateId`를 생략하면 `DXWORKS_BADGE_TEMPLATE_ID`를 쓰고, 그것도 없으면 503.
+
+        회사 API 키로 발급하므로 **가입된 DID에만** 발급한다(아니면 404).
+        사용자 토큰이면 `holderDid`가 본인 DID여야 한다(아니면 403). 서비스 키로는 호출할 수 없다.
+        서버 설정 `MOCK_ISSUER_ENABLED=false`면 404.
       operationId: issueMockBadge
       requestBody:
         required: true
@@ -296,13 +439,389 @@ paths:
                 success: true
                 message: Successfully issued a mock badge
                 vcJwt: eyJhbGciOiJFZERTQSJ9...
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: 가입되지 않은 `holderDid`, 또는 모의 발급 비활성화
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                notRegistered:
+                  value: { detail: Holder DID is not registered }
+                disabled:
+                  value: { detail: Mock issuer is disabled }
         "422":
           $ref: "#/components/responses/ValidationError"
         "500":
           $ref: "#/components/responses/InternalError"
+        "502":
+          $ref: "#/components/responses/ProviderError"
+        "503":
+          $ref: "#/components/responses/ProviderUnavailable"
+
+  /api/v1/credentials/{record_id}/reverify:
+    post:
+      tags: [reverify]
+      summary: 자격증명 하나를 지금 다시 검증
+      description: |
+        저장된 **서명 원본(VC-JWT)**을 검증기에 다시 보내 상태를 갱신한다 (폐기·만료 반영).
+        서명 원본이 없는 자격증명(시드 데이터 등)은 `status: unverifiable`로 응답하고 DB는 바꾸지 않는다.
+        본인 자격증명만 가능하며 로그인 토큰이 필요하다.
+      operationId: reverifyCredential
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/RecordId"
+      responses:
+        "200":
+          description: 재검증 완료. 통과 여부는 `success`(= `data.status == verified`)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, message, data]
+                properties:
+                  success: { type: boolean }
+                  message: { type: string }
+                  data:
+                    $ref: "#/components/schemas/Evidence"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/ProviderError"
+        "503":
+          $ref: "#/components/responses/ProviderUnavailable"
+
+  /api/v1/subjects/{did}/evidence:
+    get:
+      tags: [reverify]
+      summary: AI·FE용 근거 조회 (요청 시점 재검증)
+      description: |
+        논문 RAG-VC의 "실행 시점 재검증". DB에 저장된 상태값을 믿지 않고, 요청할 때마다 서명 원본을 다시 검증한 뒤
+        **서명 원본 안의 본문**에서 근거를 뽑아 돌려준다.
+
+        - `mode=strict`(기본, 논문 System VC): 지금 검증을 통과한 것만 `evidence`에 넣고 나머지는 `excluded`에 사유와 함께 둔다.
+        - `mode=labeled`(논문 System VC-F): 모두 `evidence`에 넣되 `status`/`verified`로 표시한다.
+        - `record_id`를 여러 번 주면 그 자격증명만 대상으로 한다 (사전 고정 후보).
+
+        접근: 사용자 토큰은 본인 DID만, 서비스 키(AI)는 모든 DID. 전환 기간(`AUTH_REQUIRED=false`)에는 인증 없이도 가능.
+      operationId: getEvidence
+      security:
+        - bearerAuth: []
+        - serviceKey: []
+        - {}
+      parameters:
+        - $ref: "#/components/parameters/Did"
+        - name: mode
+          in: query
+          schema: { type: string, enum: [strict, labeled], default: strict }
+        - name: record_id
+          in: query
+          description: 대상 자격증명 ID (여러 번 지정 가능). 생략하면 사용자의 전체 자격증명
+          schema:
+            type: array
+            items: { type: string, format: uuid }
+          style: form
+          explode: true
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvidenceResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/portfolios:
+    get:
+      tags: [portfolios]
+      summary: 내 포트폴리오 목록
+      operationId: listPortfolios
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 목록 (최근 수정순)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PortfolioSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [portfolios]
+      summary: 포트폴리오 생성 (VC_ONLY)
+      description: |
+        **자유 텍스트 본문을 받지 않는다** (허위 이력 차단, 계획서 "Security by Default").
+        요청은 자격증명 ID 목록과 `source: VC_ONLY`만 받고, 정의되지 않은 필드가 있으면 422로 거절한다.
+
+        서버는 고른 자격증명을 **지금 다시 검증**해서 통과한 것만 본문에 넣는다. 통과하지 못한 것은 `excluded`에 사유와 함께 둔다.
+        통과한 것이 하나도 없으면 422.
+        본문은 현재 템플릿으로 만든다 (`generator: template`). 이후 AI 생성으로 바뀌어도 요청 형식은 같다.
+      operationId: createPortfolio
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PortfolioCreateRequest"
+            example:
+              title: 백엔드 개발자 지원용
+              target_role: 백엔드 개발자
+              record_ids: [7c9e6679-7425-40de-944b-e07fc1f90ae7]
+              source: VC_ONLY
+      responses:
+        "201":
+          description: 생성됨
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortfolioResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          description: 요청 형식 오류(자유 텍스트 필드 포함, source가 VC_ONLY가 아님 등) 또는 검증을 통과한 자격증명이 없음
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ErrorResponse"
+                  - $ref: "#/components/schemas/ValidationErrorResponse"
+              example:
+                detail: No verified credentials selected
+
+  /api/v1/portfolios/{portfolio_id}:
+    parameters:
+      - $ref: "#/components/parameters/PortfolioId"
+    get:
+      tags: [portfolios]
+      summary: 포트폴리오 상세
+      operationId: getPortfolio
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortfolioResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [portfolios]
+      summary: 제목·희망 직무·상태 수정
+      description: 본문은 수정할 수 없다 (VC_ONLY). 내용을 바꾸려면 자격증명을 골라 새로 만든다.
+      operationId: updatePortfolio
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PortfolioUpdateRequest"
+      responses:
+        "200":
+          description: 수정됨
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortfolioResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    delete:
+      tags: [portfolios]
+      summary: 포트폴리오 삭제
+      operationId: deletePortfolio
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 삭제됨
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimpleSuccess"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/shares:
+    get:
+      tags: [shares]
+      summary: 내 공유 링크 목록
+      description: 토큰(링크 주소)은 만들 때 한 번만 보여 주고 목록에는 포함하지 않는다.
+      operationId: listShares
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 목록 (최근 생성순)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ShareSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [shares]
+      summary: 선택 공개 링크 만들기
+      description: |
+        학생이 고른 자격증명만 기업에 보여 주는 링크를 만든다. 응답의 `token`은 **이때 한 번만** 내려준다 (서버에는 해시만 저장).
+        FE는 `share_path`(예 `/share/{token}`)로 기업용 조회 화면 주소를 만든다.
+      operationId: createShare
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShareCreateRequest"
+            example:
+              record_ids: [7c9e6679-7425-40de-944b-e07fc1f90ae7]
+              label: 예시회사 백엔드 지원
+              expires_in_days: 14
+      responses:
+        "201":
+          description: 생성됨
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, message, data]
+                properties:
+                  success: { type: boolean }
+                  message: { type: string }
+                  data:
+                    $ref: "#/components/schemas/ShareCreated"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  /api/v1/shares/{share_id}:
+    delete:
+      tags: [shares]
+      summary: 공유 링크 철회
+      description: 철회한 링크는 기업용 조회에서 바로 404가 된다.
+      operationId: revokeShare
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: share_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: 철회됨
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimpleSuccess"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/public/shares/{token}:
+    get:
+      tags: [shares]
+      summary: 기업용 조회 (공유 링크, 로그인 불필요)
+      description: |
+        공유 링크로 열람한다. 열 때마다 **서명 원본을 다시 검증**해서 지금 상태를 보여 준다.
+        발급기관마다 다른 표기를 같은 형식(`SharedCredential`)으로 정리해 보여 주고,
+        기업이 직접 검증할 수 있게 서명 원본(`vc_jwt`)도 함께 준다. 학생 이메일은 보여 주지 않는다.
+        없는 링크·철회된 링크·만료된 링크는 모두 같은 404다.
+      operationId: getPublicShare
+      security: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicShare"
+        "404":
+          description: 없거나 철회·만료된 링크
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                detail: Share link not found or expired
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 로그인/회원가입 응답의 `access_token`
+    serviceKey:
+      type: apiKey
+      in: header
+      name: X-Service-Key
+      description: 내부 서비스(AI)용 키. 서버 `SERVICE_API_KEY`와 같아야 한다. 읽기 API만 허용.
+
   parameters:
+    RecordId:
+      name: record_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    PortfolioId:
+      name: portfolio_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
     Did:
       name: did
       in: path
@@ -320,11 +839,57 @@ components:
           schema:
             $ref: "#/components/schemas/ValidationErrorResponse"
     InternalError:
-      description: 서버 내부 오류 (DB/DXWorks 호출 실패 등). `detail`에 원인 메시지가 들어간다.
+      description: 서버 내부 오류. 내부 예외 메시지는 노출하지 않는다.
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
+          example:
+            detail: Internal server error
+    Unauthorized:
+      description: |
+        인증 실패. 토큰이 없거나(`AUTH_REQUIRED=true`일 때), 잘못되었거나, 만료됨. `WWW-Authenticate: Bearer` 헤더 포함.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            required:
+              value: { detail: Authentication required }
+            invalid:
+              value: { detail: Invalid token }
+            expired:
+              value: { detail: Token expired }
+    NotFound:
+      description: 없거나 본인 것이 아님
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: 남의 DID에 접근하거나, 서비스 키로 쓰기 API를 호출함
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            detail: "Forbidden: not your DID"
+    ProviderError:
+      description: DXWorks 호출 실패 (DXWorks 오류 코드·메시지가 `detail`에 들어간다)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            detail: "DXWorks 오류 (NOT_FOUND): template missing"
+    ProviderUnavailable:
+      description: 발급·검증 인프라 설정 누락 (`DXWORKS_API_HOST`, `DXWORKS_API_KEY`, `DXWORKS_BADGE_TEMPLATE_ID` 등)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            detail: DXWORKS_API_KEY가 설정되지 않았습니다
 
   schemas:
     # ── 공통 ──────────────────────────────────────────────────
@@ -409,8 +974,10 @@ components:
 
     AuthResponse:
       type: object
-      description: 회원가입/로그인 공통 응답 (FE `RegisterResponse`, `LoginResponse`)
-      required: [success, message, data]
+      description: |
+        회원가입/로그인 공통 응답 (FE `RegisterResponse`, `LoginResponse`).
+        v0.4.0에서 토큰 필드를 최상위에 추가했다. `data`(UserProfile)는 그대로다.
+      required: [success, message, data, access_token, token_type, expires_in]
       properties:
         success:
           type: boolean
@@ -418,6 +985,15 @@ components:
           type: string
         data:
           $ref: "#/components/schemas/UserProfile"
+        access_token:
+          type: string
+          description: "JWT 액세스 토큰. 이후 요청에 `Authorization: Bearer <access_token>`으로 보낸다."
+        token_type:
+          type: string
+          const: bearer
+        expires_in:
+          type: integer
+          description: 토큰 만료까지 남은 초 (서버 `JWT_EXPIRES_MINUTES`, 기본 1일)
 
     # ── 자격증명 ──────────────────────────────────────────────
     CredentialStatus:
@@ -479,27 +1055,82 @@ components:
       properties:
         success:
           type: boolean
-          description: 검증 성공 + DB 저장 완료 여부
+          description: 검증 통과 여부 (`badge`면 `data.status == verified`)
         message:
           type: string
         data:
+          description: |
+            BE 공통 형식의 검증 결과. 외부 검증기(협력사 API) 응답 원문은 내보내지 않는다 (v0.4.0 변경).
+          oneOf:
+            - $ref: "#/components/schemas/BadgeVerification"
+            - $ref: "#/components/schemas/IdentityVerification"
+
+    VerificationCheck:
+      type: object
+      required: [name, result]
+      properties:
+        name:
+          type: string
+          enum: [schema, recipient, signature, issuer_trust, revocation, expiration, did_resolution, anchor_match]
+        result:
+          type: string
+          enum: [pass, fail, warn, skip]
+        detail:
+          type: [string, "null"]
+
+    BadgeVerification:
+      type: object
+      required: [record_id, status, valid, achievement_name, issuer_name, issuer_trusted, recipient_did,
+                 issued_at, expires_at, checks]
+      properties:
+        record_id:
+          type: [string, "null"]
+          format: uuid
+          description: 저장된 자격증명 ID. 원본을 해석할 수 없어 저장하지 않았으면 null
+        status:
+          $ref: "#/components/schemas/CredentialStatus"
+        valid:
+          type: boolean
+        achievement_name:
+          type: string
+        issuer_name:
+          type: string
+        issuer_trusted:
+          type: [boolean, "null"]
+          description: 발급기관이 신뢰 레지스트리에 있는지 (검증기가 알려주지 않으면 null)
+        recipient_did:
+          type: [string, "null"]
+        issued_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: [string, "null"]
+          format: date-time
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/VerificationCheck"
+
+    IdentityVerification:
+      type: object
+      required: [verified, holder_did, claims]
+      properties:
+        verified:
+          type: boolean
+        holder_did:
+          type: [string, "null"]
+        claims:
           type: object
           additionalProperties: true
-          description: |
-            DXWorks 검증 API 응답 원문. 형식은 DXWorks가 정하며 BE가 쓰는 필드는 다음과 같다.
-            - `identity`: `verified`, `holderDid`, `claims.name`, `claims.email`
-            - `badge`: `valid`, `badge.name`, `badge.issuedAt`, `checks.issuer.issuerName`,
-              `checks.issuerTrust.trusted`, `checks.credentialId.id`, `checks.credentialId.credentialStatus`,
-              `checks.recipient.subjectId`
 
     # ── 모의 발급 ─────────────────────────────────────────────
     IssueMockBadgeRequest:
       type: object
-      required: [templateId, holderDid]
+      required: [holderDid]
       properties:
         templateId:
           type: string
-          description: DXWorks 배지 템플릿 ID
+          description: 배지 템플릿 ID. 생략하면 서버 `.env`의 `DXWORKS_BADGE_TEMPLATE_ID`를 쓴다.
         holderDid:
           type: string
           description: 배지를 받을 사용자 DID
@@ -515,3 +1146,211 @@ components:
         vcJwt:
           type: string
           description: DXWorks가 서명한 OB3 VC-JWT
+
+    # ── 실행 시점 재검증 ──────────────────────────────────────
+    Evidence:
+      type: object
+      description: 서명 원본에서 뽑은 근거 + 요청 시점 검증 결과 (발급기관마다 다른 표기를 같은 형식으로 정리)
+      required: [record_id, status, verified, achievement_name, achievement_description, criteria,
+                 issuer_name, issued_at, expires_at, verified_at, checks]
+      properties:
+        record_id: { type: string, format: uuid }
+        status:
+          $ref: "#/components/schemas/CredentialStatus"
+        verified:
+          type: boolean
+          description: 지금 검증을 통과했는지
+        achievement_name: { type: string }
+        achievement_description: { type: [string, "null"] }
+        criteria: { type: [string, "null"], description: 성취 기준 설명 }
+        issuer_name: { type: string }
+        issued_at: { type: string, format: date-time }
+        expires_at: { type: [string, "null"], format: date-time }
+        verified_at:
+          type: [string, "null"]
+          format: date-time
+          description: 이번에 검증한 시각. 서명 원본이 없어 검증하지 못했으면 null
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/VerificationCheck"
+
+    ExcludedEvidence:
+      type: object
+      required: [record_id, status, reason]
+      properties:
+        record_id: { type: string, format: uuid }
+        status:
+          $ref: "#/components/schemas/CredentialStatus"
+        reason:
+          type: string
+          description: "예: no_signed_original(서명 원본 없음), revoked, expired, invalid, verifier_error"
+
+    EvidenceResponse:
+      type: object
+      required: [subject_did, mode, evidence, excluded]
+      properties:
+        subject_did: { type: string }
+        mode: { type: string, enum: [strict, labeled] }
+        evidence:
+          type: array
+          items:
+            $ref: "#/components/schemas/Evidence"
+        excluded:
+          type: array
+          description: "`strict`에서 제외된 자격증명. `labeled`에서는 항상 빈 배열"
+          items:
+            $ref: "#/components/schemas/ExcludedEvidence"
+
+    # ── 포트폴리오 ────────────────────────────────────────────
+    PortfolioCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [title, record_ids, source]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 255 }
+        target_role: { type: [string, "null"], maxLength: 100 }
+        record_ids:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items: { type: string, format: uuid }
+        source:
+          type: string
+          const: VC_ONLY
+          description: 근거 출처. 검증된 자격증명만 쓴다는 표시로 항상 VC_ONLY
+
+    PortfolioUpdateRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        title: { type: string, minLength: 1, maxLength: 255 }
+        target_role: { type: [string, "null"], maxLength: 100 }
+        status: { type: string, enum: [draft, published] }
+
+    PortfolioSummary:
+      type: object
+      required: [id, title, target_role, status, credential_count, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        target_role: { type: [string, "null"] }
+        status: { type: string, enum: [draft, published] }
+        credential_count: { type: integer }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    Portfolio:
+      allOf:
+        - $ref: "#/components/schemas/PortfolioSummary"
+        - type: object
+          required: [source, generator, content_markdown, sections, referenced_record_ids, excluded]
+          properties:
+            source: { type: string, const: VC_ONLY }
+            generator:
+              type: string
+              description: 본문을 만든 방식. 현재 template (이후 ai)
+            content_markdown: { type: string }
+            sections:
+              type: array
+              description: 본문에 들어간 근거 (생성 시점 재검증 결과)
+              items:
+                $ref: "#/components/schemas/Evidence"
+            referenced_record_ids:
+              type: array
+              items: { type: string, format: uuid }
+            excluded:
+              type: array
+              description: 골랐지만 검증을 통과하지 못해 빠진 자격증명
+              items:
+                $ref: "#/components/schemas/ExcludedEvidence"
+
+    PortfolioResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { type: boolean }
+        message: { type: string }
+        data:
+          $ref: "#/components/schemas/Portfolio"
+
+    SimpleSuccess:
+      type: object
+      required: [success, message]
+      properties:
+        success: { type: boolean }
+        message: { type: string }
+
+    # ── 선택 공개 ─────────────────────────────────────────────
+    ShareCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [record_ids]
+      properties:
+        record_ids:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items: { type: string, format: uuid }
+        label:
+          type: [string, "null"]
+          maxLength: 100
+          description: 학생이 알아보기 위한 이름 (예 지원 회사명). 기업용 화면에는 보이지 않는다
+        expires_in_days: { type: integer, minimum: 1, maximum: 90, default: 14 }
+
+    ShareSummary:
+      type: object
+      required: [id, label, record_ids, expires_at, revoked, view_count, last_viewed_at, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        label: { type: [string, "null"] }
+        record_ids:
+          type: array
+          items: { type: string, format: uuid }
+        expires_at: { type: string, format: date-time }
+        revoked: { type: boolean }
+        view_count: { type: integer }
+        last_viewed_at: { type: [string, "null"], format: date-time }
+        created_at: { type: string, format: date-time }
+
+    ShareCreated:
+      allOf:
+        - $ref: "#/components/schemas/ShareSummary"
+        - type: object
+          required: [token, share_path]
+          properties:
+            token:
+              type: string
+              description: 링크 토큰. 이 응답에서만 볼 수 있다
+            share_path:
+              type: string
+              example: /share/3q2-7wZk...
+              description: FE 기업용 조회 화면 경로
+
+    SharedCredential:
+      allOf:
+        - $ref: "#/components/schemas/Evidence"
+        - type: object
+          required: [vc_jwt]
+          properties:
+            vc_jwt:
+              type: [string, "null"]
+              description: 서명 원본. 기업이 직접 검증할 때 사용 (원본이 없으면 null)
+
+    PublicShare:
+      type: object
+      required: [holder, credentials, verified_at, expires_at]
+      properties:
+        holder:
+          type: object
+          required: [name, did]
+          properties:
+            name: { type: string }
+            did: { type: string }
+        credentials:
+          type: array
+          items:
+            $ref: "#/components/schemas/SharedCredential"
+        verified_at: { type: string, format: date-time, description: 이번 열람 시 재검증한 시각 }
+        expires_at: { type: string, format: date-time }

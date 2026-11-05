@@ -1,4 +1,6 @@
+import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
+import { getMe } from '@/api/auth';
 import { IssuerAvatar } from '@/components/IssuerAvatar';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Button } from '@/components/ui/Button';
@@ -10,6 +12,9 @@ const formatDate = (iso: string) => new Date(iso).toLocaleDateString('ko-KR');
 
 export function ProfileCard({ user }: { user: UserProfile }) {
   const { copy, isCopied } = useCopy();
+  // BE v0.5.0: 관리형 지갑(홀더 키 보관) 여부. 실패해도 프로필 표시에는 영향 없음.
+  const { data: me } = useQuery({ queryKey: ['me', user.did], queryFn: getMe, retry: false });
+  const custody = me?.wallet.custody;
   return (
     <Card className="flex flex-col gap-4">
       <div className="flex items-center gap-3">
@@ -31,6 +36,13 @@ export function ProfileCard({ user }: { user: UserProfile }) {
           </button>
         </div>
         <p className="font-mono-did mt-1 break-all text-[12px] text-[var(--color-text-sub)]">{user.did}</p>
+        {custody && (
+          <p className="mt-2 text-[12px] text-[var(--color-text-muted)]">
+            {custody === 'managed'
+              ? `관리형 지갑 · 서버가 ${me?.wallet.key_type ?? ''} 키를 암호화 보관해요`
+              : '홀더 키 없는 계정 (이전 방식 DID)'}
+          </p>
+        )}
       </div>
     </Card>
   );

@@ -6,6 +6,7 @@ import { IssueCredentialPage } from '@/pages/IssueCredentialPage';
 import { PortfolioBuilderPage } from '@/pages/PortfolioBuilderPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { RegisterPage } from '@/pages/RegisterPage';
+import { SharedViewPage } from '@/pages/SharedViewPage';
 
 function App() {
   return (
@@ -14,6 +15,8 @@ function App() {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        {/* 기업용 공유 링크 조회 (로그인 불필요, BE share_path = /share/{token}) */}
+        <Route path="/share/:token" element={<SharedViewPage />} />
         <Route
           path="/dashboard"
           element={
