@@ -4,6 +4,7 @@ import os
 import secrets
 from dataclasses import dataclass
 from functools import lru_cache
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,8 @@ class Settings:
     service_api_key: str
     cors_origins: list[str]
     mock_issuer_enabled: bool
+    # 관리형 홀더 키 암호화용 마스터 키(32바이트). None이면 키를 만들지 않고 가짜 DID로 가입시킨다(전환 기간).
+    holder_key_encryption_key: Optional[bytes]
 
 
 @lru_cache
@@ -46,6 +49,15 @@ def get_settings() -> Settings:
         # 개발 편의용. 서버가 재시작되면 이전 토큰은 모두 무효가 된다. 운영에서는 반드시 JWT_SECRET을 설정한다.
         jwt_secret = secrets.token_urlsafe(32)
         logger.warning("JWT_SECRET이 설정되지 않아 임시 키를 생성했습니다. 서버 재시작 시 기존 토큰이 무효화됩니다.")
+
+    raw_master_key = os.getenv("HOLDER_KEY_ENCRYPTION_KEY", "").strip()
+    holder_key = None
+    if raw_master_key:
+        from app.services.key_custody import parse_master_key
+
+        holder_key = parse_master_key(raw_master_key)  # 형식이 틀리면 서버 시작 시 바로 실패
+    else:
+        logger.warning("HOLDER_KEY_ENCRYPTION_KEY가 설정되지 않아 새 가입자에게 홀더 키 없이 임시 DID를 발급합니다.")
 
     settings = Settings(
         dxworks_api_host=os.getenv("DXWORKS_API_HOST", "").strip().rstrip("/"),
@@ -58,6 +70,7 @@ def get_settings() -> Settings:
         service_api_key=os.getenv("SERVICE_API_KEY", "").strip(),
         cors_origins=_env_list("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"),
         mock_issuer_enabled=_env_bool("MOCK_ISSUER_ENABLED", True),
+        holder_key_encryption_key=holder_key,
     )
     if not settings.auth_required:
         logger.warning("AUTH_REQUIRED=false: 토큰 없는 요청도 허용합니다 (FE/AI 토큰 연동 전 전환 기간용).")

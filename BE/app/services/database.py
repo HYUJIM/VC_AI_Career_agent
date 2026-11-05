@@ -8,6 +8,7 @@ import psycopg
 from psycopg.rows import dict_row
 
 from app.domain.credential import BadgeEvaluation
+from app.services.key_custody import StoredHolderKey
 
 
 def get_db_connection():
@@ -28,21 +29,50 @@ class EmailAlreadyRegistered(Exception):
 
 class DatabaseService:
     # ── 사용자 ────────────────────────────────────────────────
-    def create_user(self, *, email: str, name: str, did: str, password_hash: str) -> dict:
+    def create_user(self, *, email: str, name: str, did: str, password_hash: str,
+                    user_id: Optional[str] = None, holder_key: Optional[StoredHolderKey] = None) -> dict:
+        """사용자와 (있으면) 관리형 홀더 키를 한 트랜잭션으로 저장한다."""
         now = datetime.now(timezone.utc)
+        user_id = user_id or str(uuid.uuid4())
         try:
-            with get_db_connection() as conn, conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO users (id, email, name, subject_did, password_hash, created_at, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    RETURNING *
-                    """,
-                    (str(uuid.uuid4()), email, name, did, password_hash, now, now),
-                )
-                return cur.fetchone()
+            with get_db_connection() as conn:
+                with conn.transaction(), conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        INSERT INTO users (id, email, name, subject_did, password_hash, created_at, updated_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        RETURNING *
+                        """,
+                        (user_id, email, name, did, password_hash, now, now),
+                    )
+                    user = cur.fetchone()
+                    if holder_key is not None:
+                        cur.execute(
+                            """
+                            INSERT INTO holder_keys (user_id, did, key_type, public_key_multibase,
+                                                     encrypted_private_key, nonce, kek_id, created_at)
+                            VALUES (%s, %s, 'Ed25519', %s, %s, %s, %s, %s)
+                            """,
+                            (user_id, holder_key.did, holder_key.public_key_multibase,
+                             holder_key.encrypted_private_key, holder_key.nonce, holder_key.kek_id, now),
+                        )
+                    return user
         except psycopg.errors.UniqueViolation as exc:
             raise EmailAlreadyRegistered(email) from exc
+
+    def get_holder_key(self, user_id: str) -> Optional[StoredHolderKey]:
+        with get_db_connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT * FROM holder_keys WHERE user_id = %s", (user_id,))
+            row = cur.fetchone()
+        if not row:
+            return None
+        return StoredHolderKey(
+            did=row["did"],
+            public_key_multibase=row["public_key_multibase"],
+            encrypted_private_key=bytes(row["encrypted_private_key"]),
+            nonce=bytes(row["nonce"]),
+            kek_id=row["kek_id"],
+        )
 
     def get_user_by_email(self, email: str) -> Optional[dict]:
         with get_db_connection() as conn, conn.cursor() as cur:

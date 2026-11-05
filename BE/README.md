@@ -91,13 +91,20 @@ docker compose up -d
 </details>
 
 ### 🔄 기존 환경을 쓰고 있다면 (v0.4.0 업데이트 후 1회)
-`PyJWT` 패키지와 DB 컬럼(`credentials.raw_token` 등)이 추가되었습니다. 아래 두 명령을 한 번 실행하세요.
+`PyJWT`·`cryptography` 패키지와 DB 컬럼·테이블(`credentials.raw_token`, `holder_keys` 등)이 추가되었습니다. 아래 두 명령을 한 번 실행하세요.
 이미지를 다시 빌드하지 않으면 핫 리로드 중인 서버가 `ModuleNotFoundError: jwt`로 멈춥니다.
 ```bash
 docker compose up -d --build
 docker compose exec -T postgres psql -U postgres -d vc_career_agent < DB/migrations/05_credentials_raw_token.sql
+docker compose exec -T postgres psql -U postgres -d vc_career_agent < DB/migrations/06_holder_keys.sql
 ```
 (DB를 통째로 새로 만들어도 되면 `docker compose down -v && docker compose up -d --build`)
+
+### 🔑 관리형 지갑 (홀더 키)
+- 새로 가입하면 BE가 사용자별 **Ed25519 키**를 만들고, 그 공개키로 **진짜 `did:key`**를 발급합니다.
+- 개인키는 `.env`의 `HOLDER_KEY_ENCRYPTION_KEY`(마스터 키)로 AES-256-GCM 암호화해서 `holder_keys` 테이블에 저장합니다. 평문은 DB에 남지 않습니다.
+- 기존 사용자(시드 계정 포함)는 원래 DID(`did:key:z6MkMock...`)를 그대로 쓰고 홀더 키가 없습니다. `GET /api/v1/users/me`의 `wallet.custody`가 `managed`면 키가 있고, `none`이면 없습니다.
+- 마스터 키를 비워 두면 새 가입자도 임시 DID를 받습니다. 마스터 키를 **바꾸거나 잃어버리면 기존 홀더 키를 복호화할 수 없으니** 팀 내부에서 안전하게 보관하세요.
 
 ### 🔐 인증 (JWT)
 - 회원가입/로그인 응답의 `access_token`을 이후 요청에 `Authorization: Bearer <access_token>` 헤더로 보냅니다.

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: VC AI Career Agent — BE API
-  version: 0.4.0
+  version: 0.5.0
   description: |
     BE(FastAPI) 파트의 OpenAPI 명세. FE(`FE/src/api/*.ts`, `FE/src/types/api.ts`)가 실제로 호출하는
     계약을 기준으로 작성했다.
@@ -78,7 +78,10 @@ paths:
       tags: [users]
       summary: 회원가입 (DID 자동 발급)
       description: |
-        이메일로 사용자를 만들고 임시 DID(`did:key:z6MkMock...`)를 발급한다.
+        이메일로 사용자를 만들고 DID를 발급한다.
+        - 서버에 `HOLDER_KEY_ENCRYPTION_KEY`가 설정되어 있으면(관리형 지갑) BE가 Ed25519 홀더 키를 만들어 암호화 보관하고,
+          그 공개키로 진짜 `did:key:z6Mk...`를 발급한다.
+        - 설정이 없으면 홀더 키 없이 임시 DID(`did:key:z6MkMock...`)를 발급한다.
         비밀번호는 bcrypt 해시로 저장한다. 8자 미만 또는 72바이트 초과면 422.
         이메일은 소문자로 저장한다. 가입과 동시에 로그인 토큰(`access_token`)을 준다.
         FE는 응답의 `data`를 그대로 로그인 상태로 저장한다.
@@ -194,6 +197,18 @@ paths:
                     type: string
                   data:
                     $ref: "#/components/schemas/UserProfile"
+                  wallet:
+                    type: object
+                    required: [custody, key_type]
+                    description: 지갑(홀더 키) 상태
+                    properties:
+                      custody:
+                        type: string
+                        enum: [managed, none]
+                        description: "`managed`: BE가 홀더 키를 보관 (신원 자격증명 사용 가능). `none`: 키 없는 기존 사용자"
+                      key_type:
+                        type: [string, "null"]
+                        example: Ed25519
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
