@@ -9,7 +9,7 @@ from app.core.auth import Principal, require_user
 from app.integrations import get_verifier
 from app.integrations.ports import CredentialVerifier
 from app.services.database import db_service
-from app.services.portfolio_writer import PortfolioWriter, get_portfolio_writer
+from app.services.portfolio_writer import PortfolioWriter, get_portfolio_writer, rewrite_header
 from app.services.reverify import reverify_rows
 
 router = APIRouter()
@@ -137,6 +137,16 @@ def update_portfolio(portfolio_id: UUID, req: PortfolioUpdateRequest, principal:
         fields["target_role"] = _clean_optional(fields["target_role"])
     if "status" in fields and fields["status"] is None:
         raise HTTPException(status_code=422, detail="Status must not be null")
+    if "title" in fields or "target_role" in fields:
+        # 본문 첫 줄 제목·희망 직무 줄도 함께 맞춘다 (근거 섹션은 그대로).
+        current = db_service.get_portfolio(principal.user_id, str(portfolio_id))
+        if not current:
+            raise HTTPException(status_code=404, detail="Portfolio not found")
+        fields["content_markdown"] = rewrite_header(
+            current["content_markdown"],
+            title=fields.get("title", current["title"]),
+            target_role=fields.get("target_role", current["target_role"]),
+        )
     row = db_service.update_portfolio(principal.user_id, str(portfolio_id), fields)
     if not row:
         raise HTTPException(status_code=404, detail="Portfolio not found")

@@ -237,7 +237,7 @@ class DatabaseService:
             return cur.fetchone()
 
     def update_portfolio(self, user_id: str, portfolio_id: str, fields: dict) -> Optional[dict]:
-        allowed = {k: v for k, v in fields.items() if k in ("title", "target_role", "status")}
+        allowed = {k: v for k, v in fields.items() if k in ("title", "target_role", "status", "content_markdown")}
         if not allowed:
             return self.get_portfolio(user_id, portfolio_id)
         assignments = ", ".join(f"{k} = %s" for k in allowed)

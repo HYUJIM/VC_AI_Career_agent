@@ -202,6 +202,35 @@ def test_portfolio_crud_and_ownership(client, register):
     assert client.get(f"/api/v1/portfolios/{pid}", headers=alice["headers"]).status_code == 404
 
 
+def test_portfolio_update_rewrites_body_header(client, register):
+    user = register("제목수정")
+    record_id, _ = store_badge(client, user, name="근거 배지")
+    created = create_portfolio(client, user, [record_id]).json()["data"]
+    pid, before = created["id"], created["content_markdown"]
+    url, headers = f"/api/v1/portfolios/{pid}", user["headers"]
+
+    body = client.patch(url, json={"title": "프론트엔드 지원용"}, headers=headers).json()["data"]["content_markdown"]
+    assert body.splitlines()[0] == "# 프론트엔드 지원용"
+    assert "- 희망 직무: 백엔드 개발자" in body
+    # 근거 섹션은 그대로 둔다
+    assert body.split("## 요약", 1)[1] == before.split("## 요약", 1)[1]
+
+    body = client.patch(url, json={"target_role": "프론트엔드 개발자"}, headers=headers).json()["data"]["content_markdown"]
+    assert "- 희망 직무: 프론트엔드 개발자" in body and "백엔드 개발자" not in body
+    assert body.splitlines()[0] == "# 프론트엔드 지원용"
+
+    body = client.patch(url, json={"target_role": None}, headers=headers).json()["data"]["content_markdown"]
+    assert "희망 직무" not in body
+
+    body = client.patch(url, json={"target_role": "데이터 엔지니어"}, headers=headers).json()["data"]["content_markdown"]
+    assert body.count("- 희망 직무:") == 1 and "- 희망 직무: 데이터 엔지니어" in body
+    assert body.splitlines()[:5] == ["# 프론트엔드 지원용", "", "- 이름: 제목수정", "- 희망 직무: 데이터 엔지니어", ""]
+
+    # 상태만 바꾸면 본문은 그대로
+    published = client.patch(url, json={"status": "published"}, headers=headers).json()["data"]
+    assert published["content_markdown"] == body
+
+
 def test_portfolio_requires_user_token(client):
     assert client.get("/api/v1/portfolios").status_code == 401
     assert client.get("/api/v1/portfolios", headers=SERVICE).status_code == 401
