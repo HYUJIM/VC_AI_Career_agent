@@ -1,0 +1,16 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "08175bbb-2972-45e9-82be-99c6421fb094",
+  "case_id": "test-person-05-expired",
+  "condition": "C_verified_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현: Python으로 대기질 관측 프로젝트에서 일별 오염도 기능을 구현한 것으로, 총 8개의 기능을 개발했다.\n2. 점검: 대기질 관측 프로젝트에서 작성한 결측치 점검 사례의 총 12건을 점검했다.\n3. 이수: 확인 불가.",
+  "context_record_ids": [
+    "d2c13274-c869-508d-86b2-0eebfd914f3a",
+    "9bd7fc28-5926-534c-9072-dff1352acbc6"
+  ],
+  "input_tokens": 923,
+  "output_tokens": 94
+}

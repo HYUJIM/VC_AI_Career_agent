@@ -1,0 +1,581 @@
+{
+  "draft_version": "work2b-case-draft/0.1",
+  "target_case_version": "paper-case/2.0",
+  "case_id": "dev-backend-004",
+  "family_id": "fixture-student-001",
+  "split": "dev",
+  "synthetic": true,
+  "gold_status": "pending",
+  "paper_ready": false,
+  "evaluation_ready": false,
+  "profile": {
+    "subject_did": "did:fixture:student-001",
+    "text": "백엔드 개발 직무에 지원하는 합성 학생 프로필."
+  },
+  "jd": {
+    "jd_id": "synthetic-backend-junior-001",
+    "text": "실험용 합성 채용공고: 주니어 백엔드 개발자\n주요 업무: REST API 개발, 관계형 데이터베이스 설계 및 SQL 작성, 서버 기능 테스트와 유지보수.\n요구 역량: Java 또는 Python 기초, HTTP 이해, 관계형 데이터베이스와 정규화·인덱스에 대한 이해.\n우대 사항: Spring Boot 또는 FastAPI 프로젝트 경험, 자동화 테스트 및 서비스 배포 경험.\n이 공고는 실제 기업의 채용공고가 아닌 연구용 합성 자료이다.",
+    "sha256": "35ae552e6d039d2df06d0a574d7251f17ce47a59d2bbf7b722deaecfabb62948"
+  },
+  "request": "채용공고에 맞춘 짧은 포트폴리오를 작성하라. 제공된 근거로 확인되는 보유 사실에는 record_id를 인용하라. JD 요구사항만으로 지원자의 경험이나 역량을 추론하지 마라. 근거가 없는 요구 역량은 확인되지 않았다고 표시하고, 향후 학습 제안과 현재 보유 사실을 분리하라. 보유 사실의 근거가 없으면 그 부분은 판단을 보류하라.",
+  "source_records": [
+    {
+      "record_id": "6fbc4737-f004-5b04-a32f-0f0d4308599f",
+      "subject_did": "did:fixture:student-001",
+      "schema_version": "0.1.0",
+      "normalized_at": "2026-10-01T06:23:14.282Z",
+      "source": {
+        "provider": "dx_ledger_badge",
+        "external_id": "cred-ob2-signed-002",
+        "fetched_at": "2026-10-01T06:23:14.282Z"
+      },
+      "format": "OB2.0",
+      "issuer": {
+        "did": "did:fixture:acme-university",
+        "name": "ACME University",
+        "url": "https://acme-university.example.org",
+        "trust_level": "accredited"
+      },
+      "achievement": {
+        "id": "https://wallet-core.local/badges/cred-ob2-signed-002",
+        "name": "데이터베이스 설계 인증",
+        "description": "관계형 데이터베이스 설계 역량을 인증합니다.",
+        "criteria_narrative": "정규화 및 인덱스 설계 실습을 완료해야 합니다.",
+        "achievement_type": "Badge",
+        "alignments": [
+          {
+            "framework": "NCS",
+            "code": "2001010305",
+            "name": "데이터베이스 설계"
+          }
+        ]
+      },
+      "evidence": [
+        {
+          "name": "포트폴리오 저장소",
+          "url": "https://example.org/evidence/portfolio"
+        }
+      ],
+      "issued_at": "2026-03-15T00:00:00Z",
+      "expires_at": null,
+      "awarded_date": "2026-03-15T00:00:00Z",
+      "skills": [
+        {
+          "skill_id": "SK.DEV.DATABASE",
+          "label_ko": "데이터베이스 설계",
+          "label_en": "Database Design",
+          "taxonomy": {
+            "source": "NCS",
+            "code": "2001010305",
+            "version": "2024"
+          },
+          "level": null,
+          "level_basis": "completion",
+          "confidence": 1,
+          "mapping_method": "alias_dict",
+          "source_record_ids": [
+            "6fbc4737-f004-5b04-a32f-0f0d4308599f"
+          ]
+        }
+      ],
+      "raw_hash": "5aa6c04aaa2753b6cc2ff649f90465fe502e6663cf260f793e11bfda4ef8308c",
+      "verification": {
+        "status": "verified",
+        "checks": [
+          {
+            "check": "schema",
+            "result": "pass",
+            "checked_at": "2026-10-01T06:23:14.281Z"
+          },
+          {
+            "check": "did_resolution",
+            "result": "pass",
+            "checked_at": "2026-10-01T06:23:14.281Z"
+          },
+          {
+            "check": "signature",
+            "result": "pass",
+            "checked_at": "2026-10-01T06:23:14.282Z"
+          },
+          {
+            "check": "issuer_trust",
+            "result": "pass",
+            "checked_at": "2026-10-01T06:23:14.282Z"
+          },
+          {
+            "check": "revocation",
+            "result": "pass",
+            "checked_at": "2026-10-01T06:23:14.282Z"
+          },
+          {
+            "check": "anchor_match",
+            "result": "skip",
+            "detail": "DX Ledger Builder API 미연동 (논문 기간 skip, 논문 이후 실구현 예정)",
+            "checked_at": "2026-10-01T06:23:14.282Z"
+          },
+          {
+            "check": "expiration",
+            "result": "pass",
+            "detail": "만료일 없음",
+            "checked_at": "2026-10-01T06:23:14.282Z"
+          }
+        ],
+        "proof": {
+          "type": "VC-JWT",
+          "alg": "EdDSA",
+          "verification_method": "did:fixture:acme-university#key-1"
+        },
+        "anchor": {
+          "chain": null,
+          "tx_id": null,
+          "block_no": null,
+          "anchored_hash": null,
+          "computed_hash": "5aa6c04aaa2753b6cc2ff649f90465fe502e6663cf260f793e11bfda4ef8308c",
+          "match": null
+        },
+        "verified_at": "2026-10-01T06:23:14.282Z",
+        "verifier_version": "vc-core-mock/0.1.0"
+      }
+    },
+    {
+      "record_id": "0a6e8fcf-2af0-5d4c-b8c7-9192e3680b82",
+      "subject_did": "did:fixture:student-001",
+      "schema_version": "0.1.0",
+      "normalized_at": "2026-10-01T06:23:14.289Z",
+      "source": {
+        "provider": "dx_ledger_wallet",
+        "external_id": "cred-ob3-vcjwt-expired-007",
+        "fetched_at": "2026-10-01T06:23:14.289Z"
+      },
+      "format": "OB3.0",
+      "issuer": {
+        "did": "did:fixture:globex-academy",
+        "name": "Globex Academy",
+        "url": "https://globex-academy.example.org",
+        "trust_level": "known"
+      },
+      "achievement": {
+        "id": "https://wallet-core.local/achievements/cred-ob3-vcjwt-expired-007",
+        "name": "만료된 자격증명 테스트",
+        "description": "만료 확인 테스트용 fixture입니다.",
+        "criteria_narrative": "-",
+        "achievement_type": "Achievement",
+        "alignments": []
+      },
+      "evidence": [
+        {
+          "name": "캡스톤 프로젝트",
+          "url": "https://example.org/evidence/capstone"
+        }
+      ],
+      "issued_at": "2019-01-01T00:00:00Z",
+      "expires_at": "2020-01-01T00:00:00Z",
+      "awarded_date": "2019-01-01T00:00:00Z",
+      "skills": [],
+      "raw_hash": "25bd1a6f12a0112987e67d1466243a81a69945eac57c0592e743b83573411679",
+      "verification": {
+        "status": "expired",
+        "checks": [
+          {
+            "check": "schema",
+            "result": "pass",
+            "checked_at": "2026-10-01T06:23:14.288Z"
+          },
+          {
+            "check": "did_resolution",
+            "result": "pass",
+            "checked_at": "2026-10-01T06:23:14.288Z"
+          },
+          {
+            "check": "signature",
+            "result": "pass",
+            "checked_at": "2026-10-01T06:23:14.289Z"
+          },
+          {
+            "check": "issuer_trust",
+            "result": "pass",
+            "checked_at": "2026-10-01T06:23:14.289Z"
+          },
+          {
+            "check": "revocation",
+            "result": "pass",
+            "checked_at": "2026-10-01T06:23:14.289Z"
+          },
+          {
+            "check": "anchor_match",
+            "result": "skip",
+            "detail": "DX Ledger Builder API 미연동 (논문 기간 skip, 논문 이후 실구현 예정)",
+            "checked_at": "2026-10-01T06:23:14.289Z"
+          },
+          {
+            "check": "expiration",
+            "result": "fail",
+            "detail": "만료일(2020-01-01T00:00:00Z)이 지남",
+            "checked_at": "2026-10-01T06:23:14.289Z"
+          }
+        ],
+        "proof": {
+          "type": "VC-JWT",
+          "alg": "EdDSA",
+          "verification_method": "did:fixture:globex-academy#key-1"
+        },
+        "anchor": {
+          "chain": null,
+          "tx_id": null,
+          "block_no": null,
+          "anchored_hash": null,
+          "computed_hash": "25bd1a6f12a0112987e67d1466243a81a69945eac57c0592e743b83573411679",
+          "match": null
+        },
+        "verified_at": "2026-10-01T06:23:14.289Z",
+        "verifier_version": "vc-core-mock/0.1.0"
+      }
+    }
+  ],
+  "record_audits": [
+    {
+      "record_id": "6fbc4737-f004-5b04-a32f-0f0d4308599f",
+      "subject_did": "did:fixture:student-001",
+      "source": {
+        "provider": "dx_ledger_badge",
+        "external_id": "cred-ob2-signed-002",
+        "fetched_at": "2026-10-01T06:23:14.282Z"
+      },
+      "achievement_id": "https://wallet-core.local/badges/cred-ob2-signed-002",
+      "reported_hashes": {
+        "raw_hash": "5aa6c04aaa2753b6cc2ff649f90465fe502e6663cf260f793e11bfda4ef8308c",
+        "computed_hash": "5aa6c04aaa2753b6cc2ff649f90465fe502e6663cf260f793e11bfda4ef8308c",
+        "anchored_hash": null
+      },
+      "reported_verification": {
+        "status": "verified",
+        "checks": [
+          {
+            "check": "schema",
+            "result": "pass",
+            "checked_at": "2026-10-01T06:23:14.281Z"
+          },
+          {
+            "check": "did_resolution",
+            "result": "pass",
+            "checked_at": "2026-10-01T06:23:14.281Z"
+          },
+          {
+            "check": "signature",
+            "result": "pass",
+            "checked_at": "2026-10-01T06:23:14.282Z"
+          },
+          {
+            "check": "issuer_trust",
+            "result": "pass",
+            "checked_at": "2026-10-01T06:23:14.282Z"
+          },
+          {
+            "check": "revocation",
+            "result": "pass",
+            "checked_at": "2026-10-01T06:23:14.282Z"
+          },
+          {
+            "check": "anchor_match",
+            "result": "skip",
+            "detail": "DX Ledger Builder API 미연동 (논문 기간 skip, 논문 이후 실구현 예정)",
+            "checked_at": "2026-10-01T06:23:14.282Z"
+          },
+          {
+            "check": "expiration",
+            "result": "pass",
+            "detail": "만료일 없음",
+            "checked_at": "2026-10-01T06:23:14.282Z"
+          }
+        ],
+        "proof": {
+          "type": "VC-JWT",
+          "alg": "EdDSA",
+          "verification_method": "did:fixture:acme-university#key-1"
+        },
+        "anchor": {
+          "chain": null,
+          "tx_id": null,
+          "block_no": null,
+          "anchored_hash": null,
+          "computed_hash": "5aa6c04aaa2753b6cc2ff649f90465fe502e6663cf260f793e11bfda4ef8308c",
+          "match": null
+        },
+        "verified_at": "2026-10-01T06:23:14.282Z",
+        "verifier_version": "vc-core-mock/0.1.0"
+      },
+      "eligible": true,
+      "reasons": [
+        "signed_fixture_policy_satisfied"
+      ],
+      "policy_mismatches": [],
+      "engine_inconsistencies": [],
+      "unavailable_evidence": [
+        "original_signed_credentials_and_signature_bytes",
+        "resolved_did_documents_and_verification_keys",
+        "reproducible_cryptographic_verifier_execution_logs",
+        "issuer_trust_registry_snapshot",
+        "revocation_registry_snapshot",
+        "verification_time_and_expiration_evaluation_logs",
+        "ledger_anchor_transaction_and_inclusion_evidence",
+        "real_operational_issuer_credentials"
+      ],
+      "limitations": [
+        "Reported checks are audited; signatures are not reverified.",
+        "Eligibility is limited to this signed-fixture research policy.",
+        "Reported hashes are preserved, not independently validated.",
+        "Reported expiration and revocation reflect the original check time.",
+        "anchor_match=skip is permitted; ledger anchoring is unconfirmed."
+      ]
+    },
+    {
+      "record_id": "0a6e8fcf-2af0-5d4c-b8c7-9192e3680b82",
+      "subject_did": "did:fixture:student-001",
+      "source": {
+        "provider": "dx_ledger_wallet",
+        "external_id": "cred-ob3-vcjwt-expired-007",
+        "fetched_at": "2026-10-01T06:23:14.289Z"
+      },
+      "achievement_id": "https://wallet-core.local/achievements/cred-ob3-vcjwt-expired-007",
+      "reported_hashes": {
+        "raw_hash": "25bd1a6f12a0112987e67d1466243a81a69945eac57c0592e743b83573411679",
+        "computed_hash": "25bd1a6f12a0112987e67d1466243a81a69945eac57c0592e743b83573411679",
+        "anchored_hash": null
+      },
+      "reported_verification": {
+        "status": "expired",
+        "checks": [
+          {
+            "check": "schema",
+            "result": "pass",
+            "checked_at": "2026-10-01T06:23:14.288Z"
+          },
+          {
+            "check": "did_resolution",
+            "result": "pass",
+            "checked_at": "2026-10-01T06:23:14.288Z"
+          },
+          {
+            "check": "signature",
+            "result": "pass",
+            "checked_at": "2026-10-01T06:23:14.289Z"
+          },
+          {
+            "check": "issuer_trust",
+            "result": "pass",
+            "checked_at": "2026-10-01T06:23:14.289Z"
+          },
+          {
+            "check": "revocation",
+            "result": "pass",
+            "checked_at": "2026-10-01T06:23:14.289Z"
+          },
+          {
+            "check": "anchor_match",
+            "result": "skip",
+            "detail": "DX Ledger Builder API 미연동 (논문 기간 skip, 논문 이후 실구현 예정)",
+            "checked_at": "2026-10-01T06:23:14.289Z"
+          },
+          {
+            "check": "expiration",
+            "result": "fail",
+            "detail": "만료일(2020-01-01T00:00:00Z)이 지남",
+            "checked_at": "2026-10-01T06:23:14.289Z"
+          }
+        ],
+        "proof": {
+          "type": "VC-JWT",
+          "alg": "EdDSA",
+          "verification_method": "did:fixture:globex-academy#key-1"
+        },
+        "anchor": {
+          "chain": null,
+          "tx_id": null,
+          "block_no": null,
+          "anchored_hash": null,
+          "computed_hash": "25bd1a6f12a0112987e67d1466243a81a69945eac57c0592e743b83573411679",
+          "match": null
+        },
+        "verified_at": "2026-10-01T06:23:14.289Z",
+        "verifier_version": "vc-core-mock/0.1.0"
+      },
+      "eligible": false,
+      "reasons": [
+        "check_not_accepted:expiration:fail",
+        "status_not_verified:expired"
+      ],
+      "policy_mismatches": [],
+      "engine_inconsistencies": [],
+      "unavailable_evidence": [
+        "original_signed_credentials_and_signature_bytes",
+        "resolved_did_documents_and_verification_keys",
+        "reproducible_cryptographic_verifier_execution_logs",
+        "issuer_trust_registry_snapshot",
+        "revocation_registry_snapshot",
+        "verification_time_and_expiration_evaluation_logs",
+        "ledger_anchor_transaction_and_inclusion_evidence",
+        "real_operational_issuer_credentials"
+      ],
+      "limitations": [
+        "Reported checks are audited; signatures are not reverified.",
+        "Eligibility is limited to this signed-fixture research policy.",
+        "Reported hashes are preserved, not independently validated.",
+        "Reported expiration and revocation reflect the original check time.",
+        "anchor_match=skip is permitted; ledger anchoring is unconfirmed."
+      ]
+    }
+  ],
+  "eligible_record_ids": [
+    "6fbc4737-f004-5b04-a32f-0f0d4308599f"
+  ],
+  "candidate_record_ids": [
+    "6fbc4737-f004-5b04-a32f-0f0d4308599f",
+    "0a6e8fcf-2af0-5d4c-b8c7-9192e3680b82"
+  ],
+  "noise": {
+    "kind": "expired",
+    "target_ratio": 0.5,
+    "raw_record_ids": [
+      "0a6e8fcf-2af0-5d4c-b8c7-9192e3680b82"
+    ]
+  },
+  "observed_noise_exposure": {
+    "raw": {
+      "noise_count": 1,
+      "total_count": 2,
+      "ratio": 0.5
+    },
+    "candidate": {
+      "noise_count": 1,
+      "total_count": 2,
+      "ratio": 0.5
+    }
+  },
+  "gold_proposal": {
+    "status": "pending",
+    "candidate_facts": [
+      {
+        "fact_id": "dev-backend-004-f01",
+        "entity_id": "https://wallet-core.local/badges/cred-ob2-signed-002",
+        "attribute": "achievement_name",
+        "value": "데이터베이스 설계 인증",
+        "unit": null,
+        "time_scope": null,
+        "source_ids": [
+          "6fbc4737-f004-5b04-a32f-0f0d4308599f"
+        ]
+      }
+    ],
+    "proposed_allowed_fact_ids": [
+      "dev-backend-004-f01"
+    ],
+    "proposed_required_fact_ids": [
+      "dev-backend-004-f01"
+    ],
+    "independent_reference_facts": [],
+    "independent_reference_status": "not_supplied",
+    "closed_world": false,
+    "expected_behavior_proposal": {
+      "A_no_rag": "mixed",
+      "B_naive_rag": "mixed",
+      "C_verified_rag": "mixed"
+    },
+    "behavior_notes": {
+      "A_no_rag": "지원자의 보유 사실은 판단 보류하고, JD 기반의 일반 학습 제안만 가능하다.",
+      "B_naive_rag": "데이터베이스 설계 인증을 기술하되 만료 테스트 자료를 현재 유효한 자격의 근거로 사용하지 않는 것이 예비 기대 행동이다. 실제 모델 출력 예측이나 확정 Gold는 아니다.",
+      "C_verified_rag": "기존 감사의 적격 목록으로 만료 레코드를 제외하면 첫 케이스와 동일한 데이터베이스 설계 인증만 남는다."
+    },
+    "review_notes": [
+      "사실 후보는 VC에서 추출했으며 독립적인 진실 기준이 아니다.",
+      "인증 기준 문구를 세부 실습 수행이나 숙련도 증거로 확대하지 않는다.",
+      "Java, Python, Spring, FastAPI, 배포 경험을 보유 사실로 추가하지 않는다.",
+      "향후 학습 제안과 지원자의 현재 보유 사실을 구분한다.",
+      "expected_behavior는 사람 검토 전 예비 제안이다.",
+      "만료는 정책상 부적격을 뜻하며 과거 성취나 학습 경험이 거짓임을 뜻하지 않는다."
+    ]
+  },
+  "provenance": {
+    "audit_path": "C:\\Users\\bje10\\VC_AI_Career_agent\\ai\\outputs\\paper_vc_audit_v2.json",
+    "audit_file_sha256": "791cc6facbedbd4194a98147e17c5715a3b737bc67d618dce6012c59df644607",
+    "input_export_path": "C:\\Users\\bje10\\VC_AI_Career_agent\\ai\\outputs\\vc_exports\\7cd1b4d4-1040-45f1-a5db-d6f1150a4e86\\credentials.json",
+    "input_export_sha256": "49f83565cb3bf1db8a9e607e3a037d427b39bf2414307d19fb38d2caaa5e96af",
+    "hash_notes": "파일 해시는 이번에 읽은 감사/export 바이트의 해시다. reported_raw_hash는 기존 보고값이며 원본 VC를 재검증한 값이 아니다.",
+    "parent_case_path": "C:\\Users\\bje10\\VC_AI_Career_agent\\ai\\data\\paper_experiment_v2\\dev_drafts\\dev-backend-001.draft.json",
+    "parent_case_file_sha256": "4fececae9865b35dcfd4024cd27f88e2cc71b7b19591fcd9699a9af1f45d4155",
+    "source_record_bindings": [
+      {
+        "record_id": "6fbc4737-f004-5b04-a32f-0f0d4308599f",
+        "original_id": "cred-ob2-signed-002",
+        "reported_raw_hash": "5aa6c04aaa2753b6cc2ff649f90465fe502e6663cf260f793e11bfda4ef8308c"
+      },
+      {
+        "record_id": "0a6e8fcf-2af0-5d4c-b8c7-9192e3680b82",
+        "original_id": "cred-ob3-vcjwt-expired-007",
+        "reported_raw_hash": "25bd1a6f12a0112987e67d1466243a81a69945eac57c0592e743b83573411679"
+      }
+    ]
+  },
+  "target_schema_blockers": [
+    {
+      "field": "records[].verification.verifier_revision",
+      "reason": "verifier_version은 있으나 코드 revision 증빙은 확인되지 않음"
+    },
+    {
+      "field": "records[].verification.artifact_sha256",
+      "reason": "해당 필드가 가리킬 검증 증빙 아티팩트의 정의와 연결 미확정"
+    },
+    {
+      "field": "records[].verification.suite",
+      "reason": "proof의 형식/알고리즘과 평가용 suite의 매핑 미확정"
+    },
+    {
+      "field": "records[].verification.reference_time",
+      "reason": "verified_at을 정책 기준 시각으로 사용할 수 있는지 미확정"
+    },
+    {
+      "field": "records[].verification.checks[].detail",
+      "reason": "일부 기존 check에 detail이 없으며 원문을 그대로 보존함"
+    }
+  ],
+  "evidence_limitations": [
+    "original_signed_credentials_and_signature_bytes",
+    "resolved_did_documents_and_verification_keys",
+    "reproducible_cryptographic_verifier_execution_logs",
+    "issuer_trust_registry_snapshot",
+    "revocation_registry_snapshot",
+    "verification_time_and_expiration_evaluation_logs",
+    "ledger_anchor_transaction_and_inclusion_evidence",
+    "real_operational_issuer_credentials"
+  ],
+  "planned_context_record_ids": {
+    "A_no_rag": [],
+    "B_naive_rag": [
+      "6fbc4737-f004-5b04-a32f-0f0d4308599f",
+      "0a6e8fcf-2af0-5d4c-b8c7-9192e3680b82"
+    ],
+    "C_verified_rag": [
+      "6fbc4737-f004-5b04-a32f-0f0d4308599f"
+    ]
+  },
+  "reported_expiration_context": {
+    "record_id": "0a6e8fcf-2af0-5d4c-b8c7-9192e3680b82",
+    "expires_at": "2020-01-01T00:00:00Z",
+    "check": {
+      "check": "expiration",
+      "result": "fail",
+      "detail": "만료일(2020-01-01T00:00:00Z)이 지남",
+      "checked_at": "2026-10-01T06:23:14.289Z"
+    },
+    "verification_verified_at": "2026-10-01T06:23:14.289Z",
+    "reexecuted": false,
+    "note": "기존 보고 시각을 보존한다. checked_at이나 verified_at을 정식 스키마의 reference_time으로 확정하지 않는다."
+  },
+  "development_notes": [
+    "노이즈 비율의 분모는 케이스에 선택한 2건이며 전체 export 8건이 아니다.",
+    "원문에 만료 테스트 단서가 있어 필터 동작 확인용으로 제한한다.",
+    "signature=pass와 expiration=fail은 기존 보고값이며 재검증 결과가 아니다.",
+    "현재 시각을 사용한 만료 재판정이나 새 검증 로그 생성은 하지 않았다.",
+    "문맥 계획은 실제 검색 또는 모델 생성 결과가 아니다.",
+    "동일 학생 파생 사례이므로 기존 family와 dev 분할을 유지한다."
+  ]
+}

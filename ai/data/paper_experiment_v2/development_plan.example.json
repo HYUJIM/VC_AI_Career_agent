@@ -1,0 +1,13 @@
+{
+  "version": "paper-development-plan/1.0",
+  "drafts": [
+    "dev_drafts/dev-backend-001.draft.json",
+    "dev_drafts/dev-backend-002.draft.json",
+    "dev_drafts/dev-backend-003.draft.json",
+    "dev_drafts/dev-backend-004.draft.json",
+    "dev_drafts/dev-backend-005.draft.json"
+  ],
+  "generation_seeds": [42],
+  "order_seed": 42,
+  "max_new_tokens": 256
+}

@@ -1,0 +1,20 @@
+{
+  "version": "paper-freeze/2.0",
+  "frozen": false,
+  "paper_ready": false,
+  "approvals": [],
+  "artifacts": [],
+  "model_revision": null,
+  "tokenizer_revision": null,
+  "environment_sha256": null,
+  "prompt_sha256": null,
+  "code_sha256": null,
+  "verification_policy_id": null,
+  "reference_time": null,
+  "sample_size_rationale": null,
+  "analysis_plan": null,
+  "generation_seeds": [],
+  "order_seed": null,
+  "expected_runs": [],
+  "retry_policy": null
+}

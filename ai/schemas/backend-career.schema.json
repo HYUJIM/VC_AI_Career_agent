@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Current BE careers row",
+  "type": "object",
+  "required": [
+    "record_id",
+    "issuer",
+    "achievement_name",
+    "status",
+    "issued_at",
+    "raw_data"
+  ],
+  "properties": {
+    "record_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "issuer": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "achievement_name": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "status": {
+      "enum": [
+        "verified",
+        "invalid",
+        "revoked",
+        "expired",
+        "unverifiable",
+        "pending"
+      ]
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "awarded_date": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date"
+    },
+    "raw_data": {
+      "type": "object"
+    }
+  }
+}

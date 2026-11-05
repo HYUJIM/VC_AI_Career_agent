@@ -1,0 +1,18 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "81bdfbc6-6ca1-41a9-93e0-849054691e10",
+  "case_id": "test-person-01-forged_signature",
+  "condition": "B_naive_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "length",
+  "answer": "1. 구현한 기능: 동네 상점 주문 프로젝트에서 Python로 구현한 주문 접수 기능의 총 4개.\n2. 점검 또는 검증 활동: 동네 상점 주문 프로젝트에서 작성한 오류 응답 처리 사례의 총 7건.\n3. 이수 교육: 동네 상점 주문 실습 과정에서 총 30시간의 이수 시간.\n\n해당 record_id: a6fc6d8e-001d-5398-bb16-c974a23fec3d\n\n해당 record_id: 017f6d19-d816-5210-a7bc-f190e0f8831f\n\n해당 record_id: 1f2f5979-8322-57fc-b214-404fb55aed4b\n\n해당 record_id: 7cf1034a-c591-5984-82d9-3bdc8fe",
+  "context_record_ids": [
+    "a6fc6d8e-001d-5398-bb16-c974a23fec3d",
+    "017f6d19-d816-5210-a7bc-f190e0f8831f",
+    "1f2f5979-8322-57fc-b214-404fb55aed4b",
+    "7cf1034a-c591-5984-82d9-3bdc8fe1ae21"
+  ],
+  "input_tokens": 1332,
+  "output_tokens": 256
+}

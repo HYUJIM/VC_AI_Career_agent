@@ -1,0 +1,18 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "1187f125-2c9a-49a9-9987-e38006456850",
+  "case_id": "test-person-02-valid_conflict",
+  "condition": "B_naive_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현한 기능: Java로 구현한 예약 충돌 검사 기능의 총 6개.\n2. 점검 또는 검증 활동: 체육시설 예약 프로젝트에서 작성한 통합 테스트 사례의 총 11건.\n3. 이수 교육: 「체육시설 예약 실습」의 총 이수 시간은 정확히 102시간이다.\n\n해당 record_id: 12e50a51-1025-5f7a-b57a-090cb42d2989\n\n체육시설 예약 점검 기록: 2025년 1월부터 5월까지 작성한 통합 테스트 사례의 총수는 11건이다.\n\n체육시설 예약 구현 기록: 2025년 1월부터 5월까지 Java로 구현한 예약 충돌 검사 기능의 총수는 6개이다.",
+  "context_record_ids": [
+    "4fbf6eee-7e86-5234-9d06-8fffb337500f",
+    "12e50a51-1025-5f7a-b57a-090cb42d2989",
+    "25c5f91c-8c5d-5559-a948-f8a54a887173",
+    "3a66758c-408e-502e-9647-16bc8594b494"
+  ],
+  "input_tokens": 1340,
+  "output_tokens": 241
+}

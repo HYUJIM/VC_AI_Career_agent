@@ -1,0 +1,18 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "442d4b3e-19d4-4f75-a945-f6ef1d4a9719",
+  "case_id": "test-person-07-forged_signature",
+  "condition": "B_naive_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현: SQL로 시간대별 방문량 기능을 구현한 것으로, 총 9개의 기능을 개발했다.\n2. 점검: 14건의 집계 질의 검증 사례를 작성했다.\n3. 이수: 「공공도서관 방문 실습」 과정을 40시간 동안 이수했다.\n\n해당 record_id: 441faf36-ccea-5213-b4ad-bfc9c92a23e0",
+  "context_record_ids": [
+    "acf8188b-481a-5d5a-841e-365602c975a7",
+    "147ff7ea-7937-5e27-a720-09d4cce3ef39",
+    "dae3aa06-7dcb-54bc-99f2-4d36d0eff30c",
+    "441faf36-ccea-5213-b4ad-bfc9c92a23e0"
+  ],
+  "input_tokens": 1325,
+  "output_tokens": 120
+}

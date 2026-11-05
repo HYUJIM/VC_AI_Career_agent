@@ -1,0 +1,16 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "e7352669-fa63-43a3-9f1b-93b502354ef3",
+  "case_id": "test-person-01-revoked",
+  "condition": "C_verified_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현한 기능: 동네 상점 주문 프로젝트에서 작성한 오류 응답 처리 사례의 총수는 7건이다.\n2. 점검 또는 검증 활동: 동네 상점 주문 프로젝트에서 Python로 구현한 주문 접수 기능의 총수는 4개다.\n3. 이수 교육: 확인 불가.\n\n해당 record_id: 5b5530c2-aa85-547c-b2db-22373f6ed0e7\n\n해당 record_id: 58105d45-7683-5ca3-b8d0-f22b662c1a20",
+  "context_record_ids": [
+    "5b5530c2-aa85-547c-b2db-22373f6ed0e7",
+    "58105d45-7683-5ca3-b8d0-f22b662c1a20"
+  ],
+  "input_tokens": 933,
+  "output_tokens": 174
+}

@@ -1,0 +1,39 @@
+{
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": "paper-study-plan/2.1"
+    },
+    "phase": {
+      "enum": [
+        "dev",
+        "test"
+      ]
+    },
+    "bundle": {
+      "type": "string",
+      "minLength": 1
+    },
+    "gold_review": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "declaration": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "version",
+    "phase",
+    "bundle",
+    "gold_review",
+    "declaration"
+  ],
+  "additionalProperties": false,
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

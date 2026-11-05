@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wallet-core.local/schemas/raw/ob2-assertion.schema.json",
+  "title": "OB2AssertionRaw (간소화 버전, schema 체크 전용)",
+  "type": "object",
+  "required": ["id", "type", "recipient", "badge", "issuedOn"],
+  "properties": {
+    "id": { "type": "string" },
+    "type": { "const": "Assertion" },
+    "recipient": {
+      "type": "object",
+      "required": ["identity"],
+      "properties": {
+        "identity": { "type": "string" },
+        "type": { "type": "string" }
+      }
+    },
+    "badge": {
+      "type": "object",
+      "required": ["id", "name", "issuer"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "criteria": {
+          "type": "object",
+          "properties": { "narrative": { "type": "string" } }
+        },
+        "issuer": {
+          "type": "object",
+          "required": ["id", "name"],
+          "properties": {
+            "id": { "type": "string" },
+            "name": { "type": "string" },
+            "url": { "type": "string" }
+          }
+        },
+        "alignment": { "type": "array" }
+      }
+    },
+    "issuedOn": { "type": "string" },
+    "expires": { "type": ["string", "null"] },
+    "evidence": { "type": "array" },
+    "verification": {
+      "type": "object",
+      "properties": { "type": { "type": "string", "enum": ["HostedBadge", "SignedBadge"] } }
+    },
+    "jws": { "type": "string" }
+  }
+}

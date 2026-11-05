@@ -1,0 +1,18 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "0cd8e301-631e-4a2d-ad49-7309c2ceff62",
+  "case_id": "test-person-07-valid_conflict",
+  "condition": "B_naive_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현: SQL로 공공도서관 방문량 기능을 구현한 것으로, 9개의 기능을 개발했다.\n2. 점검: 14건의 집계 질의 검증 사례를 작성했다.\n3. 이수: 공공도서관 방문 실습 과정을 40시간 이수했다.\n\n해당 record_id: e771fbe8-34ff-5c63-a496-fdd6424d404e\n\n미확인: JD 요구 중 확인되지 않은 사항 한 문장: 데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.\n\n향후 학습 제안 한 문장: 향후 학습: SQL로 데이터 분석 기능을 개발하기 위한 공부를 진행할 예정이다.",
+  "context_record_ids": [
+    "a11ce0f4-fd6c-57b9-a91f-dbb84522f68d",
+    "6afa8e23-b1fc-569f-b17e-376398e5c727",
+    "e771fbe8-34ff-5c63-a496-fdd6424d404e",
+    "cbfeb318-d809-5472-8d38-230be520740b"
+  ],
+  "input_tokens": 1329,
+  "output_tokens": 197
+}

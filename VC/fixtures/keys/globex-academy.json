@@ -1,0 +1,16 @@
+{
+  "did": "did:fixture:globex-academy",
+  "verificationMethodId": "did:fixture:globex-academy#key-1",
+  "name": "Globex Academy",
+  "publicJwk": {
+    "crv": "Ed25519",
+    "x": "vEDYZ628xltJQan2mzh3SYrNNkKyhOvUM8EN7AFRnDk",
+    "kty": "OKP"
+  },
+  "privateJwk": {
+    "crv": "Ed25519",
+    "d": "GQYqLlDUBCAzxKqZ-lUT7BNb-NF4poPkwqAWSpoBFgE",
+    "x": "vEDYZ628xltJQan2mzh3SYrNNkKyhOvUM8EN7AFRnDk",
+    "kty": "OKP"
+  }
+}

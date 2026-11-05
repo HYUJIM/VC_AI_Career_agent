@@ -1,0 +1,16 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "371cb73d-1cb8-4db2-a2e0-e7f773dc1459",
+  "case_id": "test-person-06-expired",
+  "condition": "C_verified_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현: 온라인 매출 점검 기록에서 중복 행 제거 사례 4건, 온라인 매출 구현 기록에서 품목별 매출 기능 3개\n2. 점검: 확인 불가\n3. 교육: 확인 불가",
+  "context_record_ids": [
+    "06efd712-0b08-58e3-ad8f-f44b22a0cd1d",
+    "24e02795-2b0c-594b-9127-6027b4f4a105"
+  ],
+  "input_tokens": 929,
+  "output_tokens": 71
+}

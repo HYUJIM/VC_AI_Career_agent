@@ -1,0 +1,16 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "7227c476-314b-43b8-bae2-c13f75815b63",
+  "case_id": "test-person-02-revoked",
+  "condition": "C_verified_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현한 기능: 체육시설 예약 프로젝트에서 작성한 통합 테스트 사례의 총수는 11건이다.\n2. 점검 또는 검증 활동: 체육시설 예약 프로젝트에서 Java로 구현한 예약 충돌 검사 기능의 총수는 6개다.\n3. 이수 교육: 확인 불가.\n\n해당 record_id: 4f68d410-8c40-5bd3-9260-10001e3c6eec\n\n해당 record_id: 602d0328-2708-5cd6-8813-78e1f6d1e45c",
+  "context_record_ids": [
+    "4f68d410-8c40-5bd3-9260-10001e3c6eec",
+    "602d0328-2708-5cd6-8813-78e1f6d1e45c"
+  ],
+  "input_tokens": 937,
+  "output_tokens": 180
+}

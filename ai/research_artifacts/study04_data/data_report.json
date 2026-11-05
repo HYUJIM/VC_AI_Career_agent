@@ -1,0 +1,27 @@
+{
+ "families": {
+  "dev": 2,
+  "test": 42
+ },
+ "cases": {
+  "dev": 12,
+  "test": 252
+ },
+ "vc_records": {
+  "dev": 48,
+  "test": 1008
+ },
+ "dummy_records": {
+  "dev": 48,
+  "test": 1008
+ },
+ "verification_status": {
+  "verified": 704,
+  "invalid": 88,
+  "revoked": 88,
+  "expired": 88,
+  "unverifiable": 88
+ },
+ "gold_checks": "passed",
+ "human_review": "pending"
+}

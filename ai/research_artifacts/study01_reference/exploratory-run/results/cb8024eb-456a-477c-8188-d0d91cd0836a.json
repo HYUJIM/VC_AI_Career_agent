@@ -1,0 +1,18 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "cb8024eb-456a-477c-8188-d0d91cd0836a",
+  "case_id": "test-person-06-valid_conflict",
+  "condition": "B_naive_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현: 온라인 매출 프로젝트에서 R로 구현한 품목별 매출 기능의 총수는 3개다.\n2. 점검: 온라인 매출 프로젝트에서 작성한 중복 행 제거 사례의 총수는 4건이다.\n3. 이수: 온라인 매출 실습 과정에서 총 이수 시간은 22시간이다.\n\n해당 record_id: 1aa0d18a-b593-58ad-ae3b-480230c90409\n\n미확인: 온라인 매출 교육 기록의 총 이수 시간은 82시간이다.",
+  "context_record_ids": [
+    "5266a6d0-b7d1-5786-b652-90522de68c33",
+    "2979f1ca-b208-5f45-8e14-56634b1a1836",
+    "1aa0d18a-b593-58ad-ae3b-480230c90409",
+    "e4dcb381-b06a-5b67-bc04-d143a063b724"
+  ],
+  "input_tokens": 1330,
+  "output_tokens": 176
+}

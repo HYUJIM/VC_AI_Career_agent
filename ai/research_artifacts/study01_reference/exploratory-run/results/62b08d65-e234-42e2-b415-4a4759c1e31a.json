@@ -1,0 +1,18 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "62b08d65-e234-42e2-b415-4a4759c1e31a",
+  "case_id": "test-person-08-valid_conflict",
+  "condition": "C_verified_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현: Python으로 요일별 사용량 기능을 구현한 총 5개의 기능 개수.\n2. 점검: 10건의 이상값 표시 사례를 작성한 총 10건의 점검 활동.\n3. 이수: 92시간의 「건물 전력 실습」을 이수한 총 92시간의 교육 시간.",
+  "context_record_ids": [
+    "147c0c19-a337-5551-a912-0ec917ec2b73",
+    "fb073d76-d689-5de9-bd8b-e5939f11dbd8",
+    "20c65440-8024-51ef-8d39-a70661dc6170",
+    "a872bc94-d2fe-588f-ba1d-973661e1eda8"
+  ],
+  "input_tokens": 1312,
+  "output_tokens": 99
+}

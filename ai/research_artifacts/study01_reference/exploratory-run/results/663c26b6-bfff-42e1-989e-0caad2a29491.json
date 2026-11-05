@@ -1,0 +1,16 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "663c26b6-bfff-42e1-989e-0caad2a29491",
+  "case_id": "test-person-08-revoked",
+  "condition": "C_verified_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현: Python으로 건물 전력 프로젝트에서 요일별 사용량 기능을 구현한 것으로, 총 5개의 기능을 개발했다.\n2. 점검: 건물 전력 점검 기록에서 정확히 10건의 이상값 표시 사례를 작성했다.\n3. 이수: 교육기록센터 WEST에서 건물 전력 점검 기록을 작성한 것으로, 2025년 1월부터 5월까지 총 10건의 이상값 표시 사례를 작성했다.\n4. 확인 불가: 교육기록센터 EAST에서 건물 전력 구현 기록을 작성한 것으로, 2025년 1월부터 5월까지 총 5개의 기능을 구현했다.\n5. 향후 학습: Python을 활용한 데이터 분석 기술을 향후 학습할 예정이다.",
+  "context_record_ids": [
+    "20a49ade-41aa-588f-8877-14c8b968cd82",
+    "10f3cc06-a7b0-5286-92f8-7a9ba8388949"
+  ],
+  "input_tokens": 920,
+  "output_tokens": 222
+}

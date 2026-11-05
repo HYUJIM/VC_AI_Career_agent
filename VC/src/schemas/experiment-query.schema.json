@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wallet-core.local/schemas/experiment-query.schema.json",
+  "title": "ExperimentQuery",
+  "type": "object",
+  "required": ["query_id", "subject_did", "query_text", "query_type", "answerable", "gold_record_ids"],
+  "properties": {
+    "query_id": { "type": "string" },
+    "subject_did": { "type": "string" },
+    "query_text": { "type": "string" },
+    "query_type": { "type": "string", "enum": ["gap_analysis", "credential_check", "portfolio_summary", "job_fit"] },
+    "answerable": { "type": "boolean" },
+    "gold_record_ids": { "type": "array", "items": { "type": "string" } },
+    "gold_answer": { "type": ["string", "null"] },
+    "notes": { "type": "string" }
+  }
+}

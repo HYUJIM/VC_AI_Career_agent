@@ -1,0 +1,16 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "4935baaf-9864-42f9-89cd-99bb053f9c5f",
+  "case_id": "test-person-02-expired",
+  "condition": "C_verified_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현한 기능: 체육시설 예약 프로젝트에서 작성한 통합 테스트 사례의 총수는 11건이다.\n2. 점검 또는 검증 활동: 체육시설 예약 프로젝트에서 Java로 구현한 예약 충돌 검사 기능의 총수는 6개다.\n3. 이수 교육: 확인 불가.\n\n해당 record_id: f1276169-2196-5f66-8bf6-9bf548ccdae7\n\nJD 요구 중 확인되지 않은 사항: API 구현\n\n향후 학습 제안: 향후 학습은 Java로 예약 충돌 검사 기능을 구현하는 내용을 공부하는 것으로 추천한다.",
+  "context_record_ids": [
+    "956fee02-11df-5d2c-bd3f-4d4380062fd8",
+    "f1276169-2196-5f66-8bf6-9bf548ccdae7"
+  ],
+  "input_tokens": 931,
+  "output_tokens": 190
+}

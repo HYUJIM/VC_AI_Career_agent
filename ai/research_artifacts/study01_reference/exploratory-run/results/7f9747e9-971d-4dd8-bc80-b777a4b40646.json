@@ -1,0 +1,18 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "7f9747e9-971d-4dd8-bc80-b777a4b40646",
+  "case_id": "test-person-06-untrusted_issuer",
+  "condition": "B_naive_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현: R로 품목별 매출 기능을 3개 개발했으며, 이는 기록된 활동 내용에 대한 발급 기록을 통해 확인 가능하다.\n2. 점검: 온라인 매출 프로젝트에서 작성한 중복 행 제거 사례의 총수는 4건이다.\n3. 이수: 「온라인 매출 실습」 과정에서 22시간을 이수했다.\n\n해당 record_id: e1901a4d-d6e5-554d-96c8-c54b5f7f0a4c",
+  "context_record_ids": [
+    "e1901a4d-d6e5-554d-96c8-c54b5f7f0a4c",
+    "7017af31-21a6-5425-853c-0d11c3651966",
+    "a551382d-ace9-5256-a2de-b0be3d0b5594",
+    "ce2afd83-3462-5a34-b846-7536f02efe7b"
+  ],
+  "input_tokens": 1331,
+  "output_tokens": 149
+}

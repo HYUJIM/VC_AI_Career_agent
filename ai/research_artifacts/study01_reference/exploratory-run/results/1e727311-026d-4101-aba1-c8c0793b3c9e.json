@@ -1,0 +1,18 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "1e727311-026d-4101-aba1-c8c0793b3c9e",
+  "case_id": "test-person-06-forged_signature",
+  "condition": "B_naive_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현: 데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무. \n2. 점검: 4건의 중복 행 제거 사례 작성.\n3. 교육: 「온라인 매출 실습」의 총 이수 시간 82시간.\n\n해당 record_id: d7a82cff-3554-5a94-a333-2701e36f0f85\n\n미확인: JD 요구 중 확인되지 않은 사항 한 문장: \n\"데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.\"",
+  "context_record_ids": [
+    "781a8b5b-102a-53bf-84b7-3be7e6430203",
+    "862dbfea-181c-5e41-8b0e-1723e515080a",
+    "d7a82cff-3554-5a94-a333-2701e36f0f85",
+    "c134db30-3bfb-5c90-bc95-8ff6715fae0e"
+  ],
+  "input_tokens": 1313,
+  "output_tokens": 156
+}

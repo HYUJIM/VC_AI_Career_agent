@@ -1,0 +1,16 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "449f3e9c-becc-4630-bf48-0bec8512b8a9",
+  "case_id": "test-person-07-expired",
+  "condition": "C_verified_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현: 공공도서관 방문 점검 기록 14건, SQL로 구현된 방문량 기능 9개\n2. 점검: 공공도서관 방문 점검 기록 14건, SQL로 구현된 방문량 기능 9개\n3. 이수: 공공도서관 방문 점검 기록 14건, SQL로 구현된 방문량 기능 9개",
+  "context_record_ids": [
+    "e79e08bb-f275-570e-b656-5bd044866894",
+    "2be27c29-2680-5bec-aed7-44011c47f450"
+  ],
+  "input_tokens": 928,
+  "output_tokens": 103
+}

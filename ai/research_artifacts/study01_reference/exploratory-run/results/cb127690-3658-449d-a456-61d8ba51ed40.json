@@ -1,0 +1,18 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "cb127690-3658-449d-a456-61d8ba51ed40",
+  "case_id": "test-person-03-revoked",
+  "condition": "B_naive_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현한 기능: 동아리 회비 점검 기록, 동아리 회비 구현 기록, 동아리 회비 교육 기록\n2. 점검 또는 검증 활동: 동아리 회비 점검 기록, 동아리 회비 구현 기록, 동아리 회비 교육 기록\n3. 이수 교육: 「동아리 회비 실습」\n4. 확인되지 않은 사항: API 구현\n5. 향후 학습 제안: TypeScript로 동아리 회비 프로젝트를 구현하는 기술 습득",
+  "context_record_ids": [
+    "37dd71f0-cd1d-5728-bc9c-cb7ebf60488c",
+    "5c4ccc88-cfa7-570d-813d-d3f23cc1c7b0",
+    "79d841ae-9250-5277-8d1d-1333ba782125",
+    "3d5ca21e-9e72-56b8-9af6-ece67dfea957"
+  ],
+  "input_tokens": 1308,
+  "output_tokens": 143
+}

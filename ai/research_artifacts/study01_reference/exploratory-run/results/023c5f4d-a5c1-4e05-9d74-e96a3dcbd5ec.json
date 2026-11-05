@@ -1,0 +1,16 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "023c5f4d-a5c1-4e05-9d74-e96a3dcbd5ec",
+  "case_id": "test-person-04-revoked",
+  "condition": "C_verified_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현한 기능: 전시 입장권 프로젝트에서 Kotlin로 구현한 잔여 좌석 조회 기능의 총수는 7개이다.\n2. 점검 또는 검증 활동: 작성한 트랜잭션 검토 사례의 총수는 8건이다.\n3. 이수 교육: 확인 불가.",
+  "context_record_ids": [
+    "afdf38d0-87c1-5b3b-850f-8a6e9fcb83e7",
+    "4a48b5a3-a403-5353-8009-2232049f88a1"
+  ],
+  "input_tokens": 932,
+  "output_tokens": 87
+}

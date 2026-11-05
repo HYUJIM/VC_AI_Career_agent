@@ -1,0 +1,18 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "31b56b7c-32d5-474c-b2d0-9d114ec6b2e5",
+  "case_id": "test-person-07-none",
+  "condition": "B_naive_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현: SQL로 시간대별 방문량 기능을 구현한 9개의 기능 개수.\n2. 점검: 14건의 집계 질의 검증 사례를 작성한 활동 수.\n3. 이수: 「공공도서관 방문 실습」 과정을 40시간 동안 이수한 시간 수.\n\n해당 record_id: f77ecf06-9dd1-5f1c-a5c2-48a37ae2ebb0\n\n해당 record_id: ee918279-3557-5254-bad7-c0404f4647d7\n\n해당 record_id: 49e35346-9068-5dcf-95fa-cc7e7b01ad4f\n\n해당 record_id: 3834ca96-61c6-5718-9cca-86577bef1b2a",
+  "context_record_ids": [
+    "f77ecf06-9dd1-5f1c-a5c2-48a37ae2ebb0",
+    "ee918279-3557-5254-bad7-c0404f4647d7",
+    "49e35346-9068-5dcf-95fa-cc7e7b01ad4f",
+    "3834ca96-61c6-5718-9cca-86577bef1b2a"
+  ],
+  "input_tokens": 1330,
+  "output_tokens": 235
+}

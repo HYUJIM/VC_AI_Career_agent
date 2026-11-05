@@ -1,0 +1,13 @@
+{
+  "version": "paper-judge/2.0",
+  "result_sha256": null,
+  "kind": "llm",
+  "status": "pending",
+  "model_revision": null,
+  "package_version": null,
+  "metric_class": null,
+  "prompt_sha256": null,
+  "raw_output": null,
+  "score": null,
+  "error": null
+}

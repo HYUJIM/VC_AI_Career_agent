@@ -1,0 +1,16 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "b33c3560-9ca2-4691-8825-c03234c025ea",
+  "case_id": "test-person-07-forged_signature",
+  "condition": "C_verified_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현: 공공도서관 방문 점검 기록 14건, SQL로 구현된 방문량 기능 9개\n2. 점검: 공공도서관 방문 점검 기록 14건, SQL로 구현된 방문량 기능 9개\n3. 이수: 공공도서관 방문 점검 기록 14건, SQL로 구현된 방문량 기능 9개\n해당 record_id: 147ff7ea-7937-5e27-a720-09d4cce3ef39, dae3aa06-7dcb-54bc-99f2-4d36d0eff30c",
+  "context_record_ids": [
+    "147ff7ea-7937-5e27-a720-09d4cce3ef39",
+    "dae3aa06-7dcb-54bc-99f2-4d36d0eff30c"
+  ],
+  "input_tokens": 924,
+  "output_tokens": 171
+}

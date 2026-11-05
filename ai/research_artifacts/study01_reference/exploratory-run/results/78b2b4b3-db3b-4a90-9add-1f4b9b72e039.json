@@ -1,0 +1,18 @@
+{
+  "version": "paper-result/2.0",
+  "run_id": "78b2b4b3-db3b-4a90-9add-1f4b9b72e039",
+  "case_id": "test-person-03-valid_conflict",
+  "condition": "B_naive_rag",
+  "seed": 42,
+  "status": "success",
+  "finish_reason": "eos",
+  "answer": "1. 구현한 기능: 동아리 회비 점검 기록 5건, 동아리 회비 구현 기록 2개, 동아리 회비 교육 기록 2개\n2. 점검 또는 검증 활동: 동아리 회비 점검 기록 5건, 동아리 회비 구현 기록 2개, 동아리 회비 교육 기록 2개\n3. 이수 교육: 동아리 회비 실습 16시간, 동아리 회비 실습 76시간\n4. 확인 불가: API 구현, 테스트, 데이터베이스 기초\n5. 향후 학습: TypeScript, 동아리 회비 실습",
+  "context_record_ids": [
+    "7e3b4040-7459-507a-a707-dc3f7f760349",
+    "f66c9abf-3705-5722-ab2f-971ff380bd6b",
+    "b3e6f57b-7f6a-5211-9b01-64c74bb83223",
+    "70ca22b6-843b-5974-8859-90897e2dd088"
+  ],
+  "input_tokens": 1335,
+  "output_tokens": 171
+}

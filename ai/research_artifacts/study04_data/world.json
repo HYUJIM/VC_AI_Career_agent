@@ -1,0 +1,3398 @@
+{
+  "version": "paper-world/2.1",
+  "gold_origin": "synthetic_world",
+  "author_kind": "agent",
+  "human_review_status": "pending",
+  "study": "study04",
+  "families": [
+    {
+      "family_id": "dev-person-01",
+      "lineage_id": "dev-person-01-scenario",
+      "index": 0,
+      "split": "dev",
+      "job": "backend",
+      "subject_did": "did:fixture:dev-person-01",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.",
+      "facts": [
+        {
+          "fact_id": "dev-person-01-f1",
+          "entity_id": "dev-person-01-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 카페 주문 프로젝트에서 Java로 구현한 메뉴 조회 기능의 총수는 정확히 5개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-01-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-01-f2",
+          "entity_id": "dev-person-01-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 카페 주문 프로젝트에서 작성한 입력값 검증 사례의 총수는 정확히 11건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-01-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-01-f3",
+          "entity_id": "dev-person-01-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「카페 주문 실습」의 총 이수 시간은 정확히 46시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-01-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-01-f4",
+          "entity_id": "dev-person-01-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 카페 주문 프로젝트에서 메뉴 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-01-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 카페 주문 프로젝트에서 Java로 구현한 메뉴 조회 기능의 총수는 정확히 14개다.",
+        "2025년 1월부터 5월까지 카페 주문 프로젝트에서 작성한 입력값 검증 사례의 총수는 정확히 26건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「카페 주문 실습」의 총 이수 시간은 정확히 106시간이다.",
+        "2025년 1월부터 5월까지 카페 주문 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "dev-person-01-f1",
+        "dev-person-01-f2",
+        "dev-person-01-f3"
+      ],
+      "retained_fact_ids": [
+        "dev-person-01-f1",
+        "dev-person-01-f2"
+      ],
+      "record_names": [
+        "카페 주문 구현 기록",
+        "카페 주문 점검 기록",
+        "카페 주문 교육 기록",
+        "카페 주문 참여 기록"
+      ]
+    },
+    {
+      "family_id": "dev-person-02",
+      "lineage_id": "dev-person-02-scenario",
+      "index": 1,
+      "split": "dev",
+      "job": "data",
+      "subject_did": "did:fixture:dev-person-02",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.",
+      "facts": [
+        {
+          "fact_id": "dev-person-02-f1",
+          "entity_id": "dev-person-02-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 교통량 분석 프로젝트에서 Python로 구현한 구간별 통행량 기능의 총수는 정확히 2개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-02-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-02-f2",
+          "entity_id": "dev-person-02-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 교통량 분석 프로젝트에서 작성한 결측치 점검 사례의 총수는 정확히 4건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-02-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-02-f3",
+          "entity_id": "dev-person-02-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「교통량 분석 실습」의 총 이수 시간은 정확히 28시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-02-world"
+          ]
+        },
+        {
+          "fact_id": "dev-person-02-f4",
+          "entity_id": "dev-person-02-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 교통량 분석 프로젝트에서 구간별 통행량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "dev-person-02-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 교통량 분석 프로젝트에서 Python로 구현한 구간별 통행량 기능의 총수는 정확히 11개다.",
+        "2025년 1월부터 5월까지 교통량 분석 프로젝트에서 작성한 결측치 점검 사례의 총수는 정확히 19건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「교통량 분석 실습」의 총 이수 시간은 정확히 88시간이다.",
+        "2025년 1월부터 5월까지 교통량 분석 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "dev-person-02-f1",
+        "dev-person-02-f2",
+        "dev-person-02-f3"
+      ],
+      "retained_fact_ids": [
+        "dev-person-02-f1",
+        "dev-person-02-f2"
+      ],
+      "record_names": [
+        "교통량 분석 구현 기록",
+        "교통량 분석 점검 기록",
+        "교통량 분석 교육 기록",
+        "교통량 분석 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-01",
+      "lineage_id": "test-person-01-scenario",
+      "index": 0,
+      "split": "test",
+      "job": "backend",
+      "subject_did": "did:fixture:test-person-01",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-01-f1",
+          "entity_id": "test-person-01-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 병원 예약 프로젝트에서 Go로 구현한 진료 시간 조회 기능의 총수는 정확히 8개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-01-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-01-f2",
+          "entity_id": "test-person-01-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 병원 예약 프로젝트에서 작성한 권한 검사 사례의 총수는 정확히 10건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-01-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-01-f3",
+          "entity_id": "test-person-01-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「병원 예약 실습」의 총 이수 시간은 정확히 40시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-01-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-01-f4",
+          "entity_id": "test-person-01-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 병원 예약 프로젝트에서 진료 시간 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-01-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 병원 예약 프로젝트에서 Go로 구현한 진료 시간 조회 기능의 총수는 정확히 17개다.",
+        "2025년 1월부터 5월까지 병원 예약 프로젝트에서 작성한 권한 검사 사례의 총수는 정확히 25건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「병원 예약 실습」의 총 이수 시간은 정확히 100시간이다.",
+        "2025년 1월부터 5월까지 병원 예약 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-01-f1",
+        "test-person-01-f2",
+        "test-person-01-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-01-f1",
+        "test-person-01-f2"
+      ],
+      "record_names": [
+        "병원 예약 구현 기록",
+        "병원 예약 점검 기록",
+        "병원 예약 교육 기록",
+        "병원 예약 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-02",
+      "lineage_id": "test-person-02-scenario",
+      "index": 1,
+      "split": "test",
+      "job": "data",
+      "subject_did": "did:fixture:test-person-02",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-02-f1",
+          "entity_id": "test-person-02-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 날씨 관측 프로젝트에서 Python로 구현한 일별 기온 기능의 총수는 정확히 9개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-02-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-02-f2",
+          "entity_id": "test-person-02-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 날씨 관측 프로젝트에서 작성한 이상값 표시 사례의 총수는 정확히 14건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-02-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-02-f3",
+          "entity_id": "test-person-02-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「날씨 관측 실습」의 총 이수 시간은 정확히 18시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-02-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-02-f4",
+          "entity_id": "test-person-02-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 날씨 관측 프로젝트에서 일별 기온 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-02-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 날씨 관측 프로젝트에서 Python로 구현한 일별 기온 기능의 총수는 정확히 18개다.",
+        "2025년 1월부터 5월까지 날씨 관측 프로젝트에서 작성한 이상값 표시 사례의 총수는 정확히 29건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「날씨 관측 실습」의 총 이수 시간은 정확히 78시간이다.",
+        "2025년 1월부터 5월까지 날씨 관측 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-02-f1",
+        "test-person-02-f2",
+        "test-person-02-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-02-f1",
+        "test-person-02-f2"
+      ],
+      "record_names": [
+        "날씨 관측 구현 기록",
+        "날씨 관측 점검 기록",
+        "날씨 관측 교육 기록",
+        "날씨 관측 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-03",
+      "lineage_id": "test-person-03-scenario",
+      "index": 2,
+      "split": "test",
+      "job": "backend",
+      "subject_did": "did:fixture:test-person-03",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-03-f1",
+          "entity_id": "test-person-03-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 중고 거래 프로젝트에서 Java로 구현한 상품 등록 기능의 총수는 정확히 4개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-03-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-03-f2",
+          "entity_id": "test-person-03-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 중고 거래 프로젝트에서 작성한 오류 응답 처리 사례의 총수는 정확히 4건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-03-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-03-f3",
+          "entity_id": "test-person-03-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「중고 거래 실습」의 총 이수 시간은 정확히 32시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-03-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-03-f4",
+          "entity_id": "test-person-03-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 중고 거래 프로젝트에서 상품 등록 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-03-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 중고 거래 프로젝트에서 Java로 구현한 상품 등록 기능의 총수는 정확히 13개다.",
+        "2025년 1월부터 5월까지 중고 거래 프로젝트에서 작성한 오류 응답 처리 사례의 총수는 정확히 19건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「중고 거래 실습」의 총 이수 시간은 정확히 92시간이다.",
+        "2025년 1월부터 5월까지 중고 거래 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-03-f1",
+        "test-person-03-f2",
+        "test-person-03-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-03-f1",
+        "test-person-03-f2"
+      ],
+      "record_names": [
+        "중고 거래 구현 기록",
+        "중고 거래 점검 기록",
+        "중고 거래 교육 기록",
+        "중고 거래 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-04",
+      "lineage_id": "test-person-04-scenario",
+      "index": 3,
+      "split": "test",
+      "job": "data",
+      "subject_did": "did:fixture:test-person-04",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-04-f1",
+          "entity_id": "test-person-04-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 카드 결제 프로젝트에서 Python로 구현한 업종별 결제액 기능의 총수는 정확히 7개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-04-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-04-f2",
+          "entity_id": "test-person-04-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 카드 결제 프로젝트에서 작성한 중복 행 제거 사례의 총수는 정확히 14건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-04-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-04-f3",
+          "entity_id": "test-person-04-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「카드 결제 실습」의 총 이수 시간은 정확히 30시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-04-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-04-f4",
+          "entity_id": "test-person-04-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 카드 결제 프로젝트에서 업종별 결제액 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-04-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 카드 결제 프로젝트에서 Python로 구현한 업종별 결제액 기능의 총수는 정확히 16개다.",
+        "2025년 1월부터 5월까지 카드 결제 프로젝트에서 작성한 중복 행 제거 사례의 총수는 정확히 29건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「카드 결제 실습」의 총 이수 시간은 정확히 90시간이다.",
+        "2025년 1월부터 5월까지 카드 결제 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-04-f1",
+        "test-person-04-f2",
+        "test-person-04-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-04-f1",
+        "test-person-04-f2"
+      ],
+      "record_names": [
+        "카드 결제 구현 기록",
+        "카드 결제 점검 기록",
+        "카드 결제 교육 기록",
+        "카드 결제 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-05",
+      "lineage_id": "test-person-05-scenario",
+      "index": 4,
+      "split": "test",
+      "job": "backend",
+      "subject_did": "did:fixture:test-person-05",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-05-f1",
+          "entity_id": "test-person-05-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 독서 모임 프로젝트에서 TypeScript로 구현한 일정 등록 기능의 총수는 정확히 8개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-05-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-05-f2",
+          "entity_id": "test-person-05-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 독서 모임 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-05-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-05-f3",
+          "entity_id": "test-person-05-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「독서 모임 실습」의 총 이수 시간은 정확히 16시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-05-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-05-f4",
+          "entity_id": "test-person-05-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 독서 모임 프로젝트에서 일정 등록 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-05-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 독서 모임 프로젝트에서 TypeScript로 구현한 일정 등록 기능의 총수는 정확히 17개다.",
+        "2025년 1월부터 5월까지 독서 모임 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 21건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「독서 모임 실습」의 총 이수 시간은 정확히 76시간이다.",
+        "2025년 1월부터 5월까지 독서 모임 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-05-f1",
+        "test-person-05-f2",
+        "test-person-05-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-05-f1",
+        "test-person-05-f2"
+      ],
+      "record_names": [
+        "독서 모임 구현 기록",
+        "독서 모임 점검 기록",
+        "독서 모임 교육 기록",
+        "독서 모임 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-06",
+      "lineage_id": "test-person-06-scenario",
+      "index": 5,
+      "split": "test",
+      "job": "data",
+      "subject_did": "did:fixture:test-person-06",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-06-f1",
+          "entity_id": "test-person-06-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 학생 성적 프로젝트에서 Python로 구현한 과목별 평균 기능의 총수는 정확히 2개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-06-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-06-f2",
+          "entity_id": "test-person-06-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 학생 성적 프로젝트에서 작성한 집계 질의 검증 사례의 총수는 정확히 12건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-06-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-06-f3",
+          "entity_id": "test-person-06-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「학생 성적 실습」의 총 이수 시간은 정확히 44시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-06-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-06-f4",
+          "entity_id": "test-person-06-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 학생 성적 프로젝트에서 과목별 평균 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-06-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 학생 성적 프로젝트에서 Python로 구현한 과목별 평균 기능의 총수는 정확히 11개다.",
+        "2025년 1월부터 5월까지 학생 성적 프로젝트에서 작성한 집계 질의 검증 사례의 총수는 정확히 27건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「학생 성적 실습」의 총 이수 시간은 정확히 104시간이다.",
+        "2025년 1월부터 5월까지 학생 성적 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-06-f1",
+        "test-person-06-f2",
+        "test-person-06-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-06-f1",
+        "test-person-06-f2"
+      ],
+      "record_names": [
+        "학생 성적 구현 기록",
+        "학생 성적 점검 기록",
+        "학생 성적 교육 기록",
+        "학생 성적 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-07",
+      "lineage_id": "test-person-07-scenario",
+      "index": 6,
+      "split": "test",
+      "job": "backend",
+      "subject_did": "did:fixture:test-person-07",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-07-f1",
+          "entity_id": "test-person-07-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 주차장 관리 프로젝트에서 Kotlin로 구현한 빈자리 조회 기능의 총수는 정확히 4개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-07-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-07-f2",
+          "entity_id": "test-person-07-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 주차장 관리 프로젝트에서 작성한 통합 테스트 사례의 총수는 정확히 4건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-07-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-07-f3",
+          "entity_id": "test-person-07-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「주차장 관리 실습」의 총 이수 시간은 정확히 44시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-07-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-07-f4",
+          "entity_id": "test-person-07-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 주차장 관리 프로젝트에서 빈자리 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-07-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 주차장 관리 프로젝트에서 Kotlin로 구현한 빈자리 조회 기능의 총수는 정확히 13개다.",
+        "2025년 1월부터 5월까지 주차장 관리 프로젝트에서 작성한 통합 테스트 사례의 총수는 정확히 19건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「주차장 관리 실습」의 총 이수 시간은 정확히 104시간이다.",
+        "2025년 1월부터 5월까지 주차장 관리 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-07-f1",
+        "test-person-07-f2",
+        "test-person-07-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-07-f1",
+        "test-person-07-f2"
+      ],
+      "record_names": [
+        "주차장 관리 구현 기록",
+        "주차장 관리 점검 기록",
+        "주차장 관리 교육 기록",
+        "주차장 관리 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-08",
+      "lineage_id": "test-person-08-scenario",
+      "index": 7,
+      "split": "test",
+      "job": "data",
+      "subject_did": "did:fixture:test-person-08",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-08-f1",
+          "entity_id": "test-person-08-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 병원 대기 프로젝트에서 R로 구현한 진료과별 대기 인원 기능의 총수는 정확히 2개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-08-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-08-f2",
+          "entity_id": "test-person-08-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 병원 대기 프로젝트에서 작성한 결측치 점검 사례의 총수는 정확히 5건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-08-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-08-f3",
+          "entity_id": "test-person-08-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「병원 대기 실습」의 총 이수 시간은 정확히 20시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-08-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-08-f4",
+          "entity_id": "test-person-08-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 병원 대기 프로젝트에서 진료과별 대기 인원 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-08-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 병원 대기 프로젝트에서 R로 구현한 진료과별 대기 인원 기능의 총수는 정확히 11개다.",
+        "2025년 1월부터 5월까지 병원 대기 프로젝트에서 작성한 결측치 점검 사례의 총수는 정확히 20건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「병원 대기 실습」의 총 이수 시간은 정확히 80시간이다.",
+        "2025년 1월부터 5월까지 병원 대기 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-08-f1",
+        "test-person-08-f2",
+        "test-person-08-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-08-f1",
+        "test-person-08-f2"
+      ],
+      "record_names": [
+        "병원 대기 구현 기록",
+        "병원 대기 점검 기록",
+        "병원 대기 교육 기록",
+        "병원 대기 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-09",
+      "lineage_id": "test-person-09-scenario",
+      "index": 8,
+      "split": "test",
+      "job": "backend",
+      "subject_did": "did:fixture:test-person-09",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-09-f1",
+          "entity_id": "test-person-09-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 택배 조회 프로젝트에서 Java로 구현한 배송 상태 조회 기능의 총수는 정확히 2개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-09-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-09-f2",
+          "entity_id": "test-person-09-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 택배 조회 프로젝트에서 작성한 예외 처리 검토 사례의 총수는 정확히 11건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-09-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-09-f3",
+          "entity_id": "test-person-09-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「택배 조회 실습」의 총 이수 시간은 정확히 28시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-09-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-09-f4",
+          "entity_id": "test-person-09-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 택배 조회 프로젝트에서 배송 상태 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-09-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 택배 조회 프로젝트에서 Java로 구현한 배송 상태 조회 기능의 총수는 정확히 11개다.",
+        "2025년 1월부터 5월까지 택배 조회 프로젝트에서 작성한 예외 처리 검토 사례의 총수는 정확히 26건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「택배 조회 실습」의 총 이수 시간은 정확히 88시간이다.",
+        "2025년 1월부터 5월까지 택배 조회 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-09-f1",
+        "test-person-09-f2",
+        "test-person-09-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-09-f1",
+        "test-person-09-f2"
+      ],
+      "record_names": [
+        "택배 조회 구현 기록",
+        "택배 조회 점검 기록",
+        "택배 조회 교육 기록",
+        "택배 조회 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-10",
+      "lineage_id": "test-person-10-scenario",
+      "index": 9,
+      "split": "test",
+      "job": "data",
+      "subject_did": "did:fixture:test-person-10",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-10-f1",
+          "entity_id": "test-person-10-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 음원 재생 프로젝트에서 R로 구현한 장르별 재생 수 기능의 총수는 정확히 2개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-10-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-10-f2",
+          "entity_id": "test-person-10-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 음원 재생 프로젝트에서 작성한 이상값 표시 사례의 총수는 정확히 11건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-10-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-10-f3",
+          "entity_id": "test-person-10-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「음원 재생 실습」의 총 이수 시간은 정확히 26시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-10-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-10-f4",
+          "entity_id": "test-person-10-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 음원 재생 프로젝트에서 장르별 재생 수 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-10-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 음원 재생 프로젝트에서 R로 구현한 장르별 재생 수 기능의 총수는 정확히 11개다.",
+        "2025년 1월부터 5월까지 음원 재생 프로젝트에서 작성한 이상값 표시 사례의 총수는 정확히 26건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「음원 재생 실습」의 총 이수 시간은 정확히 86시간이다.",
+        "2025년 1월부터 5월까지 음원 재생 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-10-f1",
+        "test-person-10-f2",
+        "test-person-10-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-10-f1",
+        "test-person-10-f2"
+      ],
+      "record_names": [
+        "음원 재생 구현 기록",
+        "음원 재생 점검 기록",
+        "음원 재생 교육 기록",
+        "음원 재생 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-11",
+      "lineage_id": "test-person-11-scenario",
+      "index": 10,
+      "split": "test",
+      "job": "backend",
+      "subject_did": "did:fixture:test-person-11",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-11-f1",
+          "entity_id": "test-person-11-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 헬스장 회원 프로젝트에서 Go로 구현한 출입 기록 조회 기능의 총수는 정확히 6개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-11-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-11-f2",
+          "entity_id": "test-person-11-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 헬스장 회원 프로젝트에서 작성한 트랜잭션 검토 사례의 총수는 정확히 7건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-11-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-11-f3",
+          "entity_id": "test-person-11-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「헬스장 회원 실습」의 총 이수 시간은 정확히 40시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-11-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-11-f4",
+          "entity_id": "test-person-11-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 헬스장 회원 프로젝트에서 출입 기록 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-11-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 헬스장 회원 프로젝트에서 Go로 구현한 출입 기록 조회 기능의 총수는 정확히 15개다.",
+        "2025년 1월부터 5월까지 헬스장 회원 프로젝트에서 작성한 트랜잭션 검토 사례의 총수는 정확히 22건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「헬스장 회원 실습」의 총 이수 시간은 정확히 100시간이다.",
+        "2025년 1월부터 5월까지 헬스장 회원 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-11-f1",
+        "test-person-11-f2",
+        "test-person-11-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-11-f1",
+        "test-person-11-f2"
+      ],
+      "record_names": [
+        "헬스장 회원 구현 기록",
+        "헬스장 회원 점검 기록",
+        "헬스장 회원 교육 기록",
+        "헬스장 회원 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-12",
+      "lineage_id": "test-person-12-scenario",
+      "index": 11,
+      "split": "test",
+      "job": "data",
+      "subject_did": "did:fixture:test-person-12",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-12-f1",
+          "entity_id": "test-person-12-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 쇼핑몰 반품 프로젝트에서 Python로 구현한 사유별 반품 기능의 총수는 정확히 4개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-12-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-12-f2",
+          "entity_id": "test-person-12-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 쇼핑몰 반품 프로젝트에서 작성한 중복 행 제거 사례의 총수는 정확히 5건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-12-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-12-f3",
+          "entity_id": "test-person-12-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「쇼핑몰 반품 실습」의 총 이수 시간은 정확히 34시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-12-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-12-f4",
+          "entity_id": "test-person-12-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 쇼핑몰 반품 프로젝트에서 사유별 반품 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-12-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 쇼핑몰 반품 프로젝트에서 Python로 구현한 사유별 반품 기능의 총수는 정확히 13개다.",
+        "2025년 1월부터 5월까지 쇼핑몰 반품 프로젝트에서 작성한 중복 행 제거 사례의 총수는 정확히 20건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「쇼핑몰 반품 실습」의 총 이수 시간은 정확히 94시간이다.",
+        "2025년 1월부터 5월까지 쇼핑몰 반품 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-12-f1",
+        "test-person-12-f2",
+        "test-person-12-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-12-f1",
+        "test-person-12-f2"
+      ],
+      "record_names": [
+        "쇼핑몰 반품 구현 기록",
+        "쇼핑몰 반품 점검 기록",
+        "쇼핑몰 반품 교육 기록",
+        "쇼핑몰 반품 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-13",
+      "lineage_id": "test-person-13-scenario",
+      "index": 12,
+      "split": "test",
+      "job": "backend",
+      "subject_did": "did:fixture:test-person-13",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-13-f1",
+          "entity_id": "test-person-13-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 학원 출결 프로젝트에서 Python로 구현한 출석 체크 기능의 총수는 정확히 2개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-13-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-13-f2",
+          "entity_id": "test-person-13-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 학원 출결 프로젝트에서 작성한 입력값 검증 사례의 총수는 정확히 10건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-13-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-13-f3",
+          "entity_id": "test-person-13-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「학원 출결 실습」의 총 이수 시간은 정확히 48시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-13-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-13-f4",
+          "entity_id": "test-person-13-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 학원 출결 프로젝트에서 출석 체크 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-13-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 학원 출결 프로젝트에서 Python로 구현한 출석 체크 기능의 총수는 정확히 11개다.",
+        "2025년 1월부터 5월까지 학원 출결 프로젝트에서 작성한 입력값 검증 사례의 총수는 정확히 25건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「학원 출결 실습」의 총 이수 시간은 정확히 108시간이다.",
+        "2025년 1월부터 5월까지 학원 출결 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-13-f1",
+        "test-person-13-f2",
+        "test-person-13-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-13-f1",
+        "test-person-13-f2"
+      ],
+      "record_names": [
+        "학원 출결 구현 기록",
+        "학원 출결 점검 기록",
+        "학원 출결 교육 기록",
+        "학원 출결 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-14",
+      "lineage_id": "test-person-14-scenario",
+      "index": 13,
+      "split": "test",
+      "job": "data",
+      "subject_did": "did:fixture:test-person-14",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-14-f1",
+          "entity_id": "test-person-14-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 버스 승하차 프로젝트에서 R로 구현한 정류장별 승차 기능의 총수는 정확히 5개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-14-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-14-f2",
+          "entity_id": "test-person-14-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 버스 승하차 프로젝트에서 작성한 집계 질의 검증 사례의 총수는 정확히 10건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-14-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-14-f3",
+          "entity_id": "test-person-14-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「버스 승하차 실습」의 총 이수 시간은 정확히 44시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-14-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-14-f4",
+          "entity_id": "test-person-14-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 버스 승하차 프로젝트에서 정류장별 승차 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-14-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 버스 승하차 프로젝트에서 R로 구현한 정류장별 승차 기능의 총수는 정확히 14개다.",
+        "2025년 1월부터 5월까지 버스 승하차 프로젝트에서 작성한 집계 질의 검증 사례의 총수는 정확히 25건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「버스 승하차 실습」의 총 이수 시간은 정확히 104시간이다.",
+        "2025년 1월부터 5월까지 버스 승하차 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-14-f1",
+        "test-person-14-f2",
+        "test-person-14-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-14-f1",
+        "test-person-14-f2"
+      ],
+      "record_names": [
+        "버스 승하차 구현 기록",
+        "버스 승하차 점검 기록",
+        "버스 승하차 교육 기록",
+        "버스 승하차 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-15",
+      "lineage_id": "test-person-15-scenario",
+      "index": 14,
+      "split": "test",
+      "job": "backend",
+      "subject_did": "did:fixture:test-person-15",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-15-f1",
+          "entity_id": "test-person-15-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 공연 예매 프로젝트에서 Kotlin로 구현한 좌석 선택 기능의 총수는 정확히 2개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-15-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-15-f2",
+          "entity_id": "test-person-15-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 공연 예매 프로젝트에서 작성한 동시성 검사 사례의 총수는 정확히 8건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-15-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-15-f3",
+          "entity_id": "test-person-15-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「공연 예매 실습」의 총 이수 시간은 정확히 28시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-15-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-15-f4",
+          "entity_id": "test-person-15-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 공연 예매 프로젝트에서 좌석 선택 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-15-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 공연 예매 프로젝트에서 Kotlin로 구현한 좌석 선택 기능의 총수는 정확히 11개다.",
+        "2025년 1월부터 5월까지 공연 예매 프로젝트에서 작성한 동시성 검사 사례의 총수는 정확히 23건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「공연 예매 실습」의 총 이수 시간은 정확히 88시간이다.",
+        "2025년 1월부터 5월까지 공연 예매 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-15-f1",
+        "test-person-15-f2",
+        "test-person-15-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-15-f1",
+        "test-person-15-f2"
+      ],
+      "record_names": [
+        "공연 예매 구현 기록",
+        "공연 예매 점검 기록",
+        "공연 예매 교육 기록",
+        "공연 예매 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-16",
+      "lineage_id": "test-person-16-scenario",
+      "index": 15,
+      "split": "test",
+      "job": "data",
+      "subject_did": "did:fixture:test-person-16",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-16-f1",
+          "entity_id": "test-person-16-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 에너지 사용 프로젝트에서 Python로 구현한 월별 사용량 기능의 총수는 정확히 6개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-16-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-16-f2",
+          "entity_id": "test-person-16-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 에너지 사용 프로젝트에서 작성한 결측치 점검 사례의 총수는 정확히 6건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-16-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-16-f3",
+          "entity_id": "test-person-16-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「에너지 사용 실습」의 총 이수 시간은 정확히 30시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-16-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-16-f4",
+          "entity_id": "test-person-16-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 에너지 사용 프로젝트에서 월별 사용량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-16-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 에너지 사용 프로젝트에서 Python로 구현한 월별 사용량 기능의 총수는 정확히 15개다.",
+        "2025년 1월부터 5월까지 에너지 사용 프로젝트에서 작성한 결측치 점검 사례의 총수는 정확히 21건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「에너지 사용 실습」의 총 이수 시간은 정확히 90시간이다.",
+        "2025년 1월부터 5월까지 에너지 사용 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-16-f1",
+        "test-person-16-f2",
+        "test-person-16-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-16-f1",
+        "test-person-16-f2"
+      ],
+      "record_names": [
+        "에너지 사용 구현 기록",
+        "에너지 사용 점검 기록",
+        "에너지 사용 교육 기록",
+        "에너지 사용 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-17",
+      "lineage_id": "test-person-17-scenario",
+      "index": 16,
+      "split": "test",
+      "job": "backend",
+      "subject_did": "did:fixture:test-person-17",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-17-f1",
+          "entity_id": "test-person-17-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 맛집 리뷰 프로젝트에서 Kotlin로 구현한 리뷰 작성 기능의 총수는 정확히 9개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-17-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-17-f2",
+          "entity_id": "test-person-17-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 맛집 리뷰 프로젝트에서 작성한 권한 검사 사례의 총수는 정확히 12건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-17-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-17-f3",
+          "entity_id": "test-person-17-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「맛집 리뷰 실습」의 총 이수 시간은 정확히 40시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-17-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-17-f4",
+          "entity_id": "test-person-17-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 맛집 리뷰 프로젝트에서 리뷰 작성 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-17-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 맛집 리뷰 프로젝트에서 Kotlin로 구현한 리뷰 작성 기능의 총수는 정확히 18개다.",
+        "2025년 1월부터 5월까지 맛집 리뷰 프로젝트에서 작성한 권한 검사 사례의 총수는 정확히 27건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「맛집 리뷰 실습」의 총 이수 시간은 정확히 100시간이다.",
+        "2025년 1월부터 5월까지 맛집 리뷰 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-17-f1",
+        "test-person-17-f2",
+        "test-person-17-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-17-f1",
+        "test-person-17-f2"
+      ],
+      "record_names": [
+        "맛집 리뷰 구현 기록",
+        "맛집 리뷰 점검 기록",
+        "맛집 리뷰 교육 기록",
+        "맛집 리뷰 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-18",
+      "lineage_id": "test-person-18-scenario",
+      "index": 17,
+      "split": "test",
+      "job": "data",
+      "subject_did": "did:fixture:test-person-18",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-18-f1",
+          "entity_id": "test-person-18-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 관광객 유입 프로젝트에서 R로 구현한 지역별 방문객 기능의 총수는 정확히 5개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-18-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-18-f2",
+          "entity_id": "test-person-18-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 관광객 유입 프로젝트에서 작성한 이상값 표시 사례의 총수는 정확히 13건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-18-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-18-f3",
+          "entity_id": "test-person-18-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「관광객 유입 실습」의 총 이수 시간은 정확히 26시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-18-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-18-f4",
+          "entity_id": "test-person-18-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 관광객 유입 프로젝트에서 지역별 방문객 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-18-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 관광객 유입 프로젝트에서 R로 구현한 지역별 방문객 기능의 총수는 정확히 14개다.",
+        "2025년 1월부터 5월까지 관광객 유입 프로젝트에서 작성한 이상값 표시 사례의 총수는 정확히 28건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「관광객 유입 실습」의 총 이수 시간은 정확히 86시간이다.",
+        "2025년 1월부터 5월까지 관광객 유입 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-18-f1",
+        "test-person-18-f2",
+        "test-person-18-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-18-f1",
+        "test-person-18-f2"
+      ],
+      "record_names": [
+        "관광객 유입 구현 기록",
+        "관광객 유입 점검 기록",
+        "관광객 유입 교육 기록",
+        "관광객 유입 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-19",
+      "lineage_id": "test-person-19-scenario",
+      "index": 18,
+      "split": "test",
+      "job": "backend",
+      "subject_did": "did:fixture:test-person-19",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-19-f1",
+          "entity_id": "test-person-19-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 반려동물 병원 프로젝트에서 Kotlin로 구현한 진료 기록 조회 기능의 총수는 정확히 2개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-19-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-19-f2",
+          "entity_id": "test-person-19-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 반려동물 병원 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 10건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-19-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-19-f3",
+          "entity_id": "test-person-19-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「반려동물 병원 실습」의 총 이수 시간은 정확히 22시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-19-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-19-f4",
+          "entity_id": "test-person-19-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 반려동물 병원 프로젝트에서 진료 기록 조회 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-19-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 반려동물 병원 프로젝트에서 Kotlin로 구현한 진료 기록 조회 기능의 총수는 정확히 11개다.",
+        "2025년 1월부터 5월까지 반려동물 병원 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 25건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「반려동물 병원 실습」의 총 이수 시간은 정확히 82시간이다.",
+        "2025년 1월부터 5월까지 반려동물 병원 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-19-f1",
+        "test-person-19-f2",
+        "test-person-19-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-19-f1",
+        "test-person-19-f2"
+      ],
+      "record_names": [
+        "반려동물 병원 구현 기록",
+        "반려동물 병원 점검 기록",
+        "반려동물 병원 교육 기록",
+        "반려동물 병원 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-20",
+      "lineage_id": "test-person-20-scenario",
+      "index": 19,
+      "split": "test",
+      "job": "data",
+      "subject_did": "did:fixture:test-person-20",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-20-f1",
+          "entity_id": "test-person-20-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 채용 공고 프로젝트에서 R로 구현한 직무별 공고 수 기능의 총수는 정확히 9개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-20-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-20-f2",
+          "entity_id": "test-person-20-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 채용 공고 프로젝트에서 작성한 중복 행 제거 사례의 총수는 정확히 12건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-20-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-20-f3",
+          "entity_id": "test-person-20-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「채용 공고 실습」의 총 이수 시간은 정확히 22시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-20-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-20-f4",
+          "entity_id": "test-person-20-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 채용 공고 프로젝트에서 직무별 공고 수 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-20-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 채용 공고 프로젝트에서 R로 구현한 직무별 공고 수 기능의 총수는 정확히 18개다.",
+        "2025년 1월부터 5월까지 채용 공고 프로젝트에서 작성한 중복 행 제거 사례의 총수는 정확히 27건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「채용 공고 실습」의 총 이수 시간은 정확히 82시간이다.",
+        "2025년 1월부터 5월까지 채용 공고 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-20-f1",
+        "test-person-20-f2",
+        "test-person-20-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-20-f1",
+        "test-person-20-f2"
+      ],
+      "record_names": [
+        "채용 공고 구현 기록",
+        "채용 공고 점검 기록",
+        "채용 공고 교육 기록",
+        "채용 공고 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-21",
+      "lineage_id": "test-person-21-scenario",
+      "index": 20,
+      "split": "test",
+      "job": "backend",
+      "subject_did": "did:fixture:test-person-21",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-21-f1",
+          "entity_id": "test-person-21-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 캠핑장 예약 프로젝트에서 Java로 구현한 사이트 예약 기능의 총수는 정확히 3개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-21-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-21-f2",
+          "entity_id": "test-person-21-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 캠핑장 예약 프로젝트에서 작성한 통합 테스트 사례의 총수는 정확히 10건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-21-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-21-f3",
+          "entity_id": "test-person-21-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「캠핑장 예약 실습」의 총 이수 시간은 정확히 38시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-21-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-21-f4",
+          "entity_id": "test-person-21-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 캠핑장 예약 프로젝트에서 사이트 예약 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-21-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 캠핑장 예약 프로젝트에서 Java로 구현한 사이트 예약 기능의 총수는 정확히 12개다.",
+        "2025년 1월부터 5월까지 캠핑장 예약 프로젝트에서 작성한 통합 테스트 사례의 총수는 정확히 25건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「캠핑장 예약 실습」의 총 이수 시간은 정확히 98시간이다.",
+        "2025년 1월부터 5월까지 캠핑장 예약 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-21-f1",
+        "test-person-21-f2",
+        "test-person-21-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-21-f1",
+        "test-person-21-f2"
+      ],
+      "record_names": [
+        "캠핑장 예약 구현 기록",
+        "캠핑장 예약 점검 기록",
+        "캠핑장 예약 교육 기록",
+        "캠핑장 예약 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-22",
+      "lineage_id": "test-person-22-scenario",
+      "index": 21,
+      "split": "test",
+      "job": "data",
+      "subject_did": "did:fixture:test-person-22",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-22-f1",
+          "entity_id": "test-person-22-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 식당 매출 프로젝트에서 R로 구현한 메뉴별 매출 기능의 총수는 정확히 2개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-22-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-22-f2",
+          "entity_id": "test-person-22-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 식당 매출 프로젝트에서 작성한 집계 질의 검증 사례의 총수는 정확히 4건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-22-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-22-f3",
+          "entity_id": "test-person-22-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「식당 매출 실습」의 총 이수 시간은 정확히 20시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-22-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-22-f4",
+          "entity_id": "test-person-22-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 식당 매출 프로젝트에서 메뉴별 매출 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-22-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 식당 매출 프로젝트에서 R로 구현한 메뉴별 매출 기능의 총수는 정확히 11개다.",
+        "2025년 1월부터 5월까지 식당 매출 프로젝트에서 작성한 집계 질의 검증 사례의 총수는 정확히 19건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「식당 매출 실습」의 총 이수 시간은 정확히 80시간이다.",
+        "2025년 1월부터 5월까지 식당 매출 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-22-f1",
+        "test-person-22-f2",
+        "test-person-22-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-22-f1",
+        "test-person-22-f2"
+      ],
+      "record_names": [
+        "식당 매출 구현 기록",
+        "식당 매출 점검 기록",
+        "식당 매출 교육 기록",
+        "식당 매출 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-23",
+      "lineage_id": "test-person-23-scenario",
+      "index": 22,
+      "split": "test",
+      "job": "backend",
+      "subject_did": "did:fixture:test-person-23",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-23-f1",
+          "entity_id": "test-person-23-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 사내 도서관 프로젝트에서 Go로 구현한 도서 대출 기능의 총수는 정확히 3개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-23-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-23-f2",
+          "entity_id": "test-person-23-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 사내 도서관 프로젝트에서 작성한 오류 응답 처리 사례의 총수는 정확히 4건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-23-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-23-f3",
+          "entity_id": "test-person-23-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「사내 도서관 실습」의 총 이수 시간은 정확히 26시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-23-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-23-f4",
+          "entity_id": "test-person-23-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 사내 도서관 프로젝트에서 도서 대출 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-23-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 사내 도서관 프로젝트에서 Go로 구현한 도서 대출 기능의 총수는 정확히 12개다.",
+        "2025년 1월부터 5월까지 사내 도서관 프로젝트에서 작성한 오류 응답 처리 사례의 총수는 정확히 19건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「사내 도서관 실습」의 총 이수 시간은 정확히 86시간이다.",
+        "2025년 1월부터 5월까지 사내 도서관 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-23-f1",
+        "test-person-23-f2",
+        "test-person-23-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-23-f1",
+        "test-person-23-f2"
+      ],
+      "record_names": [
+        "사내 도서관 구현 기록",
+        "사내 도서관 점검 기록",
+        "사내 도서관 교육 기록",
+        "사내 도서관 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-24",
+      "lineage_id": "test-person-24-scenario",
+      "index": 23,
+      "split": "test",
+      "job": "data",
+      "subject_did": "did:fixture:test-person-24",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-24-f1",
+          "entity_id": "test-person-24-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 수질 측정 프로젝트에서 SQL로 구현한 지점별 수질 기능의 총수는 정확히 4개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-24-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-24-f2",
+          "entity_id": "test-person-24-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 수질 측정 프로젝트에서 작성한 결측치 점검 사례의 총수는 정확히 8건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-24-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-24-f3",
+          "entity_id": "test-person-24-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「수질 측정 실습」의 총 이수 시간은 정확히 38시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-24-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-24-f4",
+          "entity_id": "test-person-24-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 수질 측정 프로젝트에서 지점별 수질 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-24-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 수질 측정 프로젝트에서 SQL로 구현한 지점별 수질 기능의 총수는 정확히 13개다.",
+        "2025년 1월부터 5월까지 수질 측정 프로젝트에서 작성한 결측치 점검 사례의 총수는 정확히 23건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「수질 측정 실습」의 총 이수 시간은 정확히 98시간이다.",
+        "2025년 1월부터 5월까지 수질 측정 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-24-f1",
+        "test-person-24-f2",
+        "test-person-24-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-24-f1",
+        "test-person-24-f2"
+      ],
+      "record_names": [
+        "수질 측정 구현 기록",
+        "수질 측정 점검 기록",
+        "수질 측정 교육 기록",
+        "수질 측정 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-25",
+      "lineage_id": "test-person-25-scenario",
+      "index": 24,
+      "split": "test",
+      "job": "backend",
+      "subject_did": "did:fixture:test-person-25",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-25-f1",
+          "entity_id": "test-person-25-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 동네 세탁소 프로젝트에서 TypeScript로 구현한 수거 신청 기능의 총수는 정확히 3개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-25-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-25-f2",
+          "entity_id": "test-person-25-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 동네 세탁소 프로젝트에서 작성한 입력값 검증 사례의 총수는 정확히 5건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-25-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-25-f3",
+          "entity_id": "test-person-25-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「동네 세탁소 실습」의 총 이수 시간은 정확히 24시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-25-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-25-f4",
+          "entity_id": "test-person-25-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 동네 세탁소 프로젝트에서 수거 신청 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-25-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 동네 세탁소 프로젝트에서 TypeScript로 구현한 수거 신청 기능의 총수는 정확히 12개다.",
+        "2025년 1월부터 5월까지 동네 세탁소 프로젝트에서 작성한 입력값 검증 사례의 총수는 정확히 20건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「동네 세탁소 실습」의 총 이수 시간은 정확히 84시간이다.",
+        "2025년 1월부터 5월까지 동네 세탁소 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-25-f1",
+        "test-person-25-f2",
+        "test-person-25-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-25-f1",
+        "test-person-25-f2"
+      ],
+      "record_names": [
+        "동네 세탁소 구현 기록",
+        "동네 세탁소 점검 기록",
+        "동네 세탁소 교육 기록",
+        "동네 세탁소 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-26",
+      "lineage_id": "test-person-26-scenario",
+      "index": 25,
+      "split": "test",
+      "job": "data",
+      "subject_did": "did:fixture:test-person-26",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-26-f1",
+          "entity_id": "test-person-26-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 앱 사용 프로젝트에서 SQL로 구현한 화면별 체류 기능의 총수는 정확히 6개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-26-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-26-f2",
+          "entity_id": "test-person-26-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 앱 사용 프로젝트에서 작성한 이상값 표시 사례의 총수는 정확히 14건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-26-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-26-f3",
+          "entity_id": "test-person-26-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「앱 사용 실습」의 총 이수 시간은 정확히 22시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-26-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-26-f4",
+          "entity_id": "test-person-26-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 앱 사용 프로젝트에서 화면별 체류 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-26-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 앱 사용 프로젝트에서 SQL로 구현한 화면별 체류 기능의 총수는 정확히 15개다.",
+        "2025년 1월부터 5월까지 앱 사용 프로젝트에서 작성한 이상값 표시 사례의 총수는 정확히 29건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「앱 사용 실습」의 총 이수 시간은 정확히 82시간이다.",
+        "2025년 1월부터 5월까지 앱 사용 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-26-f1",
+        "test-person-26-f2",
+        "test-person-26-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-26-f1",
+        "test-person-26-f2"
+      ],
+      "record_names": [
+        "앱 사용 구현 기록",
+        "앱 사용 점검 기록",
+        "앱 사용 교육 기록",
+        "앱 사용 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-27",
+      "lineage_id": "test-person-27-scenario",
+      "index": 26,
+      "split": "test",
+      "job": "backend",
+      "subject_did": "did:fixture:test-person-27",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-27-f1",
+          "entity_id": "test-person-27-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 스터디 카페 프로젝트에서 Go로 구현한 좌석 연장 기능의 총수는 정확히 6개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-27-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-27-f2",
+          "entity_id": "test-person-27-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 스터디 카페 프로젝트에서 작성한 트랜잭션 검토 사례의 총수는 정확히 8건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-27-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-27-f3",
+          "entity_id": "test-person-27-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「스터디 카페 실습」의 총 이수 시간은 정확히 40시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-27-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-27-f4",
+          "entity_id": "test-person-27-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 스터디 카페 프로젝트에서 좌석 연장 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-27-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 스터디 카페 프로젝트에서 Go로 구현한 좌석 연장 기능의 총수는 정확히 15개다.",
+        "2025년 1월부터 5월까지 스터디 카페 프로젝트에서 작성한 트랜잭션 검토 사례의 총수는 정확히 23건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「스터디 카페 실습」의 총 이수 시간은 정확히 100시간이다.",
+        "2025년 1월부터 5월까지 스터디 카페 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-27-f1",
+        "test-person-27-f2",
+        "test-person-27-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-27-f1",
+        "test-person-27-f2"
+      ],
+      "record_names": [
+        "스터디 카페 구현 기록",
+        "스터디 카페 점검 기록",
+        "스터디 카페 교육 기록",
+        "스터디 카페 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-28",
+      "lineage_id": "test-person-28-scenario",
+      "index": 27,
+      "split": "test",
+      "job": "data",
+      "subject_did": "did:fixture:test-person-28",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-28-f1",
+          "entity_id": "test-person-28-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 도서 판매 프로젝트에서 SQL로 구현한 분야별 판매량 기능의 총수는 정확히 7개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-28-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-28-f2",
+          "entity_id": "test-person-28-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 도서 판매 프로젝트에서 작성한 중복 행 제거 사례의 총수는 정확히 13건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-28-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-28-f3",
+          "entity_id": "test-person-28-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 판매 실습」의 총 이수 시간은 정확히 46시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-28-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-28-f4",
+          "entity_id": "test-person-28-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 도서 판매 프로젝트에서 분야별 판매량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-28-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 도서 판매 프로젝트에서 SQL로 구현한 분야별 판매량 기능의 총수는 정확히 16개다.",
+        "2025년 1월부터 5월까지 도서 판매 프로젝트에서 작성한 중복 행 제거 사례의 총수는 정확히 28건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「도서 판매 실습」의 총 이수 시간은 정확히 106시간이다.",
+        "2025년 1월부터 5월까지 도서 판매 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-28-f1",
+        "test-person-28-f2",
+        "test-person-28-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-28-f1",
+        "test-person-28-f2"
+      ],
+      "record_names": [
+        "도서 판매 구현 기록",
+        "도서 판매 점검 기록",
+        "도서 판매 교육 기록",
+        "도서 판매 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-29",
+      "lineage_id": "test-person-29-scenario",
+      "index": 28,
+      "split": "test",
+      "job": "backend",
+      "subject_did": "did:fixture:test-person-29",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-29-f1",
+          "entity_id": "test-person-29-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 꽃집 주문 프로젝트에서 Python로 구현한 배송일 지정 기능의 총수는 정확히 5개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-29-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-29-f2",
+          "entity_id": "test-person-29-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 꽃집 주문 프로젝트에서 작성한 예외 처리 검토 사례의 총수는 정확히 14건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-29-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-29-f3",
+          "entity_id": "test-person-29-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「꽃집 주문 실습」의 총 이수 시간은 정확히 38시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-29-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-29-f4",
+          "entity_id": "test-person-29-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 꽃집 주문 프로젝트에서 배송일 지정 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-29-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 꽃집 주문 프로젝트에서 Python로 구현한 배송일 지정 기능의 총수는 정확히 14개다.",
+        "2025년 1월부터 5월까지 꽃집 주문 프로젝트에서 작성한 예외 처리 검토 사례의 총수는 정확히 29건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「꽃집 주문 실습」의 총 이수 시간은 정확히 98시간이다.",
+        "2025년 1월부터 5월까지 꽃집 주문 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-29-f1",
+        "test-person-29-f2",
+        "test-person-29-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-29-f1",
+        "test-person-29-f2"
+      ],
+      "record_names": [
+        "꽃집 주문 구현 기록",
+        "꽃집 주문 점검 기록",
+        "꽃집 주문 교육 기록",
+        "꽃집 주문 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-30",
+      "lineage_id": "test-person-30-scenario",
+      "index": 29,
+      "split": "test",
+      "job": "data",
+      "subject_did": "did:fixture:test-person-30",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-30-f1",
+          "entity_id": "test-person-30-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 미세먼지 프로젝트에서 R로 구현한 지역별 농도 기능의 총수는 정확히 6개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-30-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-30-f2",
+          "entity_id": "test-person-30-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 미세먼지 프로젝트에서 작성한 집계 질의 검증 사례의 총수는 정확히 7건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-30-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-30-f3",
+          "entity_id": "test-person-30-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「미세먼지 실습」의 총 이수 시간은 정확히 20시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-30-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-30-f4",
+          "entity_id": "test-person-30-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 미세먼지 프로젝트에서 지역별 농도 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-30-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 미세먼지 프로젝트에서 R로 구현한 지역별 농도 기능의 총수는 정확히 15개다.",
+        "2025년 1월부터 5월까지 미세먼지 프로젝트에서 작성한 집계 질의 검증 사례의 총수는 정확히 22건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「미세먼지 실습」의 총 이수 시간은 정확히 80시간이다.",
+        "2025년 1월부터 5월까지 미세먼지 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-30-f1",
+        "test-person-30-f2",
+        "test-person-30-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-30-f1",
+        "test-person-30-f2"
+      ],
+      "record_names": [
+        "미세먼지 구현 기록",
+        "미세먼지 점검 기록",
+        "미세먼지 교육 기록",
+        "미세먼지 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-31",
+      "lineage_id": "test-person-31-scenario",
+      "index": 30,
+      "split": "test",
+      "job": "backend",
+      "subject_did": "did:fixture:test-person-31",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-31-f1",
+          "entity_id": "test-person-31-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 지역 축제 프로젝트에서 Java로 구현한 참가 신청 기능의 총수는 정확히 4개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-31-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-31-f2",
+          "entity_id": "test-person-31-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 지역 축제 프로젝트에서 작성한 권한 검사 사례의 총수는 정확히 13건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-31-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-31-f3",
+          "entity_id": "test-person-31-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「지역 축제 실습」의 총 이수 시간은 정확히 26시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-31-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-31-f4",
+          "entity_id": "test-person-31-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 지역 축제 프로젝트에서 참가 신청 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-31-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 지역 축제 프로젝트에서 Java로 구현한 참가 신청 기능의 총수는 정확히 13개다.",
+        "2025년 1월부터 5월까지 지역 축제 프로젝트에서 작성한 권한 검사 사례의 총수는 정확히 28건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「지역 축제 실습」의 총 이수 시간은 정확히 86시간이다.",
+        "2025년 1월부터 5월까지 지역 축제 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-31-f1",
+        "test-person-31-f2",
+        "test-person-31-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-31-f1",
+        "test-person-31-f2"
+      ],
+      "record_names": [
+        "지역 축제 구현 기록",
+        "지역 축제 점검 기록",
+        "지역 축제 교육 기록",
+        "지역 축제 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-32",
+      "lineage_id": "test-person-32-scenario",
+      "index": 31,
+      "split": "test",
+      "job": "data",
+      "subject_did": "did:fixture:test-person-32",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-32-f1",
+          "entity_id": "test-person-32-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 고객 문의 프로젝트에서 R로 구현한 유형별 문의 기능의 총수는 정확히 2개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-32-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-32-f2",
+          "entity_id": "test-person-32-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 고객 문의 프로젝트에서 작성한 결측치 점검 사례의 총수는 정확히 6건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-32-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-32-f3",
+          "entity_id": "test-person-32-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「고객 문의 실습」의 총 이수 시간은 정확히 24시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-32-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-32-f4",
+          "entity_id": "test-person-32-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 고객 문의 프로젝트에서 유형별 문의 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-32-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 고객 문의 프로젝트에서 R로 구현한 유형별 문의 기능의 총수는 정확히 11개다.",
+        "2025년 1월부터 5월까지 고객 문의 프로젝트에서 작성한 결측치 점검 사례의 총수는 정확히 21건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「고객 문의 실습」의 총 이수 시간은 정확히 84시간이다.",
+        "2025년 1월부터 5월까지 고객 문의 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-32-f1",
+        "test-person-32-f2",
+        "test-person-32-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-32-f1",
+        "test-person-32-f2"
+      ],
+      "record_names": [
+        "고객 문의 구현 기록",
+        "고객 문의 점검 기록",
+        "고객 문의 교육 기록",
+        "고객 문의 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-33",
+      "lineage_id": "test-person-33-scenario",
+      "index": 32,
+      "split": "test",
+      "job": "backend",
+      "subject_did": "did:fixture:test-person-33",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-33-f1",
+          "entity_id": "test-person-33-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 자전거 대여 프로젝트에서 Go로 구현한 대여 반납 기능의 총수는 정확히 2개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-33-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-33-f2",
+          "entity_id": "test-person-33-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 자전거 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 6건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-33-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-33-f3",
+          "entity_id": "test-person-33-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 대여 실습」의 총 이수 시간은 정확히 48시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-33-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-33-f4",
+          "entity_id": "test-person-33-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 자전거 대여 프로젝트에서 대여 반납 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-33-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 자전거 대여 프로젝트에서 Go로 구현한 대여 반납 기능의 총수는 정확히 11개다.",
+        "2025년 1월부터 5월까지 자전거 대여 프로젝트에서 작성한 단위 테스트 사례의 총수는 정확히 21건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「자전거 대여 실습」의 총 이수 시간은 정확히 108시간이다.",
+        "2025년 1월부터 5월까지 자전거 대여 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-33-f1",
+        "test-person-33-f2",
+        "test-person-33-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-33-f1",
+        "test-person-33-f2"
+      ],
+      "record_names": [
+        "자전거 대여 구현 기록",
+        "자전거 대여 점검 기록",
+        "자전거 대여 교육 기록",
+        "자전거 대여 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-34",
+      "lineage_id": "test-person-34-scenario",
+      "index": 33,
+      "split": "test",
+      "job": "data",
+      "subject_did": "did:fixture:test-person-34",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-34-f1",
+          "entity_id": "test-person-34-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 주택 거래 프로젝트에서 R로 구현한 구별 거래량 기능의 총수는 정확히 6개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-34-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-34-f2",
+          "entity_id": "test-person-34-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 주택 거래 프로젝트에서 작성한 이상값 표시 사례의 총수는 정확히 9건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-34-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-34-f3",
+          "entity_id": "test-person-34-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「주택 거래 실습」의 총 이수 시간은 정확히 22시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-34-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-34-f4",
+          "entity_id": "test-person-34-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 주택 거래 프로젝트에서 구별 거래량 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-34-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 주택 거래 프로젝트에서 R로 구현한 구별 거래량 기능의 총수는 정확히 15개다.",
+        "2025년 1월부터 5월까지 주택 거래 프로젝트에서 작성한 이상값 표시 사례의 총수는 정확히 24건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「주택 거래 실습」의 총 이수 시간은 정확히 82시간이다.",
+        "2025년 1월부터 5월까지 주택 거래 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-34-f1",
+        "test-person-34-f2",
+        "test-person-34-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-34-f1",
+        "test-person-34-f2"
+      ],
+      "record_names": [
+        "주택 거래 구현 기록",
+        "주택 거래 점검 기록",
+        "주택 거래 교육 기록",
+        "주택 거래 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-35",
+      "lineage_id": "test-person-35-scenario",
+      "index": 34,
+      "split": "test",
+      "job": "backend",
+      "subject_did": "did:fixture:test-person-35",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-35-f1",
+          "entity_id": "test-person-35-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 분실물 센터 프로젝트에서 Python로 구현한 분실물 등록 기능의 총수는 정확히 4개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-35-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-35-f2",
+          "entity_id": "test-person-35-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 분실물 센터 프로젝트에서 작성한 통합 테스트 사례의 총수는 정확히 6건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-35-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-35-f3",
+          "entity_id": "test-person-35-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「분실물 센터 실습」의 총 이수 시간은 정확히 44시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-35-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-35-f4",
+          "entity_id": "test-person-35-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 분실물 센터 프로젝트에서 분실물 등록 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-35-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 분실물 센터 프로젝트에서 Python로 구현한 분실물 등록 기능의 총수는 정확히 13개다.",
+        "2025년 1월부터 5월까지 분실물 센터 프로젝트에서 작성한 통합 테스트 사례의 총수는 정확히 21건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「분실물 센터 실습」의 총 이수 시간은 정확히 104시간이다.",
+        "2025년 1월부터 5월까지 분실물 센터 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-35-f1",
+        "test-person-35-f2",
+        "test-person-35-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-35-f1",
+        "test-person-35-f2"
+      ],
+      "record_names": [
+        "분실물 센터 구현 기록",
+        "분실물 센터 점검 기록",
+        "분실물 센터 교육 기록",
+        "분실물 센터 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-36",
+      "lineage_id": "test-person-36-scenario",
+      "index": 35,
+      "split": "test",
+      "job": "data",
+      "subject_did": "did:fixture:test-person-36",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-36-f1",
+          "entity_id": "test-person-36-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 영화 관람 프로젝트에서 R로 구현한 요일별 관객 기능의 총수는 정확히 4개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-36-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-36-f2",
+          "entity_id": "test-person-36-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 영화 관람 프로젝트에서 작성한 중복 행 제거 사례의 총수는 정확히 10건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-36-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-36-f3",
+          "entity_id": "test-person-36-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「영화 관람 실습」의 총 이수 시간은 정확히 42시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-36-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-36-f4",
+          "entity_id": "test-person-36-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 영화 관람 프로젝트에서 요일별 관객 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-36-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 영화 관람 프로젝트에서 R로 구현한 요일별 관객 기능의 총수는 정확히 13개다.",
+        "2025년 1월부터 5월까지 영화 관람 프로젝트에서 작성한 중복 행 제거 사례의 총수는 정확히 25건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「영화 관람 실습」의 총 이수 시간은 정확히 102시간이다.",
+        "2025년 1월부터 5월까지 영화 관람 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-36-f1",
+        "test-person-36-f2",
+        "test-person-36-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-36-f1",
+        "test-person-36-f2"
+      ],
+      "record_names": [
+        "영화 관람 구현 기록",
+        "영화 관람 점검 기록",
+        "영화 관람 교육 기록",
+        "영화 관람 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-37",
+      "lineage_id": "test-person-37-scenario",
+      "index": 36,
+      "split": "test",
+      "job": "backend",
+      "subject_did": "did:fixture:test-person-37",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-37-f1",
+          "entity_id": "test-person-37-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 봉사활동 매칭 프로젝트에서 Python로 구현한 활동 신청 기능의 총수는 정확히 8개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-37-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-37-f2",
+          "entity_id": "test-person-37-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 봉사활동 매칭 프로젝트에서 작성한 입력값 검증 사례의 총수는 정확히 14건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-37-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-37-f3",
+          "entity_id": "test-person-37-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「봉사활동 매칭 실습」의 총 이수 시간은 정확히 36시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-37-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-37-f4",
+          "entity_id": "test-person-37-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 봉사활동 매칭 프로젝트에서 활동 신청 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-37-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 봉사활동 매칭 프로젝트에서 Python로 구현한 활동 신청 기능의 총수는 정확히 17개다.",
+        "2025년 1월부터 5월까지 봉사활동 매칭 프로젝트에서 작성한 입력값 검증 사례의 총수는 정확히 29건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「봉사활동 매칭 실습」의 총 이수 시간은 정확히 96시간이다.",
+        "2025년 1월부터 5월까지 봉사활동 매칭 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-37-f1",
+        "test-person-37-f2",
+        "test-person-37-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-37-f1",
+        "test-person-37-f2"
+      ],
+      "record_names": [
+        "봉사활동 매칭 구현 기록",
+        "봉사활동 매칭 점검 기록",
+        "봉사활동 매칭 교육 기록",
+        "봉사활동 매칭 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-38",
+      "lineage_id": "test-person-38-scenario",
+      "index": 37,
+      "split": "test",
+      "job": "data",
+      "subject_did": "did:fixture:test-person-38",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-38-f1",
+          "entity_id": "test-person-38-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 물류 창고 프로젝트에서 Python로 구현한 품목별 재고 기능의 총수는 정확히 2개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-38-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-38-f2",
+          "entity_id": "test-person-38-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 물류 창고 프로젝트에서 작성한 집계 질의 검증 사례의 총수는 정확히 12건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-38-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-38-f3",
+          "entity_id": "test-person-38-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「물류 창고 실습」의 총 이수 시간은 정확히 18시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-38-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-38-f4",
+          "entity_id": "test-person-38-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 물류 창고 프로젝트에서 품목별 재고 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-38-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 물류 창고 프로젝트에서 Python로 구현한 품목별 재고 기능의 총수는 정확히 11개다.",
+        "2025년 1월부터 5월까지 물류 창고 프로젝트에서 작성한 집계 질의 검증 사례의 총수는 정확히 27건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「물류 창고 실습」의 총 이수 시간은 정확히 78시간이다.",
+        "2025년 1월부터 5월까지 물류 창고 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-38-f1",
+        "test-person-38-f2",
+        "test-person-38-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-38-f1",
+        "test-person-38-f2"
+      ],
+      "record_names": [
+        "물류 창고 구현 기록",
+        "물류 창고 점검 기록",
+        "물류 창고 교육 기록",
+        "물류 창고 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-39",
+      "lineage_id": "test-person-39-scenario",
+      "index": 38,
+      "split": "test",
+      "job": "backend",
+      "subject_did": "did:fixture:test-person-39",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-39-f1",
+          "entity_id": "test-person-39-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 수강 신청 프로젝트에서 Go로 구현한 강의 검색 기능의 총수는 정확히 3개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-39-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-39-f2",
+          "entity_id": "test-person-39-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 수강 신청 프로젝트에서 작성한 동시성 검사 사례의 총수는 정확히 10건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-39-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-39-f3",
+          "entity_id": "test-person-39-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「수강 신청 실습」의 총 이수 시간은 정확히 18시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-39-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-39-f4",
+          "entity_id": "test-person-39-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 수강 신청 프로젝트에서 강의 검색 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-39-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 수강 신청 프로젝트에서 Go로 구현한 강의 검색 기능의 총수는 정확히 12개다.",
+        "2025년 1월부터 5월까지 수강 신청 프로젝트에서 작성한 동시성 검사 사례의 총수는 정확히 25건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「수강 신청 실습」의 총 이수 시간은 정확히 78시간이다.",
+        "2025년 1월부터 5월까지 수강 신청 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-39-f1",
+        "test-person-39-f2",
+        "test-person-39-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-39-f1",
+        "test-person-39-f2"
+      ],
+      "record_names": [
+        "수강 신청 구현 기록",
+        "수강 신청 점검 기록",
+        "수강 신청 교육 기록",
+        "수강 신청 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-40",
+      "lineage_id": "test-person-40-scenario",
+      "index": 39,
+      "split": "test",
+      "job": "data",
+      "subject_did": "did:fixture:test-person-40",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-40-f1",
+          "entity_id": "test-person-40-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 헌혈 기록 프로젝트에서 R로 구현한 연령대별 헌혈 기능의 총수는 정확히 5개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-40-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-40-f2",
+          "entity_id": "test-person-40-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 헌혈 기록 프로젝트에서 작성한 결측치 점검 사례의 총수는 정확히 12건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-40-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-40-f3",
+          "entity_id": "test-person-40-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「헌혈 기록 실습」의 총 이수 시간은 정확히 22시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-40-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-40-f4",
+          "entity_id": "test-person-40-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 헌혈 기록 프로젝트에서 연령대별 헌혈 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-40-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 헌혈 기록 프로젝트에서 R로 구현한 연령대별 헌혈 기능의 총수는 정확히 14개다.",
+        "2025년 1월부터 5월까지 헌혈 기록 프로젝트에서 작성한 결측치 점검 사례의 총수는 정확히 27건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「헌혈 기록 실습」의 총 이수 시간은 정확히 82시간이다.",
+        "2025년 1월부터 5월까지 헌혈 기록 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-40-f1",
+        "test-person-40-f2",
+        "test-person-40-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-40-f1",
+        "test-person-40-f2"
+      ],
+      "record_names": [
+        "헌혈 기록 구현 기록",
+        "헌혈 기록 점검 기록",
+        "헌혈 기록 교육 기록",
+        "헌혈 기록 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-41",
+      "lineage_id": "test-person-41-scenario",
+      "index": 40,
+      "split": "test",
+      "job": "backend",
+      "subject_did": "did:fixture:test-person-41",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "API 구현, 테스트, 데이터베이스 기초를 요구하는 주니어 백엔드 개발 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-41-f1",
+          "entity_id": "test-person-41-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 공유 회의실 프로젝트에서 Kotlin로 구현한 회의실 예약 기능의 총수는 정확히 2개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-41-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-41-f2",
+          "entity_id": "test-person-41-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 공유 회의실 프로젝트에서 작성한 오류 응답 처리 사례의 총수는 정확히 7건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-41-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-41-f3",
+          "entity_id": "test-person-41-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「공유 회의실 실습」의 총 이수 시간은 정확히 22시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-41-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-41-f4",
+          "entity_id": "test-person-41-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 공유 회의실 프로젝트에서 회의실 예약 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-41-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 공유 회의실 프로젝트에서 Kotlin로 구현한 회의실 예약 기능의 총수는 정확히 11개다.",
+        "2025년 1월부터 5월까지 공유 회의실 프로젝트에서 작성한 오류 응답 처리 사례의 총수는 정확히 22건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「공유 회의실 실습」의 총 이수 시간은 정확히 82시간이다.",
+        "2025년 1월부터 5월까지 공유 회의실 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-41-f1",
+        "test-person-41-f2",
+        "test-person-41-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-41-f1",
+        "test-person-41-f2"
+      ],
+      "record_names": [
+        "공유 회의실 구현 기록",
+        "공유 회의실 점검 기록",
+        "공유 회의실 교육 기록",
+        "공유 회의실 참여 기록"
+      ]
+    },
+    {
+      "family_id": "test-person-42",
+      "lineage_id": "test-person-42-scenario",
+      "index": 41,
+      "split": "test",
+      "job": "data",
+      "subject_did": "did:fixture:test-person-42",
+      "profile": "합성 지원자. 제공된 자료를 바탕으로 지원 내용을 작성한다.",
+      "jd": "데이터 정제, 집계, 분석 결과 설명을 요구하는 주니어 데이터 분석 직무.",
+      "facts": [
+        {
+          "fact_id": "test-person-42-f1",
+          "entity_id": "test-person-42-project",
+          "attribute": "implementation",
+          "value": "2025년 1월부터 5월까지 체육 대회 프로젝트에서 Python로 구현한 종목별 참가자 기능의 총수는 정확히 3개다.",
+          "unit": "개",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-42-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-42-f2",
+          "entity_id": "test-person-42-project",
+          "attribute": "test_cases",
+          "value": "2025년 1월부터 5월까지 체육 대회 프로젝트에서 작성한 이상값 표시 사례의 총수는 정확히 8건이다.",
+          "unit": "건",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-42-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-42-f3",
+          "entity_id": "test-person-42-course",
+          "attribute": "course_completion",
+          "value": "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「체육 대회 실습」의 총 이수 시간은 정확히 46시간이다.",
+          "unit": "시간",
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-42-world"
+          ]
+        },
+        {
+          "fact_id": "test-person-42-f4",
+          "entity_id": "test-person-42-project",
+          "attribute": "role",
+          "value": "2025년 1월부터 5월까지 체육 대회 프로젝트에서 종목별 참가자 작업을 담당했으며 전체 개발 총괄 역할은 맡지 않았다.",
+          "unit": null,
+          "time_scope": "2025-01/2025-05",
+          "source_ids": [
+            "test-person-42-world"
+          ]
+        }
+      ],
+      "counterfacts": [
+        "2025년 1월부터 5월까지 체육 대회 프로젝트에서 Python로 구현한 종목별 참가자 기능의 총수는 정확히 12개다.",
+        "2025년 1월부터 5월까지 체육 대회 프로젝트에서 작성한 이상값 표시 사례의 총수는 정확히 23건이다.",
+        "2025년 1월부터 5월까지 이수한 단일 교육 과정인 「체육 대회 실습」의 총 이수 시간은 정확히 106시간이다.",
+        "2025년 1월부터 5월까지 체육 대회 프로젝트의 전체 개발을 총괄했다."
+      ],
+      "required_fact_ids": [
+        "test-person-42-f1",
+        "test-person-42-f2",
+        "test-person-42-f3"
+      ],
+      "retained_fact_ids": [
+        "test-person-42-f1",
+        "test-person-42-f2"
+      ],
+      "record_names": [
+        "체육 대회 구현 기록",
+        "체육 대회 점검 기록",
+        "체육 대회 교육 기록",
+        "체육 대회 참여 기록"
+      ]
+    }
+  ],
+  "limitation": "Constructed fictional facts; not externally verified facts or real participants."
+}

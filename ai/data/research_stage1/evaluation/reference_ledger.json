@@ -1,0 +1,86 @@
+[
+  {
+    "subject_did": "did:example:research-001",
+    "display_name": "가상인물 가",
+    "synthetic": true,
+    "facts": [
+      {
+        "fact_id": "001-course-0",
+        "course": "Python 기초",
+        "completed_hours": 30,
+        "currently_acceptable": true,
+        "reference_reason": "current"
+      },
+      {
+        "fact_id": "001-course-1",
+        "course": "데이터 분석",
+        "completed_hours": 40,
+        "currently_acceptable": true,
+        "reference_reason": "current"
+      },
+      {
+        "fact_id": "001-course-2",
+        "course": "클라우드 운영",
+        "completed_hours": 50,
+        "currently_acceptable": false,
+        "reference_reason": "no_trusted_attestation"
+      },
+      {
+        "fact_id": "001-course-3",
+        "course": "정보보안",
+        "completed_hours": 60,
+        "currently_acceptable": false,
+        "reference_reason": "revoked"
+      },
+      {
+        "fact_id": "001-course-4",
+        "course": "데이터베이스",
+        "completed_hours": 70,
+        "currently_acceptable": false,
+        "reference_reason": "expired"
+      }
+    ]
+  },
+  {
+    "subject_did": "did:example:research-002",
+    "display_name": "가상인물 나",
+    "synthetic": true,
+    "facts": [
+      {
+        "fact_id": "002-course-0",
+        "course": "Java 기초",
+        "completed_hours": 40,
+        "currently_acceptable": true,
+        "reference_reason": "current"
+      },
+      {
+        "fact_id": "002-course-1",
+        "course": "웹 개발",
+        "completed_hours": 50,
+        "currently_acceptable": true,
+        "reference_reason": "current"
+      },
+      {
+        "fact_id": "002-course-2",
+        "course": "네트워크 운영",
+        "completed_hours": 60,
+        "currently_acceptable": false,
+        "reference_reason": "no_trusted_attestation"
+      },
+      {
+        "fact_id": "002-course-3",
+        "course": "소프트웨어 테스트",
+        "completed_hours": 70,
+        "currently_acceptable": false,
+        "reference_reason": "revoked"
+      },
+      {
+        "fact_id": "002-course-4",
+        "course": "리눅스 운영",
+        "completed_hours": 80,
+        "currently_acceptable": false,
+        "reference_reason": "expired"
+      }
+    ]
+  }
+]
