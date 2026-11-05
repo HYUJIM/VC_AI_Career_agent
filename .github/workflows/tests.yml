@@ -1,0 +1,63 @@
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ai:
+    name: AI (pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ai
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: ai/requirements.txt
+      # GPU 모델 패키지(requirements-gpu.txt)는 설치하지 않는다. GPU 없이 도는 테스트만 실행한다.
+      - run: pip install -r requirements.txt
+      - run: python -m pytest -q
+
+  research-vc:
+    name: research-vc (typecheck + vitest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: research-vc
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: research-vc/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+  fe:
+    name: FE (lint + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: FE
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: FE/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      # build = tsc -b(타입체크) + vite build
+      - run: npm run build

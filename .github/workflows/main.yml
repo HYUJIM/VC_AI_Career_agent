@@ -6,17 +6,31 @@ on:
 jobs:
   security-scan:
     runs-on: ubuntu-latest
+    # Strix는 LLM을 사용하므로 저장소 Secrets에 STRIX_LLM, LLM_API_KEY가 필요하다.
+    # 키가 등록되지 않았으면 스캔을 건너뛰고 성공으로 처리한다. 키를 등록하면 자동으로 다시 실행된다.
+    env:
+      STRIX_LLM: ${{ secrets.STRIX_LLM }}
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
     steps:
+      - name: Check Strix secrets
+        id: secrets
+        run: |
+          if [ -n "$STRIX_LLM" ] && [ -n "$LLM_API_KEY" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Strix 보안 스캔 건너뜀::STRIX_LLM / LLM_API_KEY Secrets가 등록되지 않아 스캔을 실행하지 않았습니다."
+          fi
+
       - uses: actions/checkout@v6
+        if: steps.secrets.outputs.enabled == 'true'
         with:
           fetch-depth: 0
 
       - name: Install Strix
+        if: steps.secrets.outputs.enabled == 'true'
         run: curl -sSL https://strix.ai/install | bash
 
       - name: Run Strix
-        env:
-          STRIX_LLM: ${{ secrets.STRIX_LLM }}
-          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-
+        if: steps.secrets.outputs.enabled == 'true'
         run: strix -n -t ./ --scan-mode quick

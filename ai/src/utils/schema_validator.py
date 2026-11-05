@@ -3,7 +3,7 @@ import rfc3339_validator  # Ensure date-time validation cannot silently be skipp
 from pathlib import Path
 from jsonschema import Draft202012Validator, FormatChecker
 
-SCHEMA_DIR = Path(__file__).resolve().parents[3] / "VC" / "src" / "schemas"
+SCHEMA_DIR = Path(__file__).resolve().parents[3] / "research-vc" / "src" / "schemas"
 
 def validate(value, name, schema_dir=SCHEMA_DIR):
     schema = json.loads((Path(schema_dir) / f"{name}.schema.json").read_text(encoding="utf-8"))
