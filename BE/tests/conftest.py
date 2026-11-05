@@ -47,6 +47,7 @@ INIT_SQL = [
     "DB/migrations/04_users_password_hash.sql",
     "DB/migrations/05_credentials_raw_token.sql",
     "DB/migrations/06_holder_keys.sql",
+    "DB/migrations/07_shares.sql",
 ]
 
 

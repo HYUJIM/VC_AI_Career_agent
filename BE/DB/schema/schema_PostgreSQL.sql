@@ -104,3 +104,19 @@ CREATE TABLE portfolios (
     updated_at              TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX idx_portfolios_user ON portfolios(user_id);
+-- ====================================================================
+-- 6. 선택 공개 링크 (07 마이그레이션에서 추가). 토큰은 해시만 저장
+-- ====================================================================
+CREATE TABLE shares (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash      CHAR(64) UNIQUE NOT NULL,
+    record_ids      UUID[] NOT NULL,
+    label           VARCHAR(100),
+    expires_at      TIMESTAMPTZ NOT NULL,
+    revoked_at      TIMESTAMPTZ,
+    view_count      INTEGER NOT NULL DEFAULT 0,
+    last_viewed_at  TIMESTAMPTZ,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_shares_user ON shares(user_id);

@@ -171,4 +171,126 @@ class DatabaseService:
         }
 
 
+    # ── 실행 시점 재검증 ──────────────────────────────────────
+    _CREDENTIAL_ROW = """
+        SELECT c.record_id, c.user_id, c.raw_token, c.raw_data, c.status, c.issuer_name, c.achievement_name,
+               c.issued_at, c.expires_at, u.subject_did
+        FROM credentials c JOIN users u ON u.id = c.user_id
+    """
+
+    def get_credential_rows(self, user_id: str, record_ids: Optional[list[str]] = None) -> list[dict]:
+        with get_db_connection() as conn, conn.cursor() as cur:
+            if record_ids is None:
+                cur.execute(self._CREDENTIAL_ROW + " WHERE c.user_id = %s ORDER BY c.issued_at DESC", (user_id,))
+            else:
+                cur.execute(self._CREDENTIAL_ROW + " WHERE c.user_id = %s AND c.record_id = ANY(%s::uuid[])"
+                            " ORDER BY c.issued_at DESC", (user_id, record_ids))
+            return cur.fetchall()
+
+    def get_credential_row(self, record_id: str) -> Optional[dict]:
+        with get_db_connection() as conn, conn.cursor() as cur:
+            cur.execute(self._CREDENTIAL_ROW + " WHERE c.record_id = %s", (record_id,))
+            return cur.fetchone()
+
+    def update_reverification(self, record_id: str, status: str, checks: list, vc: dict, verified_at) -> None:
+        """재검증 결과 반영. 본문 사본(raw_data)도 서명 원본 기준으로 되돌린다."""
+        with get_db_connection() as conn:
+            with conn.transaction(), conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE credentials SET status = %s, raw_data = %s, last_verified_at = %s WHERE record_id = %s",
+                    (status, json.dumps(vc), verified_at, record_id),
+                )
+                cur.execute("DELETE FROM verification_checks WHERE record_id = %s", (record_id,))
+                # 같은 항목이 두 번 나오면(재검증 가드가 덧붙인 fail) 마지막 결과를 남긴다.
+                latest = {c.name: c for c in checks}
+                cur.executemany(
+                    "INSERT INTO verification_checks (record_id, check_name, result, detail, checked_at)"
+                    " VALUES (%s, %s, %s, %s, %s)",
+                    [(record_id, c.name, c.result, c.detail, verified_at) for c in latest.values()],
+                )
+
+    # ── 포트폴리오 ────────────────────────────────────────────
+    def create_portfolio(self, *, user_id: str, title: str, target_role: Optional[str], bio_summary: str,
+                         content_markdown: str, sections: dict, referenced_record_ids: list[str]) -> dict:
+        now = datetime.now(timezone.utc)
+        with get_db_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO portfolios (user_id, title, target_role, bio_summary, content_markdown, sections,
+                                        referenced_record_ids, status, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s::uuid[], 'draft', %s, %s)
+                RETURNING *
+                """,
+                (user_id, title, target_role, bio_summary, content_markdown, json.dumps(sections),
+                 referenced_record_ids, now, now),
+            )
+            return cur.fetchone()
+
+    def list_portfolios(self, user_id: str) -> list[dict]:
+        with get_db_connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT * FROM portfolios WHERE user_id = %s ORDER BY updated_at DESC", (user_id,))
+            return cur.fetchall()
+
+    def get_portfolio(self, user_id: str, portfolio_id: str) -> Optional[dict]:
+        with get_db_connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT * FROM portfolios WHERE id = %s AND user_id = %s", (portfolio_id, user_id))
+            return cur.fetchone()
+
+    def update_portfolio(self, user_id: str, portfolio_id: str, fields: dict) -> Optional[dict]:
+        allowed = {k: v for k, v in fields.items() if k in ("title", "target_role", "status")}
+        if not allowed:
+            return self.get_portfolio(user_id, portfolio_id)
+        assignments = ", ".join(f"{k} = %s" for k in allowed)
+        with get_db_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                f"UPDATE portfolios SET {assignments}, updated_at = %s WHERE id = %s AND user_id = %s RETURNING *",
+                (*allowed.values(), datetime.now(timezone.utc), portfolio_id, user_id),
+            )
+            return cur.fetchone()
+
+    def delete_portfolio(self, user_id: str, portfolio_id: str) -> bool:
+        with get_db_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM portfolios WHERE id = %s AND user_id = %s", (portfolio_id, user_id))
+            return cur.rowcount > 0
+
+    # ── 선택 공개 ─────────────────────────────────────────────
+    def create_share(self, *, user_id: str, token_hash: str, record_ids: list[str], label: Optional[str],
+                     expires_at) -> dict:
+        with get_db_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO shares (user_id, token_hash, record_ids, label, expires_at)
+                VALUES (%s, %s, %s::uuid[], %s, %s)
+                RETURNING *
+                """,
+                (user_id, token_hash, record_ids, label, expires_at),
+            )
+            return cur.fetchone()
+
+    def list_shares(self, user_id: str) -> list[dict]:
+        with get_db_connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT * FROM shares WHERE user_id = %s ORDER BY created_at DESC", (user_id,))
+            return cur.fetchall()
+
+    def revoke_share(self, user_id: str, share_id: str) -> bool:
+        with get_db_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "UPDATE shares SET revoked_at = COALESCE(revoked_at, NOW()) WHERE id = %s AND user_id = %s",
+                (share_id, user_id),
+            )
+            return cur.rowcount > 0
+
+    def open_share(self, token_hash: str) -> Optional[dict]:
+        """유효한(철회·만료되지 않은) 공유를 찾고 열람 수를 올린다."""
+        with get_db_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE shares SET view_count = view_count + 1, last_viewed_at = NOW()
+                WHERE token_hash = %s AND revoked_at IS NULL AND expires_at > NOW()
+                RETURNING *
+                """,
+                (token_hash,),
+            )
+            return cur.fetchone()
+
 db_service = DatabaseService()
