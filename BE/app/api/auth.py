@@ -1,13 +1,17 @@
+import logging
 import uuid
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
 from app.core.auth import Principal, create_access_token, require_user
 from app.services.database import EmailAlreadyRegistered, db_service
+from app.services.key_custody import KeyCustody, get_key_custody
 from app.services.security import MAX_PASSWORD_BYTES, hash_password, verify_password
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class RegisterRequest(BaseModel):
@@ -66,12 +70,21 @@ def _auth_response(user: dict, message: str) -> dict:
 
 
 @router.post("/register")
-def register_user(req: RegisterRequest):
-    # TODO(BE 2단계): 홀더 키 관리 방식 결정 후 실제 Ed25519 키 기반 did:key로 교체
-    mock_did = f"did:key:z6MkMock{uuid.uuid4().hex[:12]}"
+def register_user(req: RegisterRequest, custody: Optional[KeyCustody] = Depends(get_key_custody)):
+    user_id = str(uuid.uuid4())
+    if custody is not None:
+        # 관리형 지갑: BE가 Ed25519 키를 만들어 암호화 보관하고, 공개키로 진짜 did:key를 만든다.
+        holder_key = custody.generate(user_id)
+        did = holder_key.did
+    else:
+        # 마스터 키 미설정(전환 기간): 홀더 키 없이 임시 DID. 신원 자격증명 기능은 쓸 수 없다.
+        holder_key = None
+        did = f"did:key:z6MkMock{uuid.uuid4().hex[:12]}"
+        logger.warning("HOLDER_KEY_ENCRYPTION_KEY 미설정: 홀더 키 없이 임시 DID로 가입시킵니다.")
     try:
         user = db_service.create_user(
-            email=req.email, name=req.name, did=mock_did, password_hash=hash_password(req.password)
+            user_id=user_id, email=req.email, name=req.name, did=did,
+            password_hash=hash_password(req.password), holder_key=holder_key,
         )
     except EmailAlreadyRegistered:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -93,4 +106,14 @@ def get_me(principal: Principal = Depends(require_user)):
     user = db_service.get_user_by_id(principal.user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found or not verified yet.")
-    return {"success": True, "message": "OK", "data": _profile(user)}
+    holder_key = db_service.get_holder_key(principal.user_id)
+    return {
+        "success": True,
+        "message": "OK",
+        "data": _profile(user),
+        # managed: BE가 홀더 키를 보관(신원 자격증명 사용 가능) / none: 키 없는 기존 사용자
+        "wallet": {
+            "custody": "managed" if holder_key else "none",
+            "key_type": "Ed25519" if holder_key else None,
+        },
+    }

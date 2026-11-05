@@ -288,3 +288,60 @@ def test_seed_data_loaded_with_new_columns_null(db):
                      "WHERE source_provider = 'mock_seeder'").fetchone()
     assert row["n"] > 400  # 시드가 새 스키마에서도 그대로 들어간다
     assert row["with_token"] == 0  # 시드 데이터는 서명 원본이 없다 (재검증 불가)
+
+
+# ── 관리형 홀더 키 / 진짜 did:key ─────────────────────────────────────
+
+def test_register_issues_real_did_key_with_encrypted_holder_key(client, register, db):
+    from app.domain.did_key import is_ed25519_did_key
+
+    user = register()
+    assert is_ed25519_did_key(user["did"])  # 임시 DID(z6MkMock...)가 아닌 진짜 Ed25519 did:key
+
+    row = db.execute("SELECT * FROM holder_keys WHERE user_id = %s", (user["id"],)).fetchone()
+    assert row["did"] == user["did"]
+    assert len(bytes(row["encrypted_private_key"])) == 48 and len(bytes(row["nonce"])) == 12
+
+    me = client.get("/api/v1/users/me", headers=user["headers"]).json()
+    assert me["wallet"] == {"custody": "managed", "key_type": "Ed25519"}
+    assert set(me["data"]) == {"id", "name", "email", "did"}  # FE UserProfile 계약 유지
+
+
+def test_stored_holder_key_signs_for_its_did(client, register):
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+    from app.domain.did_key import public_key_from_did_key
+    from app.services.database import db_service
+    from app.services.key_custody import get_key_custody
+
+    user = register()
+    stored = db_service.get_holder_key(user["id"])
+    signature = get_key_custody().sign(user["id"], stored, b"challenge")
+    Ed25519PublicKey.from_public_bytes(public_key_from_did_key(user["did"])).verify(signature, b"challenge")
+
+
+def test_existing_seed_user_keeps_mock_did_without_key(client):
+    login = client.post("/api/v1/users/login", json={"email": "user001@example.com", "password": "test1234"}).json()
+    assert login["data"]["did"].startswith("did:key:z6MkMock")  # 기존 DID 유지
+    me = client.get("/api/v1/users/me", headers={"Authorization": f"Bearer {login['access_token']}"}).json()
+    assert me["wallet"] == {"custody": "none", "key_type": None}
+
+
+def test_register_without_master_key_falls_back_to_mock_did(client, db, monkeypatch):
+    from app.core.config import get_settings
+
+    monkeypatch.setenv("HOLDER_KEY_ENCRYPTION_KEY", "")
+    get_settings.cache_clear()
+    email = f"nokey-{uuid.uuid4().hex[:8]}@test.com"
+    body = client.post("/api/v1/users/register",
+                       json={"name": "키없음", "email": email, "password": "password1234"}).json()
+    assert body["data"]["did"].startswith("did:key:z6MkMock")
+    assert db.execute("SELECT 1 FROM holder_keys WHERE user_id = %s", (body["data"]["id"],)).fetchone() is None
+
+
+def test_duplicate_email_does_not_leave_orphan_holder_key(client, register, db):
+    user = register()
+    before = db.execute("SELECT count(*) AS n FROM holder_keys").fetchone()["n"]
+    res = client.post("/api/v1/users/register", json={"name": "중복", "email": user["email"], "password": "password1234"})
+    assert res.status_code == 400
+    assert db.execute("SELECT count(*) AS n FROM holder_keys").fetchone()["n"] == before

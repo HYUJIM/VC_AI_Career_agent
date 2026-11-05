@@ -34,6 +34,8 @@ os.environ.update(
         "DXWORKS_API_HOST": "https://dx.invalid",
         "DXWORKS_API_KEY": "test-key",
         "DXWORKS_BADGE_TEMPLATE_ID": "tpl-default",
+        # 테스트 전용 마스터 키 (32바이트 0x01 반복). 실제 키가 아니다.
+        "HOLDER_KEY_ENCRYPTION_KEY": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=",
     }
 )
 
@@ -44,6 +46,8 @@ INIT_SQL = [
     "DB/seeds/03_seed_data.sql",
     "DB/migrations/04_users_password_hash.sql",
     "DB/migrations/05_credentials_raw_token.sql",
+    "DB/migrations/06_holder_keys.sql",
+    "DB/migrations/07_shares.sql",
 ]
 
 

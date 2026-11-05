@@ -136,3 +136,48 @@ async def test_connection_error_becomes_provider_error():
 
     with pytest.raises(ProviderError, match="연결 실패"):
         await adapter(handler).verify_badge("a.b.c")
+
+
+@pytest.fixture
+def no_retry_delay(monkeypatch):
+    import app.integrations.dxworks as dx
+
+    monkeypatch.setattr(dx, "_RETRY_DELAY_SECONDS", 0)
+
+
+async def test_connect_failure_is_retried_once(no_retry_delay):
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        if len(calls) == 1:
+            raise httpx.ConnectTimeout("slow connect")
+        return httpx.Response(201, json=badge_response())
+
+    result = await adapter(handler).verify_badge("a.b.c")
+    assert result.valid and len(calls) == 2
+
+
+async def test_read_timeout_is_not_retried(no_retry_delay):
+    # 응답 대기 중 시간 초과는 서버가 이미 처리했을 수 있어(발급 중복 위험) 재시도하지 않는다.
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        raise httpx.ReadTimeout("slow response")
+
+    with pytest.raises(ProviderError, match="ReadTimeout"):
+        await adapter(handler).issue_badge("tpl", DID)
+    assert len(calls) == 1
+
+
+async def test_persistent_connect_failure_gives_up(no_retry_delay):
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        raise httpx.ConnectError("down")
+
+    with pytest.raises(ProviderError, match="ConnectError"):
+        await adapter(handler).verify_badge("a.b.c")
+    assert len(calls) == 2

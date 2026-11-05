@@ -3,6 +3,7 @@
 협력사 API의 경로·요청·응답 형식은 이 파일에서만 다룬다. 나머지 코드는 ports.py의 포트와
 domain 모델만 사용한다. 접속 정보(호스트, API 키, 템플릿 ID)는 비공개 .env에서만 읽는다.
 """
+import asyncio
 from typing import Any, Optional
 
 import httpx
@@ -14,6 +15,8 @@ from app.integrations.ports import ProviderError
 _PATH_ISSUE_BADGE = "/api/v1/issuer/ob3/credentials"
 _PATH_VERIFY_BADGE = "/api/v1/verifier/ob3/verify"
 _PATH_VERIFY_PRESENTATION = "/api/v1/verifier/holder-presentations/verify"
+_CONNECT_RETRIES = 1
+_RETRY_DELAY_SECONDS = 0.5
 
 
 def _dict(value: Any) -> dict:
@@ -57,11 +60,22 @@ class DXWorksAdapter:
             if not self.api_key:
                 raise ProviderError("DXWORKS_API_KEY가 설정되지 않았습니다", unavailable=True)
             headers["Authorization"] = f"Bearer {self.api_key}"
-        try:
-            async with httpx.AsyncClient(base_url=self.host, timeout=self.timeout, transport=self.transport) as client:
-                response = await client.post(path, json=payload, headers=headers)
-        except httpx.HTTPError as exc:
-            raise ProviderError(f"DXWorks 연결 실패: {type(exc).__name__}") from exc
+        response = None
+        for attempt in range(1 + _CONNECT_RETRIES):
+            try:
+                async with httpx.AsyncClient(base_url=self.host, timeout=self.timeout,
+                                             transport=self.transport) as client:
+                    response = await client.post(path, json=payload, headers=headers)
+                break
+            except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+                # 연결 자체가 안 된 경우만 재시도한다. 요청이 서버에 닿지 않았으므로 발급 요청도 중복되지 않는다.
+                if attempt < _CONNECT_RETRIES:
+                    await asyncio.sleep(_RETRY_DELAY_SECONDS)
+                    continue
+                raise ProviderError(f"DXWorks 연결 실패: {type(exc).__name__}") from exc
+            except httpx.HTTPError as exc:
+                # 응답 대기 중 시간 초과 등은 서버가 이미 처리했을 수 있어 재시도하지 않는다.
+                raise ProviderError(f"DXWorks 연결 실패: {type(exc).__name__}") from exc
 
         try:
             body = response.json()

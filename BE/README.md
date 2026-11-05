@@ -91,13 +91,30 @@ docker compose up -d
 </details>
 
 ### 🔄 기존 환경을 쓰고 있다면 (v0.4.0 업데이트 후 1회)
-`PyJWT` 패키지와 DB 컬럼(`credentials.raw_token` 등)이 추가되었습니다. 아래 두 명령을 한 번 실행하세요.
+`PyJWT`·`cryptography` 패키지와 DB 컬럼·테이블(`credentials.raw_token`, `holder_keys` 등)이 추가되었습니다. 아래 두 명령을 한 번 실행하세요.
 이미지를 다시 빌드하지 않으면 핫 리로드 중인 서버가 `ModuleNotFoundError: jwt`로 멈춥니다.
 ```bash
 docker compose up -d --build
 docker compose exec -T postgres psql -U postgres -d vc_career_agent < DB/migrations/05_credentials_raw_token.sql
+docker compose exec -T postgres psql -U postgres -d vc_career_agent < DB/migrations/06_holder_keys.sql
+docker compose exec -T postgres psql -U postgres -d vc_career_agent < DB/migrations/07_shares.sql
 ```
 (DB를 통째로 새로 만들어도 되면 `docker compose down -v && docker compose up -d --build`)
+
+### 🔑 관리형 지갑 (홀더 키)
+- 새로 가입하면 BE가 사용자별 **Ed25519 키**를 만들고, 그 공개키로 **진짜 `did:key`**를 발급합니다.
+- 개인키는 `.env`의 `HOLDER_KEY_ENCRYPTION_KEY`(마스터 키)로 AES-256-GCM 암호화해서 `holder_keys` 테이블에 저장합니다. 평문은 DB에 남지 않습니다.
+- 기존 사용자(시드 계정 포함)는 원래 DID(`did:key:z6MkMock...`)를 그대로 쓰고 홀더 키가 없습니다. `GET /api/v1/users/me`의 `wallet.custody`가 `managed`면 키가 있고, `none`이면 없습니다.
+- 마스터 키를 비워 두면 새 가입자도 임시 DID를 받습니다. 마스터 키를 **바꾸거나 잃어버리면 기존 홀더 키를 복호화할 수 없으니** 팀 내부에서 안전하게 보관하세요.
+- **공유 기준:** 각자 로컬 DB는 각자 키를 새로 만듭니다. 같은 DB(공용 개발 서버·운영 서버)를 쓰는 사람끼리만 같은 키가 필요하고, 운영 키는 최소 인원만 보관합니다. 메신저에 평문으로 보내지 마세요.
+- **시드 덤프 주의:** DB를 `pg_dump`로 떠서 시드로 커밋할 때는 `--exclude-table=holder_keys --exclude-table=shares`를 붙여 암호화된 키와 공유 링크가 공개 저장소에 올라가지 않게 하세요.
+
+### ✅ 실행 시점 재검증 · 포트폴리오 · 선택 공개 (v0.6.0)
+- **재검증:** `POST /api/v1/credentials/{record_id}/reverify` — 저장된 서명 원본을 지금 다시 검증해 상태(폐기·만료)를 갱신합니다.
+- **근거 조회 (AI·FE용):** `GET /api/v1/subjects/{did}/evidence?mode=strict|labeled` — DB 상태를 믿지 않고 요청 시점에 다시 검증한 뒤 **서명 원본 안의 본문**으로 근거를 줍니다 (논문 RAG-VC). 서명 원본이 없는 시드 데이터는 `no_signed_original`로 제외됩니다.
+- **포트폴리오 (VC_ONLY):** `POST /api/v1/portfolios` — 자격증명 ID와 `source: "VC_ONLY"`만 받고, 자유 텍스트 필드가 있으면 422. 다시 검증을 통과한 자격증명만 본문에 들어갑니다. 지금은 템플릿 작성기이고, AI 연동 시 작성기만 바꿉니다.
+- **선택 공개:** `POST /api/v1/shares`로 고른 자격증명만 공유 링크를 만들고(토큰은 한 번만 표시, DB에는 해시만), 기업은 `GET /api/v1/public/shares/{token}`으로 로그인 없이 봅니다. 열 때마다 다시 검증하고, 기업이 직접 검증할 수 있게 서명 원본도 함께 줍니다.
+- 자세한 요청·응답은 `openapi.yaml` 참고.
 
 ### 🔐 인증 (JWT)
 - 회원가입/로그인 응답의 `access_token`을 이후 요청에 `Authorization: Bearer <access_token>` 헤더로 보냅니다.
