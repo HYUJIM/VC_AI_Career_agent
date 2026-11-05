@@ -7,7 +7,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE TYPE credential_format   AS ENUM ('OB2.0', 'OB3.0', 'VC1.1', 'VC2.0');
 CREATE TYPE verification_status AS ENUM ('verified', 'invalid', 'revoked', 'expired', 'unverifiable', 'pending');
 CREATE TYPE check_result        AS ENUM ('pass', 'fail', 'warn', 'skip');
-CREATE TYPE check_name_type     AS ENUM ('schema', 'did_resolution', 'signature', 'issuer_trust', 'revocation', 'anchor_match', 'expiration');
+CREATE TYPE check_name_type     AS ENUM ('schema', 'did_resolution', 'signature', 'issuer_trust', 'revocation', 'anchor_match', 'expiration', 'recipient');
 -- ====================================================================
 -- 1. 사용자 (학생/구직자)
 -- ====================================================================
@@ -39,6 +39,9 @@ CREATE TABLE credentials (
     awarded_date        DATE,
     raw_data            JSONB NOT NULL,                 -- 원본 CredentialRecord JSON 전문
     created_at          TIMESTAMPTZ DEFAULT NOW(),
+    -- 아래 두 컬럼은 05 마이그레이션에서 추가. 시드 SQL이 컬럼 목록 없이 INSERT하므로 반드시 맨 뒤에 둔다.
+    raw_token           TEXT,                           -- 서명된 원본 (VC-JWT). 실행 시점 재검증용. 시드 데이터는 NULL
+    last_verified_at    TIMESTAMPTZ,                    -- 마지막 검증 시각
     UNIQUE (user_id, source_provider, source_external_id) -- 동일 배지 중복 적재 차단
 );
 CREATE INDEX idx_credentials_user ON credentials(user_id);

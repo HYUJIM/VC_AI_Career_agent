@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: VC AI Career Agent — BE API
-  version: 0.3.0
+  version: 0.4.0
   description: |
     BE(FastAPI) 파트의 OpenAPI 명세. FE(`FE/src/api/*.ts`, `FE/src/types/api.ts`)가 실제로 호출하는
     계약을 기준으로 작성했다.
@@ -16,10 +16,24 @@ info:
     - 에러는 FastAPI 기본 형식 `{ "detail": "..." }` 으로 반환한다.
       FE는 `detail → message → error` 순서로 메시지를 읽는다 (`FE/src/lib/apiClient.ts`).
     - 요청 본문 검증 실패는 FastAPI 기본 422 응답(`detail` 배열)이다.
+    - DXWorks 호출 실패는 502, DXWorks 설정 누락(API 키 없음)은 503이다. 그 외 내부 오류는 500 `Internal server error`
+      (내부 예외 메시지는 응답에 싣지 않는다).
 
-    ## 인증
-    이메일 + 비밀번호(bcrypt 해시 저장)로 로그인한다. 로그인 이후의 토큰/세션은 아직 없다.
-    FE는 로그인 응답의 사용자 정보(`did` 포함)를 localStorage에 보관하고 이후 요청 경로에 DID를 넣어 호출한다.
+    ## 인증 (v0.4.0)
+    이메일 + 비밀번호(bcrypt)로 로그인하면 JWT 액세스 토큰(`access_token`)을 준다.
+    이후 요청은 `Authorization: Bearer <access_token>` 헤더를 붙인다.
+
+    요청 주체는 세 가지다.
+    - **사용자 토큰**: 본인 DID의 데이터만 읽고 쓸 수 있다. 남의 DID면 403.
+    - **서비스 키** (`X-Service-Key`): AI 등 내부 서비스용. 읽기(`careers`)만 가능, 쓰기 API는 403.
+    - **인증 없음**: 서버 설정 `AUTH_REQUIRED=false`(FE/AI 토큰 연동 전 전환 기간)일 때만 허용한다.
+      `AUTH_REQUIRED=true`면 401 + `WWW-Authenticate: Bearer`.
+
+    잘못되었거나 만료된 토큰은 `AUTH_REQUIRED`와 관계없이 401이다.
+
+    ## 실행 시점 재검증 준비 (v0.4.0)
+    배지 검증 시 서명된 원본 VC-JWT를 `credentials.raw_token`에, 점검 항목 8개를 `verification_checks`에 저장한다.
+    (논문 RAG-VC: DB 사본이 아닌 서명 원본을 다시 검증하기 위한 전제)
   contact:
     name: BE 파트
 
@@ -27,8 +41,10 @@ servers:
   - url: http://localhost:3000
     description: 로컬 개발 서버 (docker compose). FE 개발 서버는 `/api` 프록시로 이 주소에 연결한다.
 
-# 현재 인증 없음 (info.description의 "인증" 참고)
-security: []
+# 기본은 사용자 토큰. AUTH_REQUIRED=false(전환 기간)이면 인증 없이도 호출 가능 (info.description "인증" 참고)
+security:
+  - bearerAuth: []
+  - {}
 
 tags:
   - name: health
@@ -48,6 +64,7 @@ paths:
       tags: [health]
       summary: 서버 상태 확인
       operationId: getHealth
+      security: []
       responses:
         "200":
           description: 서버 정상
@@ -63,8 +80,10 @@ paths:
       description: |
         이메일로 사용자를 만들고 임시 DID(`did:key:z6MkMock...`)를 발급한다.
         비밀번호는 bcrypt 해시로 저장한다. 8자 미만 또는 72바이트 초과면 422.
+        이메일은 소문자로 저장한다. 가입과 동시에 로그인 토큰(`access_token`)을 준다.
         FE는 응답의 `data`를 그대로 로그인 상태로 저장한다.
       operationId: registerUser
+      security: []
       requestBody:
         required: true
         content:
@@ -86,6 +105,9 @@ paths:
                   name: 홍길동
                   email: hong@test.com
                   did: did:key:z6MkMock1a2b3c4d5e6f
+                access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                token_type: bearer
+                expires_in: 86400
         "400":
           description: 이미 가입된 이메일
           content:
@@ -107,7 +129,9 @@ paths:
         이메일과 비밀번호를 확인한다. 이메일이 없거나, 비밀번호가 틀리거나,
         비밀번호가 설정되지 않은 사용자(신원 VP 검증으로 생성된 사용자 등)는 모두 같은 401을 반환한다.
         시드 테스트 계정(`user001@example.com` ~ `user045@example.com`)의 비밀번호는 `test1234`.
+        성공하면 `access_token`을 준다. 이메일은 대소문자를 구분하지 않는다.
       operationId: loginUser
+      security: []
       requestBody:
         required: true
         content:
@@ -129,6 +153,9 @@ paths:
                   name: 홍길동
                   email: hong@test.com
                   did: did:key:z6MkMock1a2b3c4d5e6f
+                access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                token_type: bearer
+                expires_in: 86400
         "401":
           description: 이메일 또는 비밀번호가 올바르지 않음
           content:
@@ -142,6 +169,40 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/v1/users/me:
+    get:
+      tags: [users]
+      summary: 내 정보 조회 (토큰 확인용)
+      description: |
+        토큰의 사용자 프로필을 돌려준다. `AUTH_REQUIRED`와 관계없이 사용자 토큰이 필요하다.
+        FE는 새로고침 후 저장된 토큰이 아직 유효한지 확인할 때 쓸 수 있다.
+      operationId: getMe
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, message, data]
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: "#/components/schemas/UserProfile"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: 토큰은 유효하지만 사용자가 삭제됨
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /api/v1/subjects/{did}/careers:
     get:
       tags: [careers]
@@ -151,7 +212,14 @@ paths:
         FE 대시보드와 AI 포트폴리오 빌더가 사용한다.
 
         현재는 `status`와 관계없이 모든 자격증명을 반환한다. 화면/AI 쪽에서 `status`로 걸러 써야 한다.
+
+        접근: 사용자 토큰은 본인 DID만(남의 DID면 403), 서비스 키(`X-Service-Key`)는 모든 DID 조회 가능.
+        응답 형식은 v0.3.0과 같다.
       operationId: getCareersByDid
+      security:
+        - bearerAuth: []
+        - serviceKey: []
+        - {}
       parameters:
         - $ref: "#/components/parameters/Did"
       responses:
@@ -174,6 +242,10 @@ paths:
                     status: verified
                     issued_at: "2026-09-01T00:00:00+00:00"
                     raw_data: {}
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           description: 해당 DID의 사용자가 없음
           content:
@@ -190,15 +262,19 @@ paths:
       tags: [verify]
       summary: 자격증명 검증 후 DB 저장
       description: |
-        `type`에 따라 DXWorks 검증 API를 호출하고, 검증에 성공하면 DB에 저장한다.
+        `type`에 따라 DXWorks 검증 API를 호출한다.
 
-        - `identity`: VP 토큰을 검증하고 사용자 정보를 저장/갱신한다 (`subject_did` 기준 upsert).
-        - `badge`: OB3 VC-JWT를 검증하고 자격증명을 저장/갱신한다
+        - `identity`: VP 토큰을 검증하고 결과만 돌려준다. **사용자를 만들거나 바꾸지 않는다** (v0.4.0 변경).
+          토큰 사용자의 DID와 VP 홀더 DID가 다르면 403.
+        - `badge`: OB3 VC-JWT를 검증하고 수신자(`credentialSubject.id`)의 자격증명으로 저장/갱신한다
           (`user_id + source_provider + source_external_id` 기준 upsert).
-          수신자 DID의 사용자가 없으면 테스트용 임시 사용자를 자동으로 만든다.
+          - 서명된 원본 VC-JWT(`raw_token`)와 점검 항목 8개(`verification_checks`)를 함께 저장한다.
+          - 검증에 실패해도 원본을 해석할 수 있고 수신자가 확인되면 `status`(revoked/expired/invalid)와 함께 저장한다.
+            원본을 해석할 수 없으면 저장하지 않고 `record_id: null`.
+          - 토큰 사용자와 수신자 DID가 다르면 403. 인증 없는 요청(전환 기간)은 수신자 DID로 가입한 사용자에게
+            저장하며, 가입하지 않은 DID면 404 (예전의 임시 사용자 자동 생성은 제거).
 
-        검증 자체가 실패해도 HTTP 200에 `success: false`로 응답한다.
-        DXWorks 호출 오류 등 예외는 500이다.
+        검증 실패는 HTTP 200에 `success: false`로 응답한다. 서비스 키로는 호출할 수 없다(403).
       operationId: verifyCredential
       requestBody:
         required: true
@@ -232,31 +308,50 @@ paths:
                     success: true
                     message: Badge verified and saved.
                     data:
+                      record_id: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+                      status: verified
                       valid: true
-                      badge:
-                        name: 정보처리기사
-                        issuedAt: "2026-09-01T00:00:00Z"
+                      achievement_name: 테스트 수료 배지
+                      issuer_name: 예시대학교
+                      issuer_trusted: true
+                      recipient_did: did:key:z6MkMock1a2b3c4d5e6f
+                      issued_at: "2026-09-01T00:00:00+00:00"
+                      expires_at: "2026-10-01T00:00:00+00:00"
                       checks:
-                        issuer: { issuerName: 한국산업인력공단 }
-                        issuerTrust: { trusted: true }
-                        credentialId: { id: "urn:uuid:7c9e6679-7425-40de-944b-e07fc1f90ae7", credentialStatus: VALID }
-                        recipient: { subjectId: "did:key:z6MkMock1a2b3c4d5e6f" }
-                badgeFailed:
-                  summary: 배지 검증 실패
+                        - { name: schema, result: pass, detail: null }
+                        - { name: recipient, result: pass, detail: "did:key:z6MkMock1a2b3c4d5e6f" }
+                        - { name: signature, result: pass, detail: null }
+                        - { name: issuer_trust, result: pass, detail: null }
+                        - { name: revocation, result: pass, detail: VALID }
+                        - { name: expiration, result: pass, detail: "2026-10-01T00:00:00+00:00" }
+                        - { name: did_resolution, result: skip, detail: 검증기 내부에서 처리 }
+                        - { name: anchor_match, result: skip, detail: 원장 앵커링 대조 미지원 }
+                badgeRevoked:
+                  summary: 배지 검증 실패 (폐기된 배지, 상태와 함께 저장됨)
                   value:
                     success: false
-                    message: Badge verification failed.
+                    message: Badge verification failed. Saved with status 'revoked'.
                     data:
+                      record_id: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+                      status: revoked
                       valid: false
+                      achievement_name: 테스트 수료 배지
+                      issuer_name: 예시대학교
+                      issuer_trusted: true
+                      recipient_did: did:key:z6MkMock1a2b3c4d5e6f
+                      issued_at: "2026-09-01T00:00:00+00:00"
+                      expires_at: null
+                      checks:
+                        - { name: revocation, result: fail, detail: REVOKED }
                 identityVerified:
                   summary: 신원 검증 성공
                   value:
                     success: true
-                    message: Identity verified and saved.
+                    message: Identity verified.
                     data:
                       verified: true
-                      holderDid: did:key:z6MkMock1a2b3c4d5e6f
-                      claims: { name: 홍길동, email: hong@test.com }
+                      holder_did: did:key:z6MkMock1a2b3c4d5e6f
+                      claims: { name: 홍길동 }
         "400":
           description: 지원하지 않는 `type`
           content:
@@ -265,10 +360,32 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
               example:
                 detail: 'Invalid type. Use "identity" or "badge"'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: 인증 없는 요청에서 수신자 DID로 가입한 사용자가 없음
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                detail: Recipient DID is not registered
+        "409":
+          description: 같은 자격증명이 이미 다른 사용자에게 등록됨
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "422":
           $ref: "#/components/responses/ValidationError"
         "500":
           $ref: "#/components/responses/InternalError"
+        "502":
+          $ref: "#/components/responses/ProviderError"
+        "503":
+          $ref: "#/components/responses/ProviderUnavailable"
 
   /api/mock-issuer/issue:
     post:
@@ -277,7 +394,12 @@ paths:
       description: |
         DXWorks OB3 발급 API로 배지를 발급하고 서명된 VC-JWT를 돌려준다.
         FE 발급 화면은 이 `vcJwt`를 그대로 `POST /api/v1/verify` (`type: badge`)에 넘긴다.
-        `.env`의 `DXWORKS_API_KEY`가 필요하다.
+        서버 `.env`의 `DXWORKS_API_HOST`, `DXWORKS_API_KEY`가 필요하다 (없으면 503).
+        `templateId`를 생략하면 `DXWORKS_BADGE_TEMPLATE_ID`를 쓰고, 그것도 없으면 503.
+
+        회사 API 키로 발급하므로 **가입된 DID에만** 발급한다(아니면 404).
+        사용자 토큰이면 `holderDid`가 본인 DID여야 한다(아니면 403). 서비스 키로는 호출할 수 없다.
+        서버 설정 `MOCK_ISSUER_ENABLED=false`면 404.
       operationId: issueMockBadge
       requestBody:
         required: true
@@ -296,12 +418,43 @@ paths:
                 success: true
                 message: Successfully issued a mock badge
                 vcJwt: eyJhbGciOiJFZERTQSJ9...
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: 가입되지 않은 `holderDid`, 또는 모의 발급 비활성화
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                notRegistered:
+                  value: { detail: Holder DID is not registered }
+                disabled:
+                  value: { detail: Mock issuer is disabled }
         "422":
           $ref: "#/components/responses/ValidationError"
         "500":
           $ref: "#/components/responses/InternalError"
+        "502":
+          $ref: "#/components/responses/ProviderError"
+        "503":
+          $ref: "#/components/responses/ProviderUnavailable"
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 로그인/회원가입 응답의 `access_token`
+    serviceKey:
+      type: apiKey
+      in: header
+      name: X-Service-Key
+      description: 내부 서비스(AI)용 키. 서버 `SERVICE_API_KEY`와 같아야 한다. 읽기 API만 허용.
+
   parameters:
     Did:
       name: did
@@ -320,11 +473,51 @@ components:
           schema:
             $ref: "#/components/schemas/ValidationErrorResponse"
     InternalError:
-      description: 서버 내부 오류 (DB/DXWorks 호출 실패 등). `detail`에 원인 메시지가 들어간다.
+      description: 서버 내부 오류. 내부 예외 메시지는 노출하지 않는다.
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
+          example:
+            detail: Internal server error
+    Unauthorized:
+      description: |
+        인증 실패. 토큰이 없거나(`AUTH_REQUIRED=true`일 때), 잘못되었거나, 만료됨. `WWW-Authenticate: Bearer` 헤더 포함.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            required:
+              value: { detail: Authentication required }
+            invalid:
+              value: { detail: Invalid token }
+            expired:
+              value: { detail: Token expired }
+    Forbidden:
+      description: 남의 DID에 접근하거나, 서비스 키로 쓰기 API를 호출함
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            detail: "Forbidden: not your DID"
+    ProviderError:
+      description: DXWorks 호출 실패 (DXWorks 오류 코드·메시지가 `detail`에 들어간다)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            detail: "DXWorks 오류 (NOT_FOUND): template missing"
+    ProviderUnavailable:
+      description: 발급·검증 인프라 설정 누락 (`DXWORKS_API_HOST`, `DXWORKS_API_KEY`, `DXWORKS_BADGE_TEMPLATE_ID` 등)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            detail: DXWORKS_API_KEY가 설정되지 않았습니다
 
   schemas:
     # ── 공통 ──────────────────────────────────────────────────
@@ -409,8 +602,10 @@ components:
 
     AuthResponse:
       type: object
-      description: 회원가입/로그인 공통 응답 (FE `RegisterResponse`, `LoginResponse`)
-      required: [success, message, data]
+      description: |
+        회원가입/로그인 공통 응답 (FE `RegisterResponse`, `LoginResponse`).
+        v0.4.0에서 토큰 필드를 최상위에 추가했다. `data`(UserProfile)는 그대로다.
+      required: [success, message, data, access_token, token_type, expires_in]
       properties:
         success:
           type: boolean
@@ -418,6 +613,15 @@ components:
           type: string
         data:
           $ref: "#/components/schemas/UserProfile"
+        access_token:
+          type: string
+          description: "JWT 액세스 토큰. 이후 요청에 `Authorization: Bearer <access_token>`으로 보낸다."
+        token_type:
+          type: string
+          const: bearer
+        expires_in:
+          type: integer
+          description: 토큰 만료까지 남은 초 (서버 `JWT_EXPIRES_MINUTES`, 기본 1일)
 
     # ── 자격증명 ──────────────────────────────────────────────
     CredentialStatus:
@@ -479,27 +683,82 @@ components:
       properties:
         success:
           type: boolean
-          description: 검증 성공 + DB 저장 완료 여부
+          description: 검증 통과 여부 (`badge`면 `data.status == verified`)
         message:
           type: string
         data:
+          description: |
+            BE 공통 형식의 검증 결과. 외부 검증기(협력사 API) 응답 원문은 내보내지 않는다 (v0.4.0 변경).
+          oneOf:
+            - $ref: "#/components/schemas/BadgeVerification"
+            - $ref: "#/components/schemas/IdentityVerification"
+
+    VerificationCheck:
+      type: object
+      required: [name, result]
+      properties:
+        name:
+          type: string
+          enum: [schema, recipient, signature, issuer_trust, revocation, expiration, did_resolution, anchor_match]
+        result:
+          type: string
+          enum: [pass, fail, warn, skip]
+        detail:
+          type: [string, "null"]
+
+    BadgeVerification:
+      type: object
+      required: [record_id, status, valid, achievement_name, issuer_name, issuer_trusted, recipient_did,
+                 issued_at, expires_at, checks]
+      properties:
+        record_id:
+          type: [string, "null"]
+          format: uuid
+          description: 저장된 자격증명 ID. 원본을 해석할 수 없어 저장하지 않았으면 null
+        status:
+          $ref: "#/components/schemas/CredentialStatus"
+        valid:
+          type: boolean
+        achievement_name:
+          type: string
+        issuer_name:
+          type: string
+        issuer_trusted:
+          type: [boolean, "null"]
+          description: 발급기관이 신뢰 레지스트리에 있는지 (검증기가 알려주지 않으면 null)
+        recipient_did:
+          type: [string, "null"]
+        issued_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: [string, "null"]
+          format: date-time
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/VerificationCheck"
+
+    IdentityVerification:
+      type: object
+      required: [verified, holder_did, claims]
+      properties:
+        verified:
+          type: boolean
+        holder_did:
+          type: [string, "null"]
+        claims:
           type: object
           additionalProperties: true
-          description: |
-            DXWorks 검증 API 응답 원문. 형식은 DXWorks가 정하며 BE가 쓰는 필드는 다음과 같다.
-            - `identity`: `verified`, `holderDid`, `claims.name`, `claims.email`
-            - `badge`: `valid`, `badge.name`, `badge.issuedAt`, `checks.issuer.issuerName`,
-              `checks.issuerTrust.trusted`, `checks.credentialId.id`, `checks.credentialId.credentialStatus`,
-              `checks.recipient.subjectId`
 
     # ── 모의 발급 ─────────────────────────────────────────────
     IssueMockBadgeRequest:
       type: object
-      required: [templateId, holderDid]
+      required: [holderDid]
       properties:
         templateId:
           type: string
-          description: DXWorks 배지 템플릿 ID
+          description: 배지 템플릿 ID. 생략하면 서버 `.env`의 `DXWORKS_BADGE_TEMPLATE_ID`를 쓴다.
         holderDid:
           type: string
           description: 배지를 받을 사용자 DID
