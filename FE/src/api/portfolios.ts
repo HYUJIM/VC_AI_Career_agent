@@ -5,6 +5,7 @@ import {
   previewDeletePortfolio,
   previewGetPortfolio,
   previewListPortfolios,
+  previewUpdatePortfolio,
 } from '@/lib/preview';
 import type {
   PortfolioCreateRequest,
@@ -51,6 +52,7 @@ export async function createPortfolio(
 
 /** PATCH /api/v1/portfolios/{id} — 제목·희망 직무·상태만 수정 가능 (본문 수정 불가) */
 export async function updatePortfolio(id: string, payload: PortfolioUpdateRequest): Promise<PortfolioResponse> {
+  if (isPreviewSession()) return previewUpdatePortfolio(id, payload);
   const { data } = await apiClient.patch<PortfolioResponse>(`/v1/portfolios/${encodeURIComponent(id)}`, payload);
   return data;
 }

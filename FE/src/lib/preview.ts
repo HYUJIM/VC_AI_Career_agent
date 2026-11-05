@@ -9,6 +9,7 @@ import type {
   PortfolioCreateRequest,
   PortfolioListResponse,
   PortfolioResponse,
+  PortfolioUpdateRequest,
   ReverifyResponse,
   ShareCreateRequest,
   ShareCreateResponse,
@@ -205,6 +206,18 @@ export async function previewCreatePortfolio(req: PortfolioCreateRequest): Promi
   };
   previewPortfolios.unshift(portfolio);
   return { success: true, message: 'Portfolio created.', data: portfolio };
+}
+
+export async function previewUpdatePortfolio(
+  id: string,
+  fields: PortfolioUpdateRequest,
+): Promise<PortfolioResponse> {
+  await delay(300);
+  const found = previewPortfolios.find((p) => p.id === id);
+  if (!found) throw new Error('포트폴리오를 찾을 수 없습니다.');
+  // BE와 같이 메타정보만 바꾸고 본문(content_markdown)은 그대로 둔다.
+  Object.assign(found, fields, { updated_at: new Date().toISOString() });
+  return { success: true, message: 'Portfolio updated.', data: found };
 }
 
 export async function previewDeletePortfolio(id: string): Promise<SimpleSuccess> {

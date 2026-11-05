@@ -1,22 +1,97 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { deletePortfolio, getPortfolio, listPortfolios } from '@/api/portfolios';
+import { deletePortfolio, getPortfolio, listPortfolios, updatePortfolio } from '@/api/portfolios';
 import { ExcludedList } from '@/components/portfolio/ExcludedList';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { getApiErrorMessage } from '@/lib/apiClient';
 import { useCopy } from '@/lib/useCopy';
+import type { Portfolio, PortfolioUpdateRequest } from '@/types/api';
 
 const formatDate = (iso: string) => new Date(iso).toLocaleDateString('ko-KR');
+
+/**
+ * 제목·희망 직무 수정 폼 (BE v0.6.0 PATCH /portfolios/{id}).
+ * 본문(content_markdown)은 VC_ONLY라 수정할 수 없다. 바뀐 필드만 보낸다.
+ */
+function PortfolioEditForm({
+  portfolio,
+  isSaving,
+  onSave,
+  onCancel,
+}: {
+  portfolio: Portfolio;
+  isSaving: boolean;
+  onSave: (fields: PortfolioUpdateRequest) => void;
+  onCancel: () => void;
+}) {
+  const [title, setTitle] = useState(portfolio.title);
+  const [role, setRole] = useState(portfolio.target_role ?? '');
+
+  const fields: PortfolioUpdateRequest = {};
+  if (title.trim() !== portfolio.title) fields.title = title.trim();
+  if ((role.trim() || null) !== portfolio.target_role) fields.target_role = role.trim() || null;
+  const changed = Object.keys(fields).length > 0;
+
+  return (
+    <form
+      className="flex flex-col gap-3 rounded-2xl bg-[var(--color-surface)] p-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (changed && title.trim()) onSave(fields);
+      }}
+    >
+      <Input
+        id="editTitle"
+        label="제목"
+        maxLength={255}
+        value={title}
+        error={title.trim() ? undefined : '제목을 입력해주세요.'}
+        onChange={(e) => setTitle(e.target.value)}
+        className="bg-white"
+      />
+      <Input
+        id="editRole"
+        label="희망 직무 (비우면 삭제)"
+        maxLength={100}
+        value={role}
+        onChange={(e) => setRole(e.target.value)}
+        className="bg-white"
+      />
+      <p className="text-[12px] leading-relaxed text-[var(--color-text-muted)]">
+        본문은 검증된 자격증명으로만 만들어져 수정할 수 없어요. 본문 첫 줄의 제목도 그대로 남아요.
+        본문까지 바꾸려면 새로 만들어주세요.
+      </p>
+      <div className="flex gap-2">
+        <Button type="button" variant="tertiary" size="sm" className="flex-1" onClick={onCancel}>
+          취소
+        </Button>
+        <Button type="submit" size="sm" className="flex-1" disabled={!changed || !title.trim()} isLoading={isSaving}>
+          저장
+        </Button>
+      </div>
+    </form>
+  );
+}
 
 function PortfolioDetailModal({ id, onClose }: { id: string; onClose: () => void }) {
   const { copy, isCopied } = useCopy();
   const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(false);
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['portfolio', id],
     queryFn: () => getPortfolio(id),
+  });
+  const update = useMutation({
+    mutationFn: (fields: PortfolioUpdateRequest) => updatePortfolio(id, fields),
+    onSuccess: (res) => {
+      queryClient.setQueryData(['portfolio', id], res);
+      queryClient.invalidateQueries({ queryKey: ['portfolios'] });
+      setEditing(false);
+    },
   });
   const remove = useMutation({
     mutationFn: () => deletePortfolio(id),
@@ -67,13 +142,58 @@ function PortfolioDetailModal({ id, onClose }: { id: string; onClose: () => void
             {getApiErrorMessage(remove.error)}
           </Alert>
         )}
+        {update.isError && (
+          <Alert variant="error" title="수정하지 못했습니다." onClose={() => update.reset()}>
+            {getApiErrorMessage(update.error)}
+          </Alert>
+        )}
         {portfolio && (
           <>
-            <p className="text-[13px] text-[var(--color-text-muted)]">
-              {portfolio.target_role ? `${portfolio.target_role} · ` : ''}
-              검증된 자격증명 {portfolio.credential_count}개 · {formatDate(portfolio.created_at)} 생성 · 근거 출처{' '}
-              {portfolio.source}
-            </p>
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-[13px] text-[var(--color-text-muted)]">
+                {portfolio.target_role ? `${portfolio.target_role} · ` : ''}
+                검증된 자격증명 {portfolio.credential_count}개 · {formatDate(portfolio.created_at)} 생성 · 근거 출처{' '}
+                {portfolio.source}
+              </p>
+              <span
+                className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-semibold ${
+                  portfolio.status === 'published'
+                    ? 'bg-[#e9f8f1] text-[#029359]'
+                    : 'bg-[var(--color-surface)] text-[var(--color-text-sub)]'
+                }`}
+              >
+                {portfolio.status === 'published' ? '게시됨' : '초안'}
+              </span>
+            </div>
+
+            {editing ? (
+              <PortfolioEditForm
+                portfolio={portfolio}
+                isSaving={update.isPending}
+                onSave={(fields) => update.mutate(fields)}
+                onCancel={() => {
+                  update.reset();
+                  setEditing(false);
+                }}
+              />
+            ) : (
+              <div className="flex gap-2">
+                <Button variant="tertiary" size="sm" className="flex-1" onClick={() => setEditing(true)}>
+                  제목·직무 수정
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="flex-1"
+                  isLoading={update.isPending}
+                  onClick={() =>
+                    update.mutate({ status: portfolio.status === 'published' ? 'draft' : 'published' })
+                  }
+                >
+                  {portfolio.status === 'published' ? '초안으로 되돌리기' : '게시하기'}
+                </Button>
+              </div>
+            )}
             <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-2xl bg-[var(--color-surface)] px-4 py-3 text-[14px] leading-relaxed">
               {portfolio.content_markdown}
             </pre>
