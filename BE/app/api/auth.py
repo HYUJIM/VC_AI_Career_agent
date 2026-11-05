@@ -1,16 +1,34 @@
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field, field_validator
-from app.services.database import get_db_connection
-from app.services.security import MAX_PASSWORD_BYTES, hash_password, verify_password
 import uuid
-from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field, field_validator
+
+from app.core.auth import Principal, create_access_token, require_user
+from app.services.database import EmailAlreadyRegistered, db_service
+from app.services.security import MAX_PASSWORD_BYTES, hash_password, verify_password
 
 router = APIRouter()
 
+
 class RegisterRequest(BaseModel):
-    name: str
-    email: str
+    name: str = Field(min_length=1, max_length=100)
+    email: str = Field(min_length=3, max_length=255)
     password: str = Field(min_length=8)
+
+    @field_validator("name", "email")
+    @classmethod
+    def strip_text(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("must not be blank")
+        return v
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, v: str) -> str:
+        if "@" not in v:
+            raise ValueError("Invalid email")
+        return v.lower()
 
     @field_validator("password")
     @classmethod
@@ -19,68 +37,60 @@ class RegisterRequest(BaseModel):
             raise ValueError(f"Password must be at most {MAX_PASSWORD_BYTES} bytes")
         return v
 
+
 class LoginRequest(BaseModel):
     email: str
     password: str
 
+
+def _profile(user: dict) -> dict:
+    return {
+        "id": str(user["id"]),
+        "name": user["name"],
+        "email": user["email"],
+        "did": user["subject_did"],
+    }
+
+
+def _auth_response(user: dict, message: str) -> dict:
+    token, expires_in = create_access_token(str(user["id"]), user["subject_did"])
+    # 기존 FE 계약(success/message/data)은 유지하고 토큰은 최상위 필드로 추가한다.
+    return {
+        "success": True,
+        "message": message,
+        "data": _profile(user),
+        "access_token": token,
+        "token_type": "bearer",
+        "expires_in": expires_in,
+    }
+
+
 @router.post("/register")
-async def register_user(req: RegisterRequest):
+def register_user(req: RegisterRequest):
+    # TODO(BE 2단계): 홀더 키 관리 방식 결정 후 실제 Ed25519 키 기반 did:key로 교체
+    mock_did = f"did:key:z6MkMock{uuid.uuid4().hex[:12]}"
     try:
-        fake_did = f"did:key:z6MkMock{uuid.uuid4().hex[:12]}"
-        now_str = datetime.now(timezone.utc).isoformat()
-        new_uuid = str(uuid.uuid4())
+        user = db_service.create_user(
+            email=req.email, name=req.name, did=mock_did, password_hash=hash_password(req.password)
+        )
+    except EmailAlreadyRegistered:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    return _auth_response(user, "회원가입 완료. 발급된 DID를 프론트엔드에서 보관하세요.")
 
-        with get_db_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT * FROM users WHERE email = %s", (req.email,))
-                if cur.fetchone():
-                    raise HTTPException(status_code=400, detail="Email already registered")
-
-                cur.execute(
-                    "INSERT INTO users (id, email, name, subject_did, password_hash, created_at, updated_at) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING *",
-                    (new_uuid, req.email, req.name, fake_did, hash_password(req.password), now_str, now_str)
-                )
-                user = cur.fetchone()
-
-        return {
-            "success": True,
-            "message": "회원가입 완료. 발급된 DID를 프론트엔드에서 보관하세요.",
-            "data": {
-                "id": str(user['id']),
-                "name": user['name'],
-                "email": user['email'],
-                "did": user['subject_did']
-            }
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/login")
-async def login_user(req: LoginRequest):
-    try:
-        with get_db_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT * FROM users WHERE email = %s", (req.email,))
-                user = cur.fetchone()
+def login_user(req: LoginRequest):
+    user = db_service.get_user_by_email(req.email.strip())
+    # 이메일 존재 여부가 드러나지 않도록 실패 사유를 하나로 통일한다.
+    # password_hash가 없는 사용자는 비밀번호 로그인 불가.
+    if not user or not user["password_hash"] or not verify_password(req.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    return _auth_response(user, "로그인 성공")
 
-        # 이메일 존재 여부가 드러나지 않도록 실패 사유를 하나로 통일한다.
-        # password_hash가 없는 사용자(신원 VP 검증으로 생성된 사용자 등)는 비밀번호 로그인 불가.
-        if not user or not user['password_hash'] or not verify_password(req.password, user['password_hash']):
-            raise HTTPException(status_code=401, detail="Invalid email or password")
 
-        return {
-            "success": True,
-            "message": "로그인 성공",
-            "data": {
-                "id": str(user['id']),
-                "name": user['name'],
-                "email": user['email'],
-                "did": user['subject_did']
-            }
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+@router.get("/me")
+def get_me(principal: Principal = Depends(require_user)):
+    user = db_service.get_user_by_id(principal.user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found or not verified yet.")
+    return {"success": True, "message": "OK", "data": _profile(user)}

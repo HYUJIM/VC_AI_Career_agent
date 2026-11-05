@@ -2,7 +2,7 @@
 
 > **이 폴더는 논문(RAG-VC) 실험 재현용입니다.** 2026-11-05에 `VC/`에서 `research-vc/`로 이름을 바꿨습니다.
 > fixture 발급기관(`did:fixture:...`)과 테스트 키로 서명한 자격증명만 다루며, 실서비스에서는 쓰지 않습니다.
-> 실서비스의 발급·검증·재검증은 `BE/`가 DXWorks BaaS(KNU_BaaS_Starter)로 담당합니다.
+> 실서비스의 발급·검증·재검증은 `BE/`가 협력사(DXWorks) 발급·검증 API로 담당합니다.
 > AI의 study 03/04 스크립트가 이 폴더의 `scripts/`와 `src/verify/`를 사용합니다.
 
 W3C VC 2.0 / Open Badges 2.0·3.0 자격증명을 파싱·정규화하고, DID 조회·서명 검증·발급자 신뢰·폐기 확인을 거쳐

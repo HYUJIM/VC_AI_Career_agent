@@ -1,34 +1,14 @@
-import os
 import json
+import os
+import uuid
+from datetime import datetime, timezone
+from typing import Optional
+
 import psycopg
 from psycopg.rows import dict_row
-from pydantic import BaseModel
-from typing import Optional, Dict, Any
-from datetime import datetime
 
-class UserCreate(BaseModel):
-    id: str
-    email: str
-    name: str
-    subject_did: str
-    created_at: str
-    updated_at: str
+from app.domain.credential import BadgeEvaluation
 
-class CredentialCreate(BaseModel):
-    record_id: str
-    user_id: str
-    source_provider: str
-    source_external_id: str
-    format: str
-    achievement_name: str
-    issuer_name: str
-    issuer_trust_level: str
-    status: str
-    issued_at: str
-    expires_at: Optional[str] = None
-    awarded_date: Optional[str] = None
-    raw_data: Dict[Any, Any]
-    created_at: str
 
 def get_db_connection():
     return psycopg.connect(
@@ -38,100 +18,127 @@ def get_db_connection():
         password=os.getenv("DB_PASSWORD", "password"),
         dbname=os.getenv("DB_NAME", "vc_career_agent"),
         row_factory=dict_row,
-        autocommit=True
+        autocommit=True,
     )
 
+
+class EmailAlreadyRegistered(Exception):
+    pass
+
+
 class DatabaseService:
-    def save_user(self, user: UserCreate):
-        query = """
-            INSERT INTO users (id, email, name, subject_did, created_at, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            ON CONFLICT (subject_did) 
-            DO UPDATE SET 
-                email = EXCLUDED.email, 
-                name = EXCLUDED.name, 
-                updated_at = NOW()
-            RETURNING *;
-        """
-        with get_db_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(query, (
-                    user.id, user.email, user.name, user.subject_did, user.created_at, user.updated_at
-                ))
+    # ── 사용자 ────────────────────────────────────────────────
+    def create_user(self, *, email: str, name: str, did: str, password_hash: str) -> dict:
+        now = datetime.now(timezone.utc)
+        try:
+            with get_db_connection() as conn, conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO users (id, email, name, subject_did, password_hash, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    RETURNING *
+                    """,
+                    (str(uuid.uuid4()), email, name, did, password_hash, now, now),
+                )
                 return cur.fetchone()
+        except psycopg.errors.UniqueViolation as exc:
+            raise EmailAlreadyRegistered(email) from exc
 
-    def save_credential(self, cred: CredentialCreate):
-        user_id = cred.user_id
+    def get_user_by_email(self, email: str) -> Optional[dict]:
+        with get_db_connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT * FROM users WHERE lower(email) = lower(%s)", (email,))
+            return cur.fetchone()
+
+    def get_user_by_id(self, user_id: str) -> Optional[dict]:
+        with get_db_connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+            return cur.fetchone()
+
+    def get_user_by_did(self, did: str) -> Optional[dict]:
+        with get_db_connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT * FROM users WHERE subject_did = %s", (did,))
+            return cur.fetchone()
+
+    # ── 자격증명 ──────────────────────────────────────────────
+    def save_badge(self, *, user_id: str, provider: str, evaluation: BadgeEvaluation, vc_jwt: str) -> dict:
+        """검증 결과를 credentials(원본 vcJwt 포함)와 verification_checks에 한 트랜잭션으로 저장한다."""
+        now = datetime.now(timezone.utc)
         with get_db_connection() as conn:
-            with conn.cursor() as cur:
-                # did로 넘어온 경우 UUID로 변환
-                if user_id.startswith("did:"):
-                    cur.execute("SELECT id FROM users WHERE subject_did = %s", (user_id,))
-                    row = cur.fetchone()
-                    if row:
-                        user_id = row['id']
-                    else:
-                        # 테스트 편의성을 위해 유저가 없으면 임시 유저를 자동 생성합니다.
-                        import uuid
-                        from datetime import datetime, timezone
-                        new_uuid = str(uuid.uuid4())
-                        now_str = datetime.now(timezone.utc).isoformat()
-                        cur.execute(
-                            "INSERT INTO users (id, email, name, subject_did, created_at, updated_at) VALUES (%s, %s, %s, %s, %s, %s)",
-                            (new_uuid, "test@example.com", "테스트 유저", user_id, now_str, now_str)
-                        )
-                        user_id = new_uuid
-
-                query = """
+            with conn.transaction(), conn.cursor() as cur:
+                cur.execute(
+                    """
                     INSERT INTO credentials (
-                        record_id, user_id, source_provider, source_external_id, format, 
-                        achievement_name, issuer_name, issuer_trust_level, status, 
-                        issued_at, expires_at, awarded_date, raw_data, created_at
+                        record_id, user_id, source_provider, source_external_id, format,
+                        achievement_name, issuer_name, issuer_trust_level, status,
+                        issued_at, expires_at, raw_data, created_at, raw_token, last_verified_at
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (user_id, source_provider, source_external_id) 
-                    DO UPDATE SET 
-                        status = EXCLUDED.status,
+                    VALUES (%s, %s, %s, %s, 'OB3.0', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (user_id, source_provider, source_external_id)
+                    DO UPDATE SET
+                        achievement_name = EXCLUDED.achievement_name,
+                        issuer_name = EXCLUDED.issuer_name,
                         issuer_trust_level = EXCLUDED.issuer_trust_level,
-                        raw_data = EXCLUDED.raw_data
-                    RETURNING *;
-                """
-                cur.execute(query, (
-                    cred.record_id, user_id, cred.source_provider, cred.source_external_id, 
-                    cred.format, cred.achievement_name, cred.issuer_name, cred.issuer_trust_level, 
-                    cred.status, cred.issued_at, cred.expires_at, cred.awarded_date, 
-                    json.dumps(cred.raw_data), cred.created_at
-                ))
-                return cur.fetchone()
+                        status = EXCLUDED.status,
+                        expires_at = EXCLUDED.expires_at,
+                        raw_data = EXCLUDED.raw_data,
+                        raw_token = EXCLUDED.raw_token,
+                        last_verified_at = EXCLUDED.last_verified_at
+                    RETURNING record_id, status
+                    """,
+                    (
+                        evaluation.record_id, user_id, provider, evaluation.external_id,
+                        evaluation.achievement_name, evaluation.issuer_name, evaluation.issuer_trust_level,
+                        evaluation.status, evaluation.issued_at, evaluation.expires_at,
+                        json.dumps(evaluation.vc), now, vc_jwt, now,
+                    ),
+                )
+                saved = cur.fetchone()
+                cur.execute("DELETE FROM verification_checks WHERE record_id = %s", (saved["record_id"],))
+                cur.executemany(
+                    """
+                    INSERT INTO verification_checks (record_id, check_name, result, detail, checked_at)
+                    VALUES (%s, %s, %s, %s, %s)
+                    """,
+                    [(saved["record_id"], c.name, c.result, c.detail, now) for c in evaluation.checks],
+                )
+        return {"record_id": str(saved["record_id"]), "status": saved["status"]}
+
+    def find_credential_owner(self, record_id: str) -> Optional[str]:
+        with get_db_connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT user_id FROM credentials WHERE record_id = %s", (record_id,))
+            row = cur.fetchone()
+            return str(row["user_id"]) if row else None
 
     def get_user_and_credentials(self, user_did: str):
-        with get_db_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT * FROM users WHERE subject_did = %s", (user_did,))
-                user = cur.fetchone()
-                if not user:
-                    return None
-                
-                cur.execute("SELECT * FROM credentials WHERE user_id = %s ORDER BY issued_at DESC", (user['id'],))
-                credentials = cur.fetchall()
+        """FE 대시보드/AI가 쓰는 careers 응답. 응답 형식은 FE `CareersResponse` 계약이므로 바꾸지 않는다."""
+        with get_db_connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT * FROM users WHERE subject_did = %s", (user_did,))
+            user = cur.fetchone()
+            if not user:
+                return None
 
-                return {
-                    "user_profile": {
-                        "id": str(user['id']),
-                        "did": user['subject_did'],
-                        "email": user['email'],
-                        "name": user['name']
-                    },
-                    "verified_credentials": [
-                        {
-                            "record_id": str(c['record_id']),
-                            "issuer": c['issuer_name'],
-                            "achievement_name": c['achievement_name'],
-                            "status": c['status'],
-                            "issued_at": c['issued_at'].isoformat() if isinstance(c['issued_at'], datetime) else str(c['issued_at']),
-                            "raw_data": c['raw_data']
-                        } for c in credentials
-                    ]
+            cur.execute("SELECT * FROM credentials WHERE user_id = %s ORDER BY issued_at DESC", (user["id"],))
+            credentials = cur.fetchall()
+
+        return {
+            "user_profile": {
+                "id": str(user["id"]),
+                "did": user["subject_did"],
+                "email": user["email"],
+                "name": user["name"],
+            },
+            "verified_credentials": [
+                {
+                    "record_id": str(c["record_id"]),
+                    "issuer": c["issuer_name"],
+                    "achievement_name": c["achievement_name"],
+                    "status": c["status"],
+                    "issued_at": c["issued_at"].isoformat() if isinstance(c["issued_at"], datetime) else str(c["issued_at"]),
+                    "raw_data": c["raw_data"],
                 }
+                for c in credentials
+            ],
+        }
+
 
 db_service = DatabaseService()

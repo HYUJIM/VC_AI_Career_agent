@@ -64,14 +64,16 @@ export async function previewVerify(): Promise<VerifyResponse> {
     success: true,
     message: 'Badge verified and saved.',
     data: {
+      record_id: '00000000-0000-4000-8000-000000000001',
+      status: 'verified',
       valid: true,
-      badge: { name: '정보처리기사', issuedAt: new Date().toISOString() },
-      checks: {
-        issuer: { issuerName: '한국산업인력공단' },
-        issuerTrust: { trusted: true },
-        credentialId: { id: 'urn:uuid:preview', credentialStatus: 'VALID' },
-        recipient: { subjectId: PREVIEW_USER.did },
-      },
+      achievement_name: '정보처리기사',
+      issuer_name: '한국산업인력공단',
+      issuer_trusted: true,
+      recipient_did: PREVIEW_USER.did,
+      issued_at: new Date().toISOString(),
+      expires_at: null,
+      checks: [],
     },
   };
 }

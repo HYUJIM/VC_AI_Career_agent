@@ -49,7 +49,9 @@ cp -n .env.example .env
 docker compose up --build -d
 ```
 > **⚠️ 주의 (API 키 설정):** 
-> 실제 발급/검증 테스트(Step 1, Step 2)를 수행하려면 `.env` 파일의 `DXWORKS_API_KEY` 항목에 발급받은 실제 API 키를 입력해야 합니다. (더미 조회 테스트는 키 없이도 즉시 가능합니다.)
+> 실제 발급/검증 테스트(Step 1, Step 2)를 수행하려면 `.env` 파일의 `DXWORKS_API_HOST`, `DXWORKS_API_KEY`, `DXWORKS_BADGE_TEMPLATE_ID`를 채워야 합니다. (더미 조회 테스트는 키 없이도 즉시 가능합니다.)
+>
+> **🔒 협력사 자료 취급:** 이 값들과 협력사에서 받은 문서·예제 코드는 **비공개 자료**입니다. 공개 저장소(코드, 문서, 이슈, PR 본문, 커밋 메시지)에 그대로 옮기지 말고 `.env`와 팀 내부 채널로만 주고받으세요. 협력사 API 형식은 `app/integrations/dxworks.py`에서만 다룹니다.
 
 > **💡 이 명령어 하나로 자동 완료되는 항목들:**
 > 1. **Python 3.11 런타임 & 의존성(`requirements.txt`)** 도커 컨테이너 내 자동 설치 (로컬 파이썬 버전 충돌 0%)
@@ -87,6 +89,33 @@ docker compose up -d
 2. 의존성 설치: `pip install -r requirements.txt` (Mac/Linux는 `python3 -m pip install -r requirements.txt`)
 3. 서버 실행: `python -m uvicorn main:app --reload --port 3000`
 </details>
+
+### 🔄 기존 환경을 쓰고 있다면 (v0.4.0 업데이트 후 1회)
+`PyJWT` 패키지와 DB 컬럼(`credentials.raw_token` 등)이 추가되었습니다. 아래 두 명령을 한 번 실행하세요.
+이미지를 다시 빌드하지 않으면 핫 리로드 중인 서버가 `ModuleNotFoundError: jwt`로 멈춥니다.
+```bash
+docker compose up -d --build
+docker compose exec -T postgres psql -U postgres -d vc_career_agent < DB/migrations/05_credentials_raw_token.sql
+```
+(DB를 통째로 새로 만들어도 되면 `docker compose down -v && docker compose up -d --build`)
+
+### 🔐 인증 (JWT)
+- 회원가입/로그인 응답의 `access_token`을 이후 요청에 `Authorization: Bearer <access_token>` 헤더로 보냅니다.
+- 로그인 사용자는 **본인 DID의 데이터만** 조회·검증·발급할 수 있습니다 (남의 DID면 403).
+- AI 등 내부 서비스는 `X-Service-Key: <SERVICE_API_KEY>` 헤더로 `careers` 조회만 할 수 있습니다.
+- **전환 기간:** `.env`의 `AUTH_REQUIRED=false`(기본값)이면 토큰 없는 요청도 받습니다. FE·AI가 토큰을 보내도록 바뀌면 `true`로 바꿉니다.
+- 운영에서는 `.env`에 `JWT_SECRET`을 반드시 설정하세요. 비우면 서버가 재시작될 때마다 기존 토큰이 무효가 됩니다.
+
+### 🧪 테스트
+DXWorks는 가짜 응답으로 대체하고, 실제 PostgreSQL(pgvector)에 테스트 전용 DB를 만들어 스키마 → 시드 → 마이그레이션 순서로 적용한 뒤 검증합니다. 개발 DB(`vc-postgres`)는 건드리지 않습니다.
+```bash
+# 테스트용 DB 컨테이너 (최초 1회, 포트 55432)
+docker run -d --name vc-be-test -e POSTGRES_PASSWORD=password -p 55432:5432 pgvector/pgvector:pg16
+
+pip install -r requirements-dev.txt
+python -m pytest -q
+```
+GitHub Actions(`tests.yml`의 `BE (pytest)`)에서도 PR마다 같은 테스트가 돕니다.
 
 
 ## 4. API 시나리오 및 Postman 연동 테스트
@@ -127,6 +156,8 @@ docker compose up -d
 > ```
 
 > **Tip:** 위 API를 호출하면 응답 결과의 `data.did` 항목에 가짜 DID(예: `did:key:z6MkMock...`)가 반환됩니다. 이후 Step 1~3에서 이 DID를 사용하세요.
+>
+> **토큰:** 응답의 `access_token`을 Postman의 Authorization 탭(Bearer Token)에 넣으면 Step 1~3을 본인 권한으로 호출합니다.
 
 ### [Step 1] 논문 테스트용 임시 발급 서버 (Mock Issuer)
 - **Method:** `POST`
@@ -134,11 +165,12 @@ docker compose up -d
 - **Body (JSON):**
   ```json
   {
-    "templateId": "f9499c5f-6611-45c6-b5a8-683a99040aab", 
     "holderDid": "Step 0에서 가입/로그인으로 발급받은 DID 입력"
   }
   ```
+  `templateId`를 생략하면 `.env`의 `DXWORKS_BADGE_TEMPLATE_ID`를 씁니다. 다른 템플릿을 쓰려면 `"templateId": "<템플릿 ID>"`를 추가합니다.
 - **결과:** DXWorks 발급 API를 찔러서 생성된 서명된 JWT 문자열이 리턴됩니다. (이 값을 변수로 저장하세요.)
+- **제한:** 회사 API 키로 발급하므로 **가입된 DID에만** 발급합니다(아니면 404). 토큰을 보냈다면 본인 DID여야 합니다(아니면 403).
 
 ### [Step 2] 발급받은 배지를 검증하고 DB에 저장하기
 - **Method:** `POST`
@@ -150,11 +182,15 @@ docker compose up -d
     "token": "Step 1에서 받은 긴 JWT 문자열"
   }
   ```
-- **결과:** 검증이 성공하면 PostgreSQL 스키마 규격에 맞춰 **실제 연결된 DB의 `credentials` 테이블**에 물리적으로 데이터가 저장됩니다.
+- **결과:** 검증 결과가 **`credentials` 테이블**에 저장됩니다.
+  - 서명된 원본 JWT(`raw_token`)와 점검 항목 8개(`verification_checks`: 서명·발급자 신뢰·폐기·만료·수신자 등)를 함께 저장합니다. 논문의 "실행 시점 재검증"에 쓰기 위한 원본입니다.
+  - 폐기·만료된 배지도 `status`(revoked/expired)와 함께 저장되며, 이때 응답은 `success: false`입니다.
+  - 배지의 수신자 DID가 가입된 사용자여야 합니다. 예전처럼 임시 사용자를 자동으로 만들지 않습니다.
 
 ### [Step 3] AI가 이력서 작성을 위해 유저 스펙 조회하기
 - **Method:** `GET`
 - **URL:** `http://localhost:3000/api/v1/subjects/{Step 0에서 발급받은 DID}/careers`
+- **인증:** 본인 토큰(`Authorization: Bearer`) 또는 AI 서비스 키(`X-Service-Key`). 전환 기간(`AUTH_REQUIRED=false`)에는 없어도 됩니다.
 - **결과:** 방금 저장된 데이터가 DB 작업자의 새로운 스키마 규격에 맞게 정제되어 출력됩니다.
   ```json
   {
@@ -167,8 +203,8 @@ docker compose up -d
     "verified_credentials": [
       {
         "record_id": "urn:uuid:...",
-        "issuer": "경북대학교",
-        "achievement_name": "KNU Career Demo Badge",
+        "issuer": "예시대학교",
+        "achievement_name": "테스트 수료 배지",
         "status": "verified",
         "issued_at": "2026-10-04T12:00:00.000Z",
         "raw_data": { ... }

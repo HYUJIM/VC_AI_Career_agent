@@ -11,11 +11,6 @@ import { useAuthStore } from '@/store/authStore';
 import type { DashboardLocationState } from '@/pages/DashboardPage';
 import type { BadgeVerifyData } from '@/types/api';
 
-/**
- * BE README "[Step 1] 테스트용 임시 발급 서버(Mock Issuer)" 에서 사용하는 샘플 템플릿 ID.
- */
-const DEFAULT_TEMPLATE_ID = 'f9499c5f-6611-45c6-b5a8-683a99040aab';
-
 type Step = 'issue' | 'verify' | 'done';
 
 interface IssueError {
@@ -34,7 +29,8 @@ const STEPS: { key: Step; title: string; desc: string }[] = [
 export function IssueCredentialPage() {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
-  const [templateId, setTemplateId] = useState(DEFAULT_TEMPLATE_ID);
+  // 비워두면 BE가 서버 설정(.env)의 기본 템플릿으로 발급한다. 템플릿 ID는 협력사 자료라 FE 코드에 두지 않는다.
+  const [templateId, setTemplateId] = useState('');
   const [jwt, setJwt] = useState<string | null>(null);
   const [step, setStep] = useState<Step>('issue');
   const [issueError, setIssueError] = useState<IssueError | null>(null);
@@ -193,7 +189,8 @@ export function IssueCredentialPage() {
           <div className="flex flex-col gap-4">
             <Input
               id="templateId"
-              label="Template ID"
+              label="Template ID (선택)"
+              placeholder="비워두면 서버 기본 템플릿으로 발급해요"
               value={templateId}
               onChange={(e) => setTemplateId(e.target.value)}
             />
@@ -203,7 +200,6 @@ export function IssueCredentialPage() {
                 issueMutation.mutate();
               }}
               size="lg"
-              disabled={!templateId.trim()}
               isLoading={issueMutation.isPending}
             >
               모의 배지 발급받기
@@ -235,20 +231,18 @@ export function IssueCredentialPage() {
         {step === 'done' && (
           <div className="flex flex-col gap-4">
             <p className="text-[17px] font-bold">지갑에 저장했어요</p>
-            {verified && (verified.badge?.name || verified.checks?.issuer?.issuerName) && (
+            {verified && (
               <dl className="flex flex-col gap-2 rounded-2xl bg-[var(--color-surface)] px-4 py-3 text-[15px]">
-                {verified.badge?.name && (
-                  <div className="flex justify-between gap-2">
-                    <dt className="text-[var(--color-text-muted)]">배지</dt>
-                    <dd className="font-medium">{verified.badge.name}</dd>
-                  </div>
-                )}
-                {verified.checks?.issuer?.issuerName && (
+                <div className="flex justify-between gap-2">
+                  <dt className="text-[var(--color-text-muted)]">배지</dt>
+                  <dd className="font-medium">{verified.achievement_name}</dd>
+                </div>
+                {verified.issuer_name && (
                   <div className="flex justify-between gap-2">
                     <dt className="text-[var(--color-text-muted)]">발급 기관</dt>
                     <dd className="font-medium">
-                      {verified.checks.issuer.issuerName}
-                      {verified.checks.issuerTrust?.trusted && (
+                      {verified.issuer_name}
+                      {verified.issuer_trusted && (
                         <span className="ml-1.5 text-[13px] font-semibold text-[var(--color-success)]">
                           신뢰된 발급처
                         </span>
@@ -262,7 +256,7 @@ export function IssueCredentialPage() {
               size="lg"
               onClick={() =>
                 navigate('/dashboard', {
-                  state: { issued: verified?.badge?.name ?? '새' } satisfies DashboardLocationState,
+                  state: { issued: verified?.achievement_name ?? '새' } satisfies DashboardLocationState,
                 })
               }
             >

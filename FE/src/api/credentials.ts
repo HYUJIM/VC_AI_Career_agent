@@ -16,15 +16,19 @@ export async function getCareersByDid(did: string): Promise<CareersResponse> {
   return data;
 }
 
-/** POST /api/mock-issuer/issue (논문/테스트용 모의 배지 발급) */
+/**
+ * POST /api/mock-issuer/issue (논문/테스트용 모의 배지 발급)
+ * templateId를 비우면 BE가 서버 설정의 기본 템플릿을 쓴다.
+ */
 export async function issueMockBadge(
-  templateId: string,
+  templateId: string | undefined,
   holderDid: string,
 ): Promise<IssueMockBadgeResponse> {
   if (isPreviewSession()) return previewIssue();
+  const trimmed = templateId?.trim();
   const { data } = await apiClient.post<IssueMockBadgeResponse>('/mock-issuer/issue', {
-    templateId,
     holderDid,
+    ...(trimmed ? { templateId: trimmed } : {}),
   });
   return data;
 }
