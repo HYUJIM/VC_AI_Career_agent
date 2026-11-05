@@ -31,7 +31,7 @@ def live_verify(verification, out_dir):
     inp.write_text(json.dumps([r['raw_ref'] for r in verification['records']]), encoding='utf-8')
     out = out_dir / 'live_verification.json'
     cmd = f'npx tsx scripts/verify-study03.ts "{fixture}" "{inp}" "{out}"'
-    subprocess.run(cmd, cwd=ROOT / 'VC', shell=True, check=True)
+    subprocess.run(cmd, cwd=ROOT / 'research-vc', shell=True, check=True)
     return json.loads(out.read_text(encoding='utf-8'))
 
 
@@ -68,7 +68,7 @@ def main():
                  context_record_ids=[r['record_id'] for r in ev])
     code = ('ai/src/rag/study03.py', 'ai/src/rag/study02_eval.py', 'ai/src/rag/paper_context_renderer_v2.py',
             'ai/src/rag/paper_vc_adapter_v2.py', 'ai/scripts/study03_prepare.py', 'ai/scripts/study02_run.py',
-            'VC/scripts/verify-study03.ts', 'VC/src/verify/pipeline.ts', 'VC/src/verify/checks.ts')
+            'research-vc/scripts/verify-study03.ts', 'research-vc/src/verify/pipeline.ts', 'research-vc/src/verify/checks.ts')
     lock = dict(version=study03.VERSION, created_at=now(), split=a.split, design='ai/docs/paper_experiment3_design_v1.md',
                 formal_study=False, human_gold_review=False, paper_ready=False,
                 model_id=MODEL_ID, revision=REVISION, max_new_tokens=256, max_input_tokens=2048,

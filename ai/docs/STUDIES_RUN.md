@@ -107,7 +107,7 @@ python scripts/study02_run.py --split-dir OUT/study03/test
 python scripts/study03_evaluate.py --split-dir OUT/study03/test --source research_artifacts/study01_reference
 ```
 
-준비 단계가 `VC/scripts/verify-study03.ts`로 서명 원본을 다시 검증합니다(`npx tsx` 사용).
+준비 단계가 `research-vc/scripts/verify-study03.ts`로 서명 원본을 다시 검증합니다(`npx tsx` 사용).
 
 ### 4차: 1,000쌍 규모 (test 2,352건, 약 3시간 반)
 

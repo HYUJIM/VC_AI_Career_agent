@@ -24,7 +24,7 @@ VC가 일반 DB보다 나은 지점은 하나다.
 |---|---|---|
 | 모든 기록의 서명된 원본(compact JWS) | 보존됨 | 1차 `bundle.json` → verification.records[].raw_ref.compactJws |
 | 공개키·신뢰 목록·폐기 목록 스냅샷 | 보존됨 | 같은 파일 public_snapshots (did-documents, trust-registry, revocation-list) |
-| 검증 코드 | 있음 | `VC/src/verify/pipeline.ts`의 `verifyAndNormalize`, `checks.ts` |
+| 검증 코드 | 있음 | `research-vc/src/verify/pipeline.ts`의 `verifyAndNormalize`, `checks.ts` |
 | 서명용 비밀키 | **보존 안 됨** | 의도된 상태. 변조자는 다시 서명할 수 없다는 위협 모델과 일치 |
 
 ## 2. 연구 질문
@@ -122,7 +122,7 @@ VC가 일반 DB보다 나은 지점은 하나다.
 | 순서 | 구성 요소 | 내용 |
 |---|---|---|
 | 1 | 변조기 (Python) | 1차 bundle에서 시나리오별 DB 스냅샷 생성. 원본 불변, 변조 내역 manifest |
-| 2 | 실검증기 (Node/TS) | `VC/scripts/verify-study03.ts`: 각 기록의 JWS를 공개 스냅샷으로 `verifyAndNormalize`. 상태와 원본 본문을 JSON으로 출력. DB 본문과 원본 본문이 다르면 `content_mismatch` 표시 |
+| 2 | 실검증기 (Node/TS) | `research-vc/scripts/verify-study03.ts`: 각 기록의 JWS를 공개 스냅샷으로 `verifyAndNormalize`. 상태와 원본 본문을 JSON으로 출력. DB 본문과 원본 본문이 다르면 `content_mismatch` 표시 |
 | 3 | 입력 빌더 | P, D, VC, VC-F(, D-F) 입력 생성. 같은 입력은 해시로 묶음 |
 | 4 | 사후 대조기 | 답변의 수치 주장을 검증된 원본 본문과 비교해 일치 / 미검증 기록 근거 / 모순 / 근거 없음으로 표시 |
 | 5 | 실행 | 2차 실행기 재사용 (`study02_run.py`) |

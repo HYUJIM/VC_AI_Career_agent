@@ -32,7 +32,7 @@ python -m pytest -q
 
 이미 의존성이 설치되어 있다면 pip 명령은 생략할 수 있습니다.
 이번 변경으로 새 필수 패키지는 추가되지 않았습니다. 기존 테스트는 저장소의
-`VC/src/schemas`를 참조합니다. 제공 패키지의 `snapshot/VC/src/schemas`는 해당 고정 버전의 참조 사본이며,
+`research-vc/src/schemas`를 참조합니다. 제공 패키지의 `snapshot/VC/src/schemas`는 해당 고정 버전의 참조 사본이며,
 로컬 VC 코드가 이미 있으면 덮어쓰지 않습니다.
 
 ## 3. 서버 없이 먼저 확인

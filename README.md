@@ -3,7 +3,7 @@
 
 | 폴더 | 내용 | 안내 |
 |---|---|---|
-| `VC/` | 검증 이력 지갑 코어: VC 파싱·정규화·검증 파이프라인과 Mock 서버 | [VC/README.md](VC/README.md) |
+| `research-vc/` | **논문 실험용** VC 검증 코어: fixture 발급기관·테스트 키 기반 파싱·정규화·검증 파이프라인 (실서비스 VC 연동은 `BE/`가 DXWorks BaaS로 담당) | [research-vc/README.md](research-vc/README.md) |
 | `ai/` | AI 커리어 에이전트와 "VC 검증이 AI 이력서 환각을 줄이는가" 연구 | [ai/README.md](ai/README.md) |
 | `report/` | 발표·보고 자료 | |
 

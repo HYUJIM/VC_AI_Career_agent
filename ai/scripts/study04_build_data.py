@@ -29,7 +29,7 @@ def main():
     (out / 'world.json').write_text(world_text, encoding='utf-8', newline='\n')
     signed = out / 'signed'
     subprocess.run(f'npx tsx scripts/prepare-study04.ts "{out / "world.json"}" "{signed}"',
-                   cwd=ROOT / 'VC', shell=True, check=True)
+                   cwd=ROOT / 'research-vc', shell=True, check=True)
     vc_text = (signed / 'verification_bundle.json').read_text(encoding='utf-8')
     entries = sd.assemble(world_text, vc_text)
     vc = json.loads(vc_text)

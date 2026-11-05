@@ -65,7 +65,7 @@ python -m pytest -q tests/test_study02.py tests/test_study02_weighted.py tests/t
 | `docs/` | 실험 설계·프로토콜·재현 안내 |
 | `requirements.txt`, `requirements-gpu.txt` | 기본 패키지, GPU 모델 실행 패키지 |
 
-VC 실검증은 `../VC/scripts/verify-study03.ts`, 4차 서명은 `../VC/scripts/prepare-study04.ts`가 담당합니다.
+VC 실검증은 `../research-vc/scripts/verify-study03.ts`, 4차 서명은 `../research-vc/scripts/prepare-study04.ts`가 담당합니다.
 
 ## 연구 결과에서 말할 수 있는 것과 없는 것
 
