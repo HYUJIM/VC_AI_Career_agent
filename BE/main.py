@@ -9,7 +9,7 @@ from fastapi import FastAPI, Request  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
 
-from app.api import auth, mock_issuer, portfolios, reverify, shares, user, verify  # noqa: E402
+from app.api import auth, career, mock_issuer, portfolios, reverify, shares, user, verify  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
 from app.integrations.ports import ProviderError  # noqa: E402
 
@@ -54,6 +54,7 @@ app.include_router(reverify.router, prefix="/api/v1")
 app.include_router(portfolios.router, prefix="/api/v1/portfolios")
 app.include_router(shares.router, prefix="/api/v1/shares")
 app.include_router(shares.public_router, prefix="/api/v1/public/shares")
+app.include_router(career.router, prefix="/api/v1")
 
 if __name__ == "__main__":
     import uvicorn

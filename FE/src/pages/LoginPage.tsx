@@ -60,7 +60,7 @@ export function LoginPage() {
   const mutation = useMutation({
     mutationFn: loginUser,
     onSuccess: (res) => {
-      setUser(res.data);
+      setUser(res.data, res.access_token);
       navigate('/dashboard', { state: { welcome: res.data.name } });
     },
     onError: (error, variables) => {

@@ -98,7 +98,9 @@ docker compose up -d --build
 docker compose exec -T postgres psql -U postgres -d vc_career_agent < DB/migrations/05_credentials_raw_token.sql
 docker compose exec -T postgres psql -U postgres -d vc_career_agent < DB/migrations/06_holder_keys.sql
 docker compose exec -T postgres psql -U postgres -d vc_career_agent < DB/migrations/07_shares.sql
+docker compose exec -T postgres psql -U postgres -d vc_career_agent < DB/migrations/08_career_curriculum.sql
 ```
+v0.7.0부터 `rfc8785` 패키지와 AI 컨테이너(`ai`)가 추가되어 `--build`가 필요합니다.
 (DB를 통째로 새로 만들어도 되면 `docker compose down -v && docker compose up -d --build`)
 
 ### 🔑 관리형 지갑 (홀더 키)
@@ -116,6 +118,37 @@ docker compose exec -T postgres psql -U postgres -d vc_career_agent < DB/migrati
 - **선택 공개:** `POST /api/v1/shares`로 고른 자격증명만 공유 링크를 만들고(토큰은 한 번만 표시, DB에는 해시만), 기업은 `GET /api/v1/public/shares/{token}`으로 로그인 없이 봅니다. 열 때마다 다시 검증하고, 기업이 직접 검증할 수 있게 서명 원본도 함께 줍니다.
 - 자세한 요청·응답은 `openapi.yaml` 참고.
 
+### 🧭 직무 비교 · 커리큘럼 (v0.7.0, AI 서비스 연동)
+계산은 같은 저장소의 AI 서비스(`../ai`, [실행 안내](../ai/README.md))가 하고, BE는 근거·저장·권한을 맡습니다.
+
+```mermaid
+sequenceDiagram
+    participant FE as FE (직무 비교·커리큘럼)
+    participant BE as BE
+    participant DX as DXWorks
+    participant AI as AI 서비스 (../ai)
+    FE->>BE: POST /api/v1/career-analyses (Bearer)
+    BE->>DX: 사용자의 모든 서명 원본 재검증
+    BE->>AI: 검증 통과분 스냅샷 + 검토된 공고 버전
+    AI-->>BE: 요구사항별 비교 결과
+    BE->>BE: AI 결과가 보낸 근거만 인용하는지 확인 후 저장
+    BE-->>FE: 비교 결과 (5분 유효)
+    FE->>BE: POST /api/v1/curricula
+    BE->>AI: 분석 + 학습자료 → 계획 컨텍스트 → 생성
+    BE->>BE: 단계·자료가 컨텍스트 안인지 확인 후 저장
+    BE-->>FE: 학습 계획
+```
+
+- **AI는 VC 서명 원본을 받지 않습니다.** 검증 판단은 기존 DXWorks 어댑터(`app/integrations/dxworks.py`)와 `app/domain/credential.py`가 그대로 하고, 통과한 자격증명의 본문만 AI로 보냅니다.
+- **공고·학습자료 반입 (연구자):** `.env`의 `RESEARCHER_USER_IDS`에 사용자 UUID를 넣은 계정만 `POST /api/v1/research/job-postings`, `POST /api/v1/research/learning-resources`를 쓸 수 있습니다.
+  요구사항마다 원문 인용과 위치(start/end)가 필요하고, AI가 "또는" 조건 보존 등 주석 규칙을 검사합니다. `dataset_kind=real`이고 수집 7일 이내인 공고만 비교에 쓰입니다(이용 허가된 공고만 반입하세요).
+- **사용자:** `GET /api/v1/job-postings` → `POST /api/v1/career-analyses` → `POST /api/v1/curricula` (모두 로그인 토큰 필수). 커리큘럼은 동기 생성이며 템플릿은 즉시, LLM 모드는 `CURRICULUM_LLM_USER_IDS` 계정 + 동의 시 최대 90초입니다.
+- **판정:** 요구사항별 `supported` / `partially_supported` / `not_evidenced`(근거 없음 ≠ 역량 없음) / `unknown`(판단 보류). 검증을 통과하지 못한 자격증명이 있으면 근거에서 빼고 판단을 보류합니다.
+- **AI 연결 설정:** `.env`의 `AI_SERVICE_TOKEN`(32바이트 이상)을 정하면 `docker compose up --build`가 BE·AI 컨테이너에 같은 값을 넣고 BE는 `http://ai:8100`으로 접속합니다.
+  BE를 로컬에서 실행하면 기본 `AI_SERVICE_URL=http://127.0.0.1:8100`입니다. AI가 꺼져 있으면 이 API들만 503이고 나머지 기능은 그대로 동작합니다.
+- **공유 형식:** `app/ai_contract/`는 `ai/src/career/contracts/`의 바이트 단위 사본입니다. 직접 고치지 말고 `ai/`에서 `python scripts/sync_contract_to_be.py`로 갱신합니다(CI가 차이를 검사).
+- **저장:** 08 마이그레이션의 `job_postings`·`job_posting_versions`·`learning_resources`·`learning_resource_versions`·`career_analyses`·`curricula`. 공고·자료는 버전을 덮어쓰지 않고, 분석에는 사용한 재검증 스냅샷을 함께 저장합니다. 모델 원문 출력은 저장하지 않습니다.
+
 ### 🔐 인증 (JWT)
 - 회원가입/로그인 응답의 `access_token`을 이후 요청에 `Authorization: Bearer <access_token>` 헤더로 보냅니다.
 - 로그인 사용자는 **본인 DID의 데이터만** 조회·검증·발급할 수 있습니다 (남의 DID면 403).
@@ -132,6 +165,7 @@ docker run -d --name vc-be-test -e POSTGRES_PASSWORD=password -p 55432:5432 pgve
 pip install -r requirements-dev.txt
 python -m pytest -q
 ```
+`tests/test_career.py`는 같은 저장소의 AI 앱(`../ai`)을 프로세스 안에 띄워 실제 HTTP 형식으로 BE↔AI 연동(검증 → 비교 → 커리큘럼, 장애·잘못된 AI 응답 차단)을 검사합니다. AI 서버를 따로 띄울 필요는 없습니다.
 GitHub Actions(`tests.yml`의 `BE (pytest)`)에서도 PR마다 같은 테스트가 돕니다.
 
 

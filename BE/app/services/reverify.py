@@ -25,6 +25,8 @@ class ReverifyOutcome:
     evidence: dict  # openapi Evidence
     reason: Optional[str]  # 통과하지 못한 사유 (통과하면 None)
     vc_jwt: Optional[str]
+    # 서명 원본을 해석한 결과 (서명 원본이 없거나 검증기 호출에 실패하면 None). 직무 비교 스냅샷에 쓴다.
+    evaluation: Optional[BadgeEvaluation] = None
 
 
 def _iso(value: Any) -> Optional[str]:
@@ -118,7 +120,8 @@ async def _reverify_one(row: dict, verifier: CredentialVerifier, *, persist: boo
         achievement_name=evaluation.achievement_name, issued_at=evaluation.issued_at,
         expires_at=evaluation.expires_at, verified_at=now, checks=checks,
     )
-    return ReverifyOutcome(str(row["record_id"]), status, status == "verified", evidence, reason, token)
+    return ReverifyOutcome(str(row["record_id"]), status, status == "verified", evidence, reason, token,
+                           evaluation)
 
 
 async def reverify_rows(rows: list[dict], verifier: CredentialVerifier, *, persist: bool = True,

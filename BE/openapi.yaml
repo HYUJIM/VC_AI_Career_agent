@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: VC AI Career Agent — BE API
-  version: 0.6.0
+  version: 0.7.0
   description: |
     BE(FastAPI) 파트의 OpenAPI 명세. FE(`FE/src/api/*.ts`, `FE/src/types/api.ts`)가 실제로 호출하는
     계약을 기준으로 작성했다.
@@ -63,6 +63,8 @@ tags:
     description: 검증된 자격증명만으로 만드는 포트폴리오 (VC_ONLY)
   - name: shares
     description: 선택 공개 링크와 기업용 조회
+  - name: career
+    description: 직무 비교·커리큘럼 (계산은 AI 서비스 `ai/`, 증거·저장·권한은 BE)
 
 paths:
   /health:
@@ -798,6 +800,300 @@ paths:
               example:
                 detail: Share link not found or expired
 
+  /api/v1/skills:
+    get:
+      tags: [career]
+      summary: 기술 카탈로그 (AI 서비스)
+      operationId: getSkillCatalog
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: "data = SkillCatalog (catalog_version, skills[skill_id,label,aliases])"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CareerEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/AIUnavailable"
+
+  /api/v1/research/job-postings/preview:
+    post:
+      tags: [career]
+      summary: 공고 원문 기술 후보 미리보기 (연구자)
+      description: 필수/우대·경력 판단은 하지 않는다. 연구자가 검토해 주석으로 넣는다. `RESEARCHER_USER_IDS`가 아니면 403.
+      operationId: previewJobRequirements
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [raw_text]
+              properties:
+                raw_text: { type: string, maxLength: 100000 }
+      responses:
+        "200":
+          description: "data = {candidates[], truncated}"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CareerEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/research/job-postings:
+    post:
+      tags: [career]
+      summary: 검토한 공고 반입 (연구자, 새 버전으로 저장)
+      description: |
+        본문은 `JobPostingInput` (`BE/app/ai_contract/career.py`). 모든 요구사항은 원문의 정확한 위치(start/end)와 인용을 가져야 한다.
+        AI 서비스가 주석이 원문과 맞는지("또는" 조건 보존 등) 검사하고, 실패하면 422 `detail`에 규칙 코드를 준다.
+        URL을 방문하거나 진위를 인증하지 않는다. `dataset_kind=real`이고 수집 7일 이내인 공고만 비교에 쓰인다.
+      operationId: importJobPosting
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, description: "JobPostingInput" }
+      responses:
+        "201":
+          description: "data = JobVersion (posting_id, version_id, content_hash, posting)"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CareerEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          description: 형식 오류 또는 주석 규칙 위반 (예 ANNOTATED_SKILL_NOT_MENTIONED_IN_QUOTE)
+
+  /api/v1/research/learning-resources:
+    post:
+      tags: [career]
+      summary: 검토한 학습자료 반입 (연구자, 새 버전으로 저장)
+      description: 본문은 `LearningResourceInput` (`BE/app/ai_contract/curriculum.py`). 기술·선수지식·가격은 원문 인용이 있어야 한다.
+      operationId: importLearningResource
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, description: "LearningResourceInput" }
+      responses:
+        "201":
+          description: "data = LearningResourceVersion"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CareerEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          description: 형식 오류 또는 인용 규칙 위반 (예 RESOURCE_FEE_NOT_IN_CITED_TEXT)
+
+  /api/v1/job-postings:
+    get:
+      tags: [career]
+      summary: 비교에 쓸 수 있는 검토된 최근 공고와 통계
+      operationId: searchJobPostings
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: region, in: query, required: false, schema: { type: string, maxLength: 80 } }
+        - { name: seniority, in: query, required: false, schema: { type: string, enum: [entry, junior, mid, senior, unspecified] } }
+      responses:
+        "200":
+          description: "data = JobSearchResult (lookback_days, posting_count, sources[], market_demand[], warnings[])"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CareerEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/AIUnavailable"
+
+  /api/v1/job-postings/{posting_id}:
+    get:
+      tags: [career]
+      summary: 공고 버전 조회 (기본 최신, version_id로 과거 버전)
+      operationId: getJobPosting
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: posting_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: version_id, in: query, required: false, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: "data = JobVersion"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CareerEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: 저장본의 내용 해시가 맞지 않음 (Job source integrity check failed)
+
+  /api/v1/learning-resources:
+    get:
+      tags: [career]
+      summary: 조건에 맞는 학습자료 검색
+      operationId: searchLearningResources
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: skill_id, in: query, required: false, schema: { type: string } }
+        - { name: budget_krw, in: query, required: false, schema: { type: integer, minimum: 0 } }
+      responses:
+        "200":
+          description: "data = LearningResourceVersion[]"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CareerEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/career-analyses:
+    post:
+      tags: [career]
+      summary: 직무 비교 (실행 시점 재검증 → AI 비교)
+      description: |
+        사용자의 **모든 자격증명을 지금 다시 검증**하고 통과한 것만 근거로 AI가 공고 요구사항과 비교한다.
+        요구사항별 상태: `supported` / `partially_supported` / `not_evidenced`(근거 없음 ≠ 역량 없음) / `unknown`(판단 보류).
+        결과는 5분(`valid_until`) 동안 커리큘럼 생성에 쓸 수 있다. AI 응답이 BE가 보낸 근거 밖을 인용하면 502.
+      operationId: createCareerAnalysis
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                target_posting_id: { type: string, format: uuid, description: "비우면 전체 공고 기준" }
+                region: { type: string }
+                seniority: { type: string, enum: [entry, junior, mid, senior, unspecified] }
+            example:
+              target_posting_id: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+      responses:
+        "201":
+          description: "data = CareerAnalysis (comparisons[], skill_evidence[], excluded_record_ids[], warnings[], valid_until)"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CareerEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: 대상 공고가 마감·오래됨·필터 밖, 또는 비교 중 공고가 바뀜
+        "422":
+          description: 비교에 쓸 공고가 없음 (No eligible reviewed job sources; import sources first)
+        "502":
+          description: AI 응답이 계약·BE 재검사를 통과하지 못함
+        "503":
+          $ref: "#/components/responses/AIUnavailable"
+
+  /api/v1/career-analyses/{analysis_id}:
+    get:
+      tags: [career]
+      summary: 내 직무 비교 결과 조회 (과거 시점 결과)
+      operationId: getCareerAnalysis
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: analysis_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: "data = {analysis, historical_only: true}"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CareerEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/curricula:
+    post:
+      tags: [career]
+      summary: 학습 계획 생성 (동기)
+      description: |
+        본문은 `CurriculumRequest` (`BE/app/ai_contract/curriculum.py`). 같은 `idempotency_key`로 같은 본문을 보내면 같은 결과, 다른 본문이면 409.
+        `mode=llm`은 `CURRICULUM_LLM_USER_IDS`에 있는 계정 + `allow_external_processing=true`일 때만 (아니면 403/422).
+        분석이 만료되었으면 409. LLM은 허용된 단계·자료·시간만 고르며, 초안이 검사를 통과하지 못하면 템플릿으로 대체한다.
+      operationId: createCurriculum
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, description: "CurriculumRequest" }
+            example:
+              analysis_id: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+              idempotency_key: 9b2f7c1e-1c2d-4e5f-8a9b-0c1d2e3f4a5b
+              weeks: 8
+              hours_per_week: 6
+              budget_krw: 0
+              mode: template
+              learning_choices: [{ skill_id: spark, action: learn }]
+      responses:
+        "201":
+          description: "data = {curriculum_id, request, result: CurriculumResult, created_at}"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CareerEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: 분석 만료, 자료 변경, 또는 같은 키의 다른 요청
+        "503":
+          $ref: "#/components/responses/AIUnavailable"
+
+  /api/v1/curricula/{curriculum_id}:
+    get:
+      tags: [career]
+      summary: 내 학습 계획 조회
+      operationId: getCurriculum
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: curriculum_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: "data = {curriculum_id, request, result, created_at, historical_only: true}"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CareerEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -891,7 +1187,25 @@ components:
           example:
             detail: DXWORKS_API_KEY가 설정되지 않았습니다
 
+    AIUnavailable:
+      description: AI 서비스 연결 실패·토큰 불일치·미설정 (FE는 "AI 서버에 연결할 수 없습니다"로 표시)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            detail: AI service temporarily unavailable
   schemas:
+    CareerEnvelope:
+      type: object
+      description: |
+        직무 비교·커리큘럼 API 공통 응답. `data`의 정확한 형식은 BE와 AI가 공유하는 Pydantic 모델
+        (`BE/app/ai_contract/`, 원본 `ai/src/career/contracts/`)과 FE 타입(`FE/src/types/career.ts`)을 따른다.
+      required: [success, data]
+      properties:
+        success: { type: boolean }
+        message: { type: string }
+        data: {}
     # ── 공통 ──────────────────────────────────────────────────
     ErrorResponse:
       type: object

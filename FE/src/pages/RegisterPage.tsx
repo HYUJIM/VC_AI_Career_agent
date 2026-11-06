@@ -59,7 +59,7 @@ export function RegisterPage() {
     mutationFn: registerUser,
     onSuccess: (res) => {
       // BE가 가입과 동시에 사용자 정보(DID 포함)를 내려주므로 바로 로그인 상태로 전환
-      setUser(res.data);
+      setUser(res.data, res.access_token);
       navigate('/dashboard', { state: { welcome: res.data.name, newUser: true } });
     },
     onError: (error, variables) => {

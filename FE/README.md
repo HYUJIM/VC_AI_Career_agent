@@ -17,12 +17,12 @@ BE(FastAPI, `../BE`)가 제공하는 REST API를 소비하는 **SPA(Single Page 
 
 ```
 src/
-├── api/            # BE 엔드포인트별 호출 함수 (auth.ts, credentials.ts)
+├── api/            # BE 엔드포인트별 호출 함수 (auth.ts, credentials.ts, career.ts)
 ├── components/     # 공통 UI (Layout, ProtectedRoute, StatusBadge, ui/*)
 ├── lib/            # axios 인스턴스, 에러 파싱 등 공용 유틸
-├── pages/          # 라우트 단위 페이지 (Login, Register, Dashboard, IssueCredential)
+├── pages/          # 라우트 단위 페이지 (Login, Register, Dashboard, IssueCredential, CareerPlan, PortfolioBuilder)
 ├── store/          # Zustand 전역 상태 (authStore)
-└── types/          # BE 응답 타입 정의 (api.ts)
+└── types/          # BE 응답 타입 정의 (api.ts, career.ts)
 ```
 
 ## 로컬 실행 방법
@@ -48,9 +48,13 @@ npm run dev
 | `/login` | 이메일 + 비밀번호 로그인 | `POST /api/v1/users/login` |
 | `/dashboard` | 자격증명 지갑 (status별 구분 표시) | `GET /api/v1/subjects/{did}/careers` |
 | `/issue` | 모의 배지 발급 → 검증 → 저장 (2단계 플로우) | `POST /api/mock-issuer/issue`, `POST /api/v1/verify` |
+| `/career` | 직무 비교·커리큘럼: 공고 선택 → 실행 시점 재검증 후 AI 비교 → 학습 계획 (로그인 토큰 필요, BE·AI 서버 필요) | `GET /api/v1/job-postings`, `GET /api/v1/skills`, `POST /api/v1/career-analyses`, `POST /api/v1/curricula` |
 | `/portfolio` | AI 포트폴리오 빌더 (verified 자격증명만 사용, AI 연동 전 모의 응답) | `GET /api/v1/subjects/{did}/careers` |
 
-API 계약은 `BE/openapi.yaml`(v0.4.0)을 기준으로 합니다.
+API 계약은 `BE/openapi.yaml`(v0.7.0)을 기준으로 합니다.
+
+- **로그인 토큰:** 로그인·가입 응답의 `access_token`을 저장하고 모든 요청에 `Authorization: Bearer` 헤더로 붙입니다 (`lib/apiClient.ts`). 이전 버전에서 로그인해 토큰이 없는 상태라면 직무 비교 화면에서 "다시 로그인"이 나옵니다.
+- **직무 비교 화면은 미리보기 세션에서 동작하지 않습니다.** 실제 자격증명 재검증과 AI 서버가 필요합니다.
 
 - **협력사 자료 취급:** 템플릿 ID·API 주소 등 협력사에서 받은 값은 FE 코드에 넣지 않습니다. 발급 화면의 Template ID는 비워두면 BE 서버 설정의 기본 템플릿을 씁니다.
 - **verify 응답 `data`:** BE 공통 형식(`achievement_name`, `issuer_name`, `issuer_trusted`, `status`, `record_id`, `checks` 등)입니다. 외부 검증기 응답 원문이 아닙니다.

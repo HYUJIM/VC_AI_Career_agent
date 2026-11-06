@@ -40,6 +40,18 @@ class Settings:
     mock_issuer_enabled: bool
     # 관리형 홀더 키 암호화용 마스터 키(32바이트). None이면 키를 만들지 않고 가짜 DID로 가입시킨다(전환 기간).
     holder_key_encryption_key: Optional[bytes]
+    # AI 서비스(ai/, `uvicorn src.server.app:app`). 직무 비교·커리큘럼 계산을 맡는다.
+    ai_service_url: str
+    # AI의 AI_SERVICE_TOKEN과 같은 32바이트 이상 공유 비밀. 비면 AI 기능 요청은 503.
+    ai_service_token: str
+    # 루프백이 아닌 http:// AI 주소는 이 값이 true일 때만 허용한다 (Docker 내부망 등).
+    ai_service_allow_http: bool
+    ai_timeout_seconds: float
+    ai_generation_timeout_seconds: float
+    # 공고·학습자료를 반입할 수 있는 연구자 사용자 UUID 목록.
+    researcher_user_ids: frozenset[str]
+    # 커리큘럼 LLM 모드를 쓸 수 있는 사용자 UUID 목록 (LLM 설정 자체는 AI 서비스 .env).
+    curriculum_llm_user_ids: frozenset[str]
 
 
 @lru_cache
@@ -71,6 +83,13 @@ def get_settings() -> Settings:
         cors_origins=_env_list("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"),
         mock_issuer_enabled=_env_bool("MOCK_ISSUER_ENABLED", True),
         holder_key_encryption_key=holder_key,
+        ai_service_url=os.getenv("AI_SERVICE_URL", "http://127.0.0.1:8100").strip().rstrip("/"),
+        ai_service_token=os.getenv("AI_SERVICE_TOKEN", ""),
+        ai_service_allow_http=_env_bool("AI_SERVICE_ALLOW_HTTP", False),
+        ai_timeout_seconds=float(os.getenv("AI_TIMEOUT_SECONDS", "30")),
+        ai_generation_timeout_seconds=float(os.getenv("AI_GENERATION_TIMEOUT_SECONDS", "90")),
+        researcher_user_ids=frozenset(_env_list("RESEARCHER_USER_IDS", "")),
+        curriculum_llm_user_ids=frozenset(_env_list("CURRICULUM_LLM_USER_IDS", "")),
     )
     if not settings.auth_required:
         logger.warning("AUTH_REQUIRED=false: 토큰 없는 요청도 허용합니다 (FE/AI 토큰 연동 전 전환 기간용).")

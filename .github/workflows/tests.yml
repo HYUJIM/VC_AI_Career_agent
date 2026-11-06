@@ -58,6 +58,8 @@ jobs:
       # GPU 모델 패키지(requirements-gpu.txt)는 설치하지 않는다. GPU 없이 도는 테스트만 실행한다.
       - run: pip install -r requirements.txt
       - run: python -m pytest -q
+      # BE/app/ai_contract가 ai/src/career/contracts와 바이트 단위로 같은지 확인한다.
+      - run: python scripts/sync_contract_to_be.py --check
 
   research-vc:
     name: research-vc (typecheck + vitest)

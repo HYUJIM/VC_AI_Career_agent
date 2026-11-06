@@ -10,13 +10,20 @@ export interface UserProfile {
   name: string;
 }
 
-export interface RegisterResponse {
+/** 회원가입·로그인 응답. access_token은 이후 요청의 `Authorization: Bearer` 헤더에 쓴다. */
+export interface AuthTokenFields {
+  access_token: string;
+  token_type: 'bearer';
+  expires_in: number;
+}
+
+export interface RegisterResponse extends AuthTokenFields {
   success: boolean;
   message: string;
   data: UserProfile;
 }
 
-export interface LoginResponse {
+export interface LoginResponse extends AuthTokenFields {
   success: boolean;
   message: string;
   data: UserProfile;

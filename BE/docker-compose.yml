@@ -18,6 +18,7 @@ services:
       - ./DB/migrations/05_credentials_raw_token.sql:/docker-entrypoint-initdb.d/05_credentials_raw_token.sql
       - ./DB/migrations/06_holder_keys.sql:/docker-entrypoint-initdb.d/06_holder_keys.sql
       - ./DB/migrations/07_shares.sql:/docker-entrypoint-initdb.d/07_shares.sql
+      - ./DB/migrations/08_career_curriculum.sql:/docker-entrypoint-initdb.d/08_career_curriculum.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-vc_career_agent}"]
       interval: 5s
@@ -37,11 +38,33 @@ services:
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
+      # 같은 Compose 네트워크의 AI 서비스. 토큰은 .env의 AI_SERVICE_TOKEN을 두 서비스가 같이 쓴다.
+      - AI_SERVICE_URL=http://ai:8100
+      - AI_SERVICE_ALLOW_HTTP=true
     volumes:
       - ./:/app
     depends_on:
       postgres:
         condition: service_healthy
+      ai:
+        condition: service_started
+
+  # 직무 비교·커리큘럼 계산 (../ai). DB·BE 키 없이 BE 요청만 처리한다.
+  ai:
+    build:
+      context: ../ai
+      dockerfile: Dockerfile
+    container_name: vc-ai
+    restart: unless-stopped
+    ports:
+      # 디버깅용으로 이 PC에서만 연다. BE는 내부망 주소(http://ai:8100)로 접속한다.
+      - "127.0.0.1:${AI_PORT:-8100}:8100"
+    env_file:
+      # LLM 설정(CURRICULUM_LLM_*)은 ai/.env에 둔다. 없으면 템플릿 커리큘럼만 동작한다.
+      - path: ../ai/.env
+        required: false
+    environment:
+      - AI_SERVICE_TOKEN=${AI_SERVICE_TOKEN:-}
 
 volumes:
   postgres_data:

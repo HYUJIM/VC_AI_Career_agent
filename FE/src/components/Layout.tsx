@@ -9,6 +9,7 @@ const CURRENT_YEAR = new Date().getFullYear();
 const NAV_ITEMS = [
   { to: '/issue', label: '자격증명 발급' },
   { to: '/dashboard', label: '자격증명 지갑' },
+  { to: '/career', label: '직무 비교·커리큘럼' },
   { to: '/portfolio', label: 'AI 포트폴리오' },
 ];
 
