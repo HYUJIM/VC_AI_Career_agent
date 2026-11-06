@@ -35,13 +35,18 @@ export async function getPortfolio(id: string): Promise<PortfolioResponse> {
   return data;
 }
 
+/** 줄바꿈·제어문자를 공백으로 치환하고 앞뒤 공백을 제거한다 (이슈 #14 마크다운 위조 방어). */
+function sanitizeSingleLine(value: string): string {
+  return value.replace(/[\x00-\x1f\x7f]+/g, ' ').trim();
+}
+
 /** POST /api/v1/portfolios */
 export async function createPortfolio(
   payload: Omit<PortfolioCreateRequest, 'source'>,
 ): Promise<PortfolioResponse> {
   const body: PortfolioCreateRequest = {
-    title: payload.title.trim(),
-    target_role: payload.target_role?.trim() || null,
+    title: sanitizeSingleLine(payload.title),
+    target_role: payload.target_role ? sanitizeSingleLine(payload.target_role) || null : null,
     record_ids: payload.record_ids,
     source: 'VC_ONLY',
   };
@@ -52,8 +57,15 @@ export async function createPortfolio(
 
 /** PATCH /api/v1/portfolios/{id} — 제목·희망 직무·상태만 수정 가능 (본문 수정 불가) */
 export async function updatePortfolio(id: string, payload: PortfolioUpdateRequest): Promise<PortfolioResponse> {
-  if (isPreviewSession()) return previewUpdatePortfolio(id, payload);
-  const { data } = await apiClient.patch<PortfolioResponse>(`/v1/portfolios/${encodeURIComponent(id)}`, payload);
+  const body: PortfolioUpdateRequest = {
+    ...payload,
+    ...(payload.title !== undefined ? { title: sanitizeSingleLine(payload.title) } : {}),
+    ...(payload.target_role !== undefined
+      ? { target_role: payload.target_role ? sanitizeSingleLine(payload.target_role) || null : null }
+      : {}),
+  };
+  if (isPreviewSession()) return previewUpdatePortfolio(id, body);
+  const { data } = await apiClient.patch<PortfolioResponse>(`/v1/portfolios/${encodeURIComponent(id)}`, body);
   return data;
 }
 

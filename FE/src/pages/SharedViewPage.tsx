@@ -19,8 +19,11 @@ export function SharedViewPage() {
     queryKey: ['publicShare', token],
     queryFn: () => getPublicShare(token),
     enabled: Boolean(token),
-    // 없는·철회·만료 링크(404)는 다시 시도해도 같다.
-    retry: (count, err) => getApiErrorKind(err) !== 'notFound' && count < 1,
+    // 없는·철회·만료 링크(404)나 레이트리밋(429)은 다시 시도해도 같다.
+    retry: (count, err) => {
+      const kind = getApiErrorKind(err);
+      return kind !== 'notFound' && kind !== 'rateLimited' && count < 1;
+    },
   });
 
   if (isLoading) {
@@ -34,6 +37,18 @@ export function SharedViewPage() {
         {kind === 'notFound' ? (
           <Alert variant="warning" title="열 수 없는 링크입니다.">
             링크가 없거나 철회·만료되었습니다. 링크를 보낸 분께 새 링크를 요청해주세요.
+          </Alert>
+        ) : kind === 'rateLimited' ? (
+          <Alert
+            variant="warning"
+            title="조회 요청이 너무 많습니다."
+            actions={
+              <Button variant="outline" size="sm" onClick={() => refetch()}>
+                다시 시도
+              </Button>
+            }
+          >
+            잠시 후 다시 열어주세요.
           </Alert>
         ) : (
           <Alert
@@ -62,7 +77,9 @@ export function SharedViewPage() {
           {new Date(data.verified_at).toLocaleString('ko-KR')}에 서명 원본을 다시 검증했어요. 총{' '}
           {data.credentials.length}개 중 {verifiedCount}개가 지금 유효합니다.
         </p>
-        <p className="font-mono-did break-all text-[12px] text-[var(--color-text-muted)]">{data.holder.did}</p>
+        {data.holder.did && (
+          <p className="font-mono-did break-all text-[12px] text-[var(--color-text-muted)]">{data.holder.did}</p>
+        )}
         <p className="text-[12px] text-[var(--color-text-muted)]">이 링크는 {formatDate(data.expires_at)}까지 열 수 있어요.</p>
       </section>
 

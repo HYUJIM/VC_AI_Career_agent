@@ -1,4 +1,4 @@
-﻿import { zodResolver } from '@hookform/resolvers/zod';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -25,9 +25,21 @@ interface LoginError {
   email: string;
 }
 
+/** BE는 bcrypt 제약으로 UTF-8 기준 72바이트를 넘는 비밀번호를 거부한다(422). */
+const MAX_PASSWORD_BYTES = 72;
+
 const loginSchema = z.object({
-  email: z.string().email('올바른 이메일 형식이 아닙니다.'),
-  password: z.string().min(1, '비밀번호를 입력해주세요.'),
+  email: z
+    .string()
+    .trim()
+    .email('올바른 이메일 형식이 아닙니다.')
+    .max(255, '이메일은 255자 이하여야 합니다.'),
+  password: z
+    .string()
+    .min(1, '비밀번호를 입력해주세요.')
+    .refine((v) => new TextEncoder().encode(v).length <= MAX_PASSWORD_BYTES, {
+      message: `비밀번호가 너무 깁니다. (최대 ${MAX_PASSWORD_BYTES}바이트)`,
+    }),
 });
 
 type LoginForm = z.infer<typeof loginSchema>;
@@ -118,6 +130,12 @@ export function LoginPage() {
             {err.message}
           </Alert>
         );
+      case 'rateLimited':
+        return (
+          <Alert variant="warning" title="로그인 시도가 너무 많습니다." onClose={() => setLoginError(null)}>
+            보안을 위해 잠시 동안 로그인이 제한되었습니다. 잠시 후 다시 시도해주세요.
+          </Alert>
+        );
       default:
         return (
           <Alert variant="error" title="로그인 중 오류가 발생했습니다." onClose={() => setLoginError(null)}>
@@ -152,6 +170,7 @@ export function LoginPage() {
             type="email"
             label="이메일"
             placeholder="hong@test.com"
+            maxLength={255}
             error={errors.email?.message}
             {...register('email')}
           />

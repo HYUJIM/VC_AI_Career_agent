@@ -20,10 +20,21 @@ interface RegisterError {
 
 /** BE는 bcrypt 제약으로 UTF-8 기준 72바이트를 넘는 비밀번호를 거부한다(422). */
 const MAX_PASSWORD_BYTES = 72;
+/** 줄바꿈·제어문자 금지 (BE 포트폴리오 마크다운 위조 방지 규칙과 동일) */
+const NO_CONTROL_CHARS = /^[^\x00-\x1f\x7f]*$/;
 
 const registerSchema = z.object({
-  name: z.string().min(1, '이름을 입력해주세요.'),
-  email: z.string().email('올바른 이메일 형식이 아닙니다.'),
+  name: z
+    .string()
+    .trim()
+    .min(1, '이름을 입력해주세요.')
+    .max(100, '이름은 100자 이하여야 합니다.')
+    .regex(NO_CONTROL_CHARS, '이름에 줄바꿈이나 제어문자를 사용할 수 없습니다.'),
+  email: z
+    .string()
+    .trim()
+    .email('올바른 이메일 형식이 아닙니다.')
+    .max(255, '이메일은 255자 이하여야 합니다.'),
   password: z
     .string()
     .min(8, '비밀번호는 8자 이상이어야 합니다.')
@@ -102,6 +113,12 @@ export function RegisterPage() {
             {err.message}
           </Alert>
         );
+      case 'rateLimited':
+        return (
+          <Alert variant="warning" title="회원가입 시도가 너무 많습니다." onClose={() => setRegisterError(null)}>
+            보안을 위해 잠시 동안 요청이 제한되었습니다. 잠시 후 다시 시도해주세요.
+          </Alert>
+        );
       case 'network':
         return (
           <Alert variant="warning" title="서버에 연결할 수 없습니다." onClose={() => setRegisterError(null)}>
@@ -133,6 +150,7 @@ export function RegisterPage() {
             id="name"
             label="이름"
             placeholder="홍길동"
+            maxLength={100}
             error={errors.name?.message}
             {...register('name')}
           />
@@ -141,6 +159,7 @@ export function RegisterPage() {
             type="email"
             label="이메일"
             placeholder="hong@test.com"
+            maxLength={255}
             error={errors.email?.message}
             {...register('email')}
           />

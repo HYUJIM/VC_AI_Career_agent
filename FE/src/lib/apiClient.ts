@@ -74,6 +74,7 @@ export type ApiErrorKind =
   | 'conflict'
   | 'notFound'
   | 'validation'
+  | 'rateLimited'
   | 'server'
   | 'unknown';
 
@@ -94,6 +95,8 @@ export function getApiErrorKind(error: unknown): ApiErrorKind {
       return 'notFound';
     case 422:
       return 'validation';
+    case 429:
+      return 'rateLimited';
     default:
       if (response.status >= 500) return hasDetail ? 'server' : 'network';
       return 'unknown';
@@ -119,6 +122,10 @@ const KNOWN_ERROR_MESSAGES: Record<string, string> = {
   'Credential already registered to another user': '이미 다른 사용자의 지갑에 등록된 자격증명입니다.',
   'Mock issuer is disabled': '모의 발급 서버가 비활성화되어 있습니다. (BE MOCK_ISSUER_ENABLED)',
   'Internal server error': '서버 내부 오류가 발생했습니다.',
+  'Verification service error': '검증 서비스와 통신하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+  'Verification service unavailable': '검증 서비스 설정이 완료되지 않았거나 일시적으로 사용할 수 없습니다.',
+  'Too Many Requests': '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.',
+  'Rate limit exceeded': '요청 횟수 제한을 초과했습니다. 잠시 후 다시 시도해주세요.',
   // BE v0.6.0 재검증·포트폴리오·선택 공개
   'Credential not found': '자격증명을 찾을 수 없습니다. 목록을 새로고침해주세요.',
   'No verified credentials selected': '선택한 자격증명 중 지금 검증을 통과한 것이 없습니다.',
@@ -166,7 +173,8 @@ function formatValidationDetail(detail: ValidationErrorItem[]): string {
 }
 
 export function getApiErrorMessage(error: unknown): string {
-  if (getApiErrorKind(error) === 'network') {
+  const kind = getApiErrorKind(error);
+  if (kind === 'network') {
     return 'BE 서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.';
   }
   if (axios.isAxiosError(error)) {
@@ -175,6 +183,7 @@ export function getApiErrorMessage(error: unknown): string {
     const detail = body?.detail;
     if (Array.isArray(detail)) return formatValidationDetail(detail);
     if (typeof detail === 'string') return translate(detail);
+    if (kind === 'rateLimited') return '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.';
     return body?.message ?? body?.error ?? axiosError.message;
   }
   if (error instanceof Error) {

@@ -262,7 +262,7 @@ export interface SharedCredential extends Evidence {
 
 /** GET /api/v1/public/shares/{token} — 로그인 불필요, 봉투 없이 본문 반환 */
 export interface PublicShare {
-  holder: { name: string; did: string };
+  holder: { name: string; did?: string | null };
   credentials: SharedCredential[];
   /** 이번 열람 시 재검증한 시각 */
   verified_at: string;
