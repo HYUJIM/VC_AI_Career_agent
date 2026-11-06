@@ -39,21 +39,26 @@ export function isPreviewSession(): boolean {
 
 const delay = (ms = 500) => new Promise((r) => setTimeout(r, ms));
 
+const previewStatusOverrides = new Map<string, string>();
+
 export async function previewCareers(): Promise<CareersResponse> {
   await delay(300);
   const now = Date.now();
-  const mk = (i: number, issuer: string, name: string, status: string) => ({
-    record_id: `rec-0000-${i}a7f`,
-    issuer,
-    achievement_name: name,
-    status,
-    issued_at: new Date(now - i * 86400000 * 30).toISOString(),
-    raw_data: {
-      type: ['VerifiableCredential', 'OpenBadgeCredential'],
-      issuer: { name: issuer },
-      credentialSubject: { id: PREVIEW_USER.did, achievement: { name } },
-    },
-  });
+  const mk = (i: number, issuer: string, name: string, status: string) => {
+    const record_id = `rec-0000-${i}a7f`;
+    return {
+      record_id,
+      issuer,
+      achievement_name: name,
+      status: previewStatusOverrides.get(record_id) ?? status,
+      issued_at: new Date(now - i * 86400000 * 30).toISOString(),
+      raw_data: {
+        type: ['VerifiableCredential', 'OpenBadgeCredential'],
+        issuer: { name: issuer },
+        credentialSubject: { id: PREVIEW_USER.did, achievement: { name } },
+      },
+    };
+  };
   return {
     user_profile: PREVIEW_USER,
     verified_credentials: [
@@ -121,6 +126,10 @@ async function previewEvidence(recordIds: string[]): Promise<Evidence[]> {
 export async function previewReverify(recordId: string): Promise<ReverifyResponse> {
   const [evidence] = await previewEvidence([recordId]);
   if (!evidence) throw new Error('미리보기 데이터에 없는 자격증명입니다.');
+  if (!evidence.verified && evidence.status === 'pending') {
+    evidence.status = 'unverifiable';
+    previewStatusOverrides.set(recordId, 'unverifiable');
+  }
   return {
     success: evidence.verified,
     message: evidence.verified ? 'Credential re-verified.' : `Re-verification failed: ${evidence.status}`,

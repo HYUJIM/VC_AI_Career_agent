@@ -32,7 +32,7 @@ export function Layout() {
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-10 border-b border-[var(--color-border)] bg-white">
-        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-6 px-5">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-6 px-6">
           <div className="flex items-center gap-8">
             <Link to="/" className="flex items-center gap-2 text-[17px] font-bold tracking-tight">
               <span
@@ -105,7 +105,7 @@ export function Layout() {
           </nav>
         )}
       </header>
-      <main className="mx-auto w-full max-w-5xl flex-1 px-5 py-8">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">
         {/* 경로가 바뀔 때마다 새로 마운트되며 살짝 떠오르듯 나타난다 */}
         <motion.div
           key={pathname}
@@ -117,7 +117,7 @@ export function Layout() {
         </motion.div>
       </main>
       <footer className="mt-8 border-t border-[var(--color-border)] bg-white">
-        <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 py-8 sm:flex-row sm:justify-between">
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-8 sm:flex-row sm:justify-between">
           <div className="flex flex-col gap-2">
             <span className="text-[15px] font-bold">커리어 지갑</span>
             <p className="max-w-xs text-[13px] leading-relaxed text-[var(--color-text-muted)]">
@@ -162,7 +162,7 @@ export function Layout() {
             </div>
           </div>
         </div>
-        <p className="mx-auto w-full max-w-5xl px-5 pb-6 text-[12px] text-[var(--color-text-muted)]">
+        <p className="mx-auto w-full max-w-6xl px-6 pb-6 text-[12px] text-[var(--color-text-muted)]">
           © {CURRENT_YEAR} 커리어 지갑 · 검증된 자격증명으로 만드는 AI 포트폴리오
         </p>
       </footer>

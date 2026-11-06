@@ -95,8 +95,8 @@ export function DashboardPage() {
         </p>
       </section>
 
-      <div className="grid items-start gap-4 lg:grid-cols-[1fr_300px]">
-        <div className="flex min-w-0 flex-col gap-4">
+      <div className="grid items-start gap-5 lg:grid-cols-[1fr_340px]">
+        <div className="flex min-w-0 flex-col gap-5">
           <StatsCard
             total={counts.all}
             verified={counts.verified}

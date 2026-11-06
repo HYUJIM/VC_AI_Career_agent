@@ -65,13 +65,17 @@ def build_evidence(*, record_id: str, status: str, vc: dict, issuer_name: str, a
     }
 
 
-def _not_verifiable(row: dict, reason: str, detail: str) -> ReverifyOutcome:
-    # 서명 원본으로 검증할 수 없는 경우: DB 사본으로 표시만 하고 근거로는 쓰지 않는다 (strict에서 제외).
+def _not_verifiable(row: dict, reason: str, detail: str, *, persist: bool = False) -> ReverifyOutcome:
+    # 서명 원본으로 검증할 수 없는 경우: persist가 켜져 있고 서명 원본 자체가 없으면 DB 상태도 unverifiable('확인 필요')로 갱신한다.
+    checks = [CheckResult("signature", "skip", detail)]
+    vc = row["raw_data"] or {}
+    if persist and reason == "no_signed_original":
+        db_service.update_reverification(str(row["record_id"]), "unverifiable", checks, vc, None)
     evidence = build_evidence(
-        record_id=str(row["record_id"]), status="unverifiable", vc=row["raw_data"] or {},
+        record_id=str(row["record_id"]), status="unverifiable", vc=vc,
         issuer_name=row["issuer_name"], achievement_name=row["achievement_name"],
         issued_at=row["issued_at"], expires_at=row["expires_at"], verified_at=None,
-        checks=[CheckResult("signature", "skip", detail)],
+        checks=checks,
     )
     return ReverifyOutcome(str(row["record_id"]), "unverifiable", False, evidence, reason, row.get("raw_token"))
 
@@ -89,7 +93,7 @@ async def _reverify_one(row: dict, verifier: CredentialVerifier, *, persist: boo
                         raise_provider_errors: bool) -> ReverifyOutcome:
     token = row.get("raw_token")
     if not token:
-        return _not_verifiable(row, "no_signed_original", "서명 원본 없음 (재검증 불가)")
+        return await run_in_threadpool(_not_verifiable, row, "no_signed_original", "서명 원본 없음 (재검증 불가)", persist=persist)
     try:
         result = await verifier.verify_badge(token)
     except ProviderError:

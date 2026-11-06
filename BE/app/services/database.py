@@ -194,6 +194,7 @@ class DatabaseService:
 
     def update_reverification(self, record_id: str, status: str, checks: list, vc: dict, verified_at) -> None:
         """재검증 결과 반영. 본문 사본(raw_data)도 서명 원본 기준으로 되돌린다."""
+        checked_at = verified_at or datetime.now(timezone.utc)
         with get_db_connection() as conn:
             with conn.transaction(), conn.cursor() as cur:
                 cur.execute(
@@ -206,7 +207,7 @@ class DatabaseService:
                 cur.executemany(
                     "INSERT INTO verification_checks (record_id, check_name, result, detail, checked_at)"
                     " VALUES (%s, %s, %s, %s, %s)",
-                    [(record_id, c.name, c.result, c.detail, verified_at) for c in latest.values()],
+                    [(record_id, c.name, c.result, c.detail, checked_at) for c in latest.values()],
                 )
 
     # ── 포트폴리오 ────────────────────────────────────────────

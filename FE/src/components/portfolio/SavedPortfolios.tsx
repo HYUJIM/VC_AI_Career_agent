@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { deletePortfolio, getPortfolio, listPortfolios, updatePortfolio } from '@/api/portfolios';
 import { ExcludedList } from '@/components/portfolio/ExcludedList';
+import { StatusBadge } from '@/components/StatusBadge';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -198,9 +199,27 @@ function PortfolioDetailModal({ id, onClose }: { id: string; onClose: () => void
             <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-2xl bg-[var(--color-surface)] px-4 py-3 text-[14px] leading-relaxed">
               {portfolio.content_markdown}
             </pre>
+            {portfolio.sections.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <p className="text-[13px] font-semibold text-[#029359]">
+                  검증을 통과해 반영된 자격증명
+                </p>
+                <ul className="flex flex-col gap-1.5">
+                  {portfolio.sections.map((sec) => (
+                    <li key={sec.record_id} className="flex items-center justify-between gap-2 text-[13px]">
+                      <span className="min-w-0 truncate text-[var(--color-text-sub)]">
+                        <span className="font-medium text-[var(--color-text)]">{sec.achievement_name}</span>
+                        <span className="ml-1.5 text-[var(--color-text-muted)]">· {sec.issuer_name}</span>
+                      </span>
+                      <StatusBadge status={sec.status} />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {portfolio.excluded.length > 0 && (
               <div className="flex flex-col gap-2">
-                <p className="text-[13px] font-semibold text-[var(--color-text-sub)]">
+                <p className="text-[13px] font-semibold text-[#c77700]">
                   검증을 통과하지 못해 빠진 자격증명
                 </p>
                 <ExcludedList excluded={portfolio.excluded} />

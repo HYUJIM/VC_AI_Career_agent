@@ -7,6 +7,7 @@ import { CareersErrorAlert } from '@/components/CareersErrorAlert';
 import { ExcludedList } from '@/components/portfolio/ExcludedList';
 import { SavedPortfolios } from '@/components/portfolio/SavedPortfolios';
 import { ShareLinksCard } from '@/components/portfolio/ShareLinksCard';
+import { StatusBadge } from '@/components/StatusBadge';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -24,6 +25,7 @@ interface ChatMessage {
 }
 
 const SUGGESTIONS = ['경력 중심으로 강조해줘', '해커톤 수상 내역 추가', 'GitHub 링크 반영'];
+const PAGE_SIZE = 10;
 
 type PanelTab = 'chat' | 'preview';
 
@@ -65,6 +67,7 @@ export function PortfolioBuilderPage() {
   const [thinking, setThinking] = useState(false);
   const [title, setTitle] = useState('');
   const [targetRole, setTargetRole] = useState('');
+  const [page, setPage] = useState(1);
   const chatRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
@@ -76,6 +79,9 @@ export function PortfolioBuilderPage() {
 
   const credentials = (data?.verified_credentials ?? []).filter((c) => c.status === 'verified');
   const credentialNames = new Map(credentials.map((c) => [c.record_id, c.achievement_name]));
+  const totalPages = Math.max(1, Math.ceil(credentials.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pagedCredentials = credentials.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   // BE v0.6.0 VC_ONLY 포트폴리오: 자격증명 ID만 보내고, BE가 지금 다시 검증해 통과한 것으로만 본문을 만든다.
   const save = useMutation({
@@ -172,8 +178,8 @@ export function PortfolioBuilderPage() {
 
       {isError && <CareersErrorAlert error={error} onRetry={() => refetch()} />}
 
-      <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
-        <Card className="flex h-fit flex-col gap-3 px-0 py-5">
+      <div className="grid items-start gap-4 lg:grid-cols-[340px_1fr]">
+        <Card className="flex h-[760px] flex-col gap-3 px-0 py-5">
           <div className="flex items-baseline justify-between px-5">
             <h2 className="text-[17px] font-bold">포함할 자격증명</h2>
             <span className="text-[13px] text-[var(--color-text-muted)]">
@@ -202,40 +208,79 @@ export function PortfolioBuilderPage() {
               </Button>
             </div>
           )}
-          {isLoading && (
-            <p className="px-5 text-[13px] text-[var(--color-text-muted)]">불러오는 중...</p>
-          )}
-          {!isLoading && !isError && credentials.length === 0 && (
-            <p className="px-5 text-[13px] text-[var(--color-text-muted)]">
-              검증된 자격증명이 없어요.{' '}
-              <Link to="/issue" className="font-semibold text-[var(--color-primary)] hover:underline">
-                발급받기
-              </Link>
-            </p>
-          )}
-          <ul>
-            {credentials.map((c) => (
-              <li key={c.record_id}>
-                <label className="flex cursor-pointer items-center gap-3 px-5 py-2.5 hover:bg-[var(--color-card-hover)]">
-                  <input
-                    type="checkbox"
-                    checked={selected.has(c.record_id)}
-                    onChange={() => toggle(c.record_id)}
-                    className="h-5 w-5 shrink-0 accent-[var(--color-primary)]"
-                  />
-                  <span className="min-w-0">
-                    <span className="block truncate text-[15px] font-semibold">{c.achievement_name}</span>
-                    <span className="block truncate text-[13px] text-[var(--color-text-muted)]">
-                      {c.issuer}
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+            {isLoading && (
+              <p className="px-5 text-[13px] text-[var(--color-text-muted)]">불러오는 중...</p>
+            )}
+            {!isLoading && !isError && credentials.length === 0 && (
+              <p className="px-5 text-[13px] text-[var(--color-text-muted)]">
+                검증된 자격증명이 없어요.{' '}
+                <Link to="/issue" className="font-semibold text-[var(--color-primary)] hover:underline">
+                  발급받기
+                </Link>
+              </p>
+            )}
+            <ul className="flex-1">
+              {pagedCredentials.map((c) => (
+                <li key={c.record_id}>
+                  <label className="flex cursor-pointer items-center gap-3 px-5 py-2.5 hover:bg-[var(--color-card-hover)]">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(c.record_id)}
+                      onChange={() => toggle(c.record_id)}
+                      className="h-5 w-5 shrink-0 accent-[var(--color-primary)]"
+                    />
+                    <span className="min-w-0">
+                      <span className="block truncate text-[15px] font-semibold">{c.achievement_name}</span>
+                      <span className="block truncate text-[13px] text-[var(--color-text-muted)]">
+                        {c.issuer}
+                      </span>
                     </span>
-                  </span>
-                </label>
-              </li>
-            ))}
-          </ul>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-[var(--color-border)] px-5 pt-3.5">
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={currentPage <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              ‹ 이전
+            </Button>
+            <div className="flex items-center gap-1">
+              {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((pageNum) => {
+                const active = pageNum === currentPage;
+                return (
+                  <button
+                    key={pageNum}
+                    type="button"
+                    onClick={() => setPage(pageNum)}
+                    className={`flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-[13px] font-bold transition-colors ${
+                      active
+                        ? 'bg-[var(--color-primary)] text-white shadow-sm'
+                        : 'bg-[var(--color-surface)] text-[var(--color-text-sub)] hover:bg-[var(--color-primary-weak)] hover:text-[var(--color-primary)]'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={currentPage >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
+              다음 ›
+            </Button>
+          </div>
         </Card>
 
-        <Card className="flex h-[600px] flex-col p-0">
+        <Card className="flex h-[760px] flex-col p-0">
           <div className="flex items-center justify-between gap-2 border-b border-[var(--color-border)] px-5 py-3">
             <div className="flex items-center gap-2">
               <span className="text-[15px] font-bold">커리어 에이전트</span>
@@ -269,8 +314,8 @@ export function PortfolioBuilderPage() {
           </div>
 
           {tab === 'preview' && (
-            <div className="flex flex-1 flex-col gap-3 overflow-y-auto px-5 py-4">
-              <div className="grid gap-3 sm:grid-cols-2">
+            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 py-4">
+              <div className="grid shrink-0 gap-3 sm:grid-cols-2">
                 <Input
                   id="portfolioTitle"
                   label="제목"
@@ -289,43 +334,64 @@ export function PortfolioBuilderPage() {
                 />
               </div>
               <Button
+                className="shrink-0"
                 disabled={!title.trim() || selected.size === 0}
                 isLoading={save.isPending}
                 onClick={() => save.mutate()}
               >
                 검증 후 포트폴리오 저장
               </Button>
-              <p className="text-[12px] leading-relaxed text-[var(--color-text-muted)]">
+              <p className="shrink-0 text-[12px] leading-relaxed text-[var(--color-text-muted)]">
                 자유 텍스트 없이 고른 자격증명만 보내요(VC_ONLY). 서버가 저장 직전에 서명 원본을 다시 검증해 통과한
                 것만 본문에 넣어요.
               </p>
 
               {save.isError && (
-                <Alert variant="error" title="포트폴리오를 저장하지 못했습니다." onClose={() => save.reset()}>
-                  {getApiErrorMessage(save.error)}
-                </Alert>
+                <div className="shrink-0">
+                  <Alert variant="error" title="포트폴리오를 저장하지 못했습니다." onClose={() => save.reset()}>
+                    {getApiErrorMessage(save.error)}
+                  </Alert>
+                </div>
               )}
               {saved && (
-                <Alert variant="success" title={`"${saved.title}" 포트폴리오를 저장했어요.`} onClose={() => save.reset()}>
-                  검증된 자격증명 {saved.credential_count}개로 본문을 만들었어요.
-                  {saved.excluded.length > 0 && (
-                    <div className="mt-2 flex flex-col gap-1.5">
-                      <span className="font-semibold">검증을 통과하지 못해 빠진 자격증명</span>
-                      <ExcludedList excluded={saved.excluded} names={credentialNames} />
-                    </div>
-                  )}
-                </Alert>
+                <div className="shrink-0">
+                  <Alert variant="success" title={`"${saved.title}" 포트폴리오를 저장했어요.`} onClose={() => save.reset()}>
+                    검증된 자격증명 {saved.credential_count}개로 본문을 만들었어요.
+                    {saved.sections.length > 0 && (
+                      <div className="mt-2.5 flex flex-col gap-1.5">
+                        <span className="font-semibold text-[#029359]">검증을 통과해 반영된 자격증명</span>
+                        <ul className="flex flex-col gap-1.5">
+                          {saved.sections.map((sec) => (
+                            <li key={sec.record_id} className="flex items-center justify-between gap-2 text-[13px]">
+                              <span className="min-w-0 truncate text-[var(--color-text-sub)]">
+                                <span className="font-medium text-[var(--color-text)]">{sec.achievement_name}</span>
+                                <span className="ml-1.5 text-[var(--color-text-muted)]">· {sec.issuer_name}</span>
+                              </span>
+                              <StatusBadge status={sec.status} />
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {saved.excluded.length > 0 && (
+                      <div className="mt-2.5 flex flex-col gap-1.5">
+                        <span className="font-semibold text-[#c77700]">검증을 통과하지 못해 빠진 자격증명</span>
+                        <ExcludedList excluded={saved.excluded} names={credentialNames} />
+                      </div>
+                    )}
+                  </Alert>
+                </div>
               )}
 
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-[13px] text-[var(--color-text-muted)]">
+              <div className="flex shrink-0 items-center justify-between gap-2 pt-1">
+                <p className="text-[13px] font-medium text-[var(--color-text-sub)]">
                   {saved ? '서버가 만든 본문' : `선택한 ${selected.size}개 자격증명으로 만든 초안 (저장 전 미리보기)`}
                 </p>
                 <Button variant="secondary" size="sm" onClick={() => copy(saved?.content_markdown ?? draft)}>
                   {isCopied() ? '복사됨' : '본문 복사'}
                 </Button>
               </div>
-              <pre className="min-h-40 flex-1 whitespace-pre-wrap rounded-2xl bg-[var(--color-surface)] px-4 py-3 text-[14px] leading-relaxed text-[var(--color-text)]">
+              <pre className="min-h-[300px] shrink-0 whitespace-pre-wrap break-words rounded-2xl bg-[var(--color-surface)] p-4 text-[14px] leading-relaxed text-[var(--color-text)]">
                 {saved?.content_markdown ?? draft}
               </pre>
             </div>
