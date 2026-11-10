@@ -1,7 +1,8 @@
 # AI 서비스 설치와 실행
 
 BE(`../BE`)가 호출하는 AI 서버입니다. 직무 비교(검증된 자격증명 ↔ 채용공고 요구사항)와 커리큘럼 생성을 계산합니다.
-무엇을 어떻게 계산하는지는 [docs/CAREER_AI_SERVICE.md](docs/CAREER_AI_SERVICE.md)를 보세요. 아래 명령은 이 `ai/` 폴더에서 실행합니다.
+무엇을 어떻게 계산하는지는 [docs/CAREER_AI_SERVICE.md](docs/CAREER_AI_SERVICE.md)를 보세요. 다음 작업(공고 수집·통계 → 커리큘럼 반영) 설계는
+[docs/JOB_MARKET_STATS_DESIGN.md](docs/JOB_MARKET_STATS_DESIGN.md)에 있습니다. 아래 명령은 이 `ai/` 폴더에서 실행합니다.
 
 ## 1. 가장 쉬운 방법: BE와 함께 Docker Compose로
 
