@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: pgvector/pgvector:pg16
+    image: pgvector/pgvector:0.8.7-pg16-bookworm
     container_name: vc-postgres
     restart: always
     environment:
@@ -8,9 +8,11 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
       POSTGRES_DB: ${DB_NAME:-vc_career_agent}
     ports:
-      - "${DB_PORT:-5432}:5432"
+      # 이 PC에서만 연다 (로컬 개발용 기본 비밀번호). backend·migrate는 내부망 주소(postgres:5432)로 접속한다.
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # initdb는 새 볼륨에서만 실행된다. 순서는 app.migrate와 같아야 한다 (tests/test_migrate.py가 검사).
       - ./DB/schema/schema_PostgreSQL.sql:/docker-entrypoint-initdb.d/01_schema.sql
       - ./DB/schema/schema_pgvector.sql:/docker-entrypoint-initdb.d/02_pgvector.sql
       - ./DB/seeds/03_seed_data.sql:/docker-entrypoint-initdb.d/03_seed_data.sql
@@ -18,11 +20,38 @@ services:
       - ./DB/migrations/05_credentials_raw_token.sql:/docker-entrypoint-initdb.d/05_credentials_raw_token.sql
       - ./DB/migrations/06_holder_keys.sql:/docker-entrypoint-initdb.d/06_holder_keys.sql
       - ./DB/migrations/07_shares.sql:/docker-entrypoint-initdb.d/07_shares.sql
+      - ./DB/migrations/08_career_curriculum.sql:/docker-entrypoint-initdb.d/08_career_curriculum.sql
+      - ./DB/migrations/09_users_token_version.sql:/docker-entrypoint-initdb.d/09_users_token_version.sql
+      - ./DB/migrations/10_mock_issuances.sql:/docker-entrypoint-initdb.d/10_mock_issuances.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-vc_career_agent}"]
       interval: 5s
       timeout: 5s
       retries: 5
+
+  # DB 마이그레이션 (한 번 실행하고 끝난다). 원장(public.schema_migrations)에 없는 DB/migrations 파일만 적용하므로
+  # 예전 볼륨에도 새 마이그레이션이 자동으로 들어간다. --seed는 빈 DB를 처음 만들 때만 쓰인다 (로컬 전용).
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vc-migrate
+    command: ["python", "-m", "app.migrate", "--seed"]
+    # 개발 전용: backend와 같은 소스 바인드 마운트·root 실행
+    user: root
+    env_file:
+      - .env
+    environment:
+      - APP_ENV=development
+      - DB_HOST=postgres
+      - DB_PORT=5432
+    volumes:
+      - ./:/app
+    healthcheck:
+      disable: true
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   backend:
     build:
@@ -30,18 +59,54 @@ services:
       dockerfile: Dockerfile
     container_name: vc-backend
     restart: unless-stopped
+    # 개발 전용: 소스 바인드 마운트 + 핫 리로드, 이전과 같은 root 실행(리눅스 호스트의 바인드 마운트 쓰기·600 .env 읽기 유지).
+    # 운영 이미지는 Dockerfile 기본값(비루트, 리로더 없음, APP_ENV=production)으로 실행한다.
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "3000", "--reload"]
+    user: root
+    # 이미지의 HEALTHCHECK는 운영용이다. 개발 로그에 /health 요청이 30초마다 찍히지 않게 끈다.
+    healthcheck:
+      disable: true
     ports:
-      - "${PORT:-3000}:3000"
+      # 이 PC에서만 연다 (개발 설정: 모의 발급·시드 계정). FE 개발 서버 프록시(localhost:3000)·curl·브라우저는 그대로 쓴다.
+      - "127.0.0.1:${PORT:-3000}:3000"
     env_file:
       - .env
     environment:
+      - APP_ENV=development
       - DB_HOST=postgres
       - DB_PORT=5432
+      # 같은 Compose 네트워크의 AI 서비스. 토큰은 .env의 AI_SERVICE_TOKEN을 두 서비스가 같이 쓴다.
+      - AI_SERVICE_URL=http://ai:8100
+      - AI_SERVICE_ALLOW_HTTP=true
     volumes:
       - ./:/app
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      ai:
+        condition: service_started
+
+  # 직무 비교·커리큘럼 계산 (../ai). DB·BE 키 없이 BE 요청만 처리한다.
+  ai:
+    build:
+      context: ../ai
+      dockerfile: Dockerfile
+    container_name: vc-ai
+    restart: unless-stopped
+    # 이미지의 HEALTHCHECK는 운영용이다. backend처럼 개발 로그에 /health 요청이 30초마다 찍히지 않게 끈다.
+    healthcheck:
+      disable: true
+    ports:
+      # 디버깅용으로 이 PC에서만 연다. BE는 내부망 주소(http://ai:8100)로 접속한다.
+      - "127.0.0.1:${AI_PORT:-8100}:8100"
+    env_file:
+      # LLM 설정(CURRICULUM_LLM_*)은 ai/.env에 둔다. 없으면 템플릿 커리큘럼만 동작한다.
+      - path: ../ai/.env
+        required: false
+    environment:
+      - AI_SERVICE_TOKEN=${AI_SERVICE_TOKEN:-}
 
 volumes:
   postgres_data:

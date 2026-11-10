@@ -3,8 +3,8 @@
 -- 링크 토큰 원문은 저장하지 않고 SHA-256 해시만 저장한다 (DB가 새어도 링크를 만들 수 없게).
 --
 -- 새로 띄우는 DB: docker-compose가 initdb 단계에서 자동 실행한다.
--- 이미 볼륨이 있는 DB: 아래 명령으로 한 번만 직접 실행한다 (여러 번 실행해도 안전).
---   docker compose exec -T postgres psql -U postgres -d vc_career_agent < DB/migrations/07_shares.sql
+-- 이미 볼륨이 있는 DB·RDS: docker compose의 migrate 서비스나 `python -m app.migrate`가 원장(schema_migrations)에
+-- 없을 때 한 번 적용한다 (여러 번 실행해도 안전). 적용한 뒤에는 SQL을 고치지 말고 다음 번호 파일을 추가한다.
 
 CREATE TABLE IF NOT EXISTS shares (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),

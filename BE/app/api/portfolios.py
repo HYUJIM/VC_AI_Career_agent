@@ -1,18 +1,24 @@
-from typing import Literal, Optional
+from typing import Annotated, Literal, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator
 from starlette.concurrency import run_in_threadpool
 
 from app.core.auth import Principal, require_user
+from app.core.text import StorableText, ensure_single_line, ensure_storable
 from app.integrations import get_verifier
 from app.integrations.ports import CredentialVerifier
 from app.services.database import db_service
 from app.services.portfolio_writer import PortfolioWriter, get_portfolio_writer, rewrite_header
-from app.services.reverify import reverify_rows
+from app.services.reverify import raise_on_verifier_outage, reverify_rows
 
 router = APIRouter()
+
+# 선택 입력용 문자열: StorableText와 같은 검사(NUL·짝 없는 서로게이트 → 500 대신 422)를 길이 제한 뒤에 붙인다.
+# Optional[StorableText] + Field(max_length)로 쓰면 pydantic이 길이 검사를 검사기 뒤로 미뤄 422 메시지가 바뀐다.
+OptionalTitle = Optional[Annotated[str, Field(min_length=1, max_length=255), AfterValidator(ensure_storable)]]
+OptionalRole = Optional[Annotated[str, Field(max_length=100), AfterValidator(ensure_storable)]]
 
 
 def _clean_optional(v: Optional[str]) -> Optional[str]:
@@ -26,31 +32,42 @@ class PortfolioCreateRequest(BaseModel):
     # 정의되지 않은 필드(자유 텍스트 본문 등)는 422로 거절한다 (VC_ONLY, Security by Default).
     model_config = ConfigDict(extra="forbid")
 
-    title: str = Field(min_length=1, max_length=255)
-    target_role: Optional[str] = Field(default=None, max_length=100)
+    title: StorableText = Field(min_length=1, max_length=255)
+    target_role: OptionalRole = None
     record_ids: list[UUID] = Field(min_length=1, max_length=50)
     source: Literal["VC_ONLY"]
 
+    # 제목·희망 직무는 본문 Markdown 머리말 한 줄에 그대로 들어간다. 앞뒤 공백은 지금처럼 잘라 내고, 안쪽의 줄바꿈·제어
+    # 문자는 422로 거절한다 (줄을 나눠 '검증된 자격증명' 섹션을 흉내 내지 못하게: VC_ONLY).
     @field_validator("title")
     @classmethod
     def strip_title(cls, v: str) -> str:
         v = v.strip()
         if not v:
             raise ValueError("must not be blank")
-        return v
+        return ensure_single_line(v)
 
     @field_validator("target_role")
     @classmethod
     def strip_role(cls, v: Optional[str]) -> Optional[str]:
-        return _clean_optional(v)
+        return ensure_single_line(_clean_optional(v))
 
 
 class PortfolioUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    title: Optional[str] = Field(default=None, min_length=1, max_length=255)
-    target_role: Optional[str] = Field(default=None, max_length=100)
+    title: OptionalTitle = None
+    target_role: OptionalRole = None
     status: Optional[Literal["draft", "published"]] = None
+
+    @field_validator("title", "target_role")
+    @classmethod
+    def check_single_line(cls, v: Optional[str]) -> Optional[str]:
+        # 앞뒤 공백·빈 값·null 처리는 update_portfolio가 지금처럼 한다.
+        # 여기서는 잘라 낸 값 안의 줄바꿈·제어 문자만 422로 거절하고 값은 그대로 돌려준다.
+        if v is not None:
+            ensure_single_line(v.strip())
+        return v
 
 
 def _summary(row: dict) -> dict:
@@ -92,6 +109,8 @@ async def create_portfolio(
 
     # 생성 시점에 서명 원본을 다시 검증해 통과한 것만 근거로 쓴다.
     outcomes = await reverify_rows(rows, verifier)
+    # 검증기 장애면 사용자 탓인 422 대신 502/503으로 끝내고 저장하지 않는다.
+    raise_on_verifier_outage(outcomes)
     evidence = [o.evidence for o in outcomes if o.verified]
     excluded = [{"record_id": o.record_id, "status": o.status, "reason": o.reason}
                 for o in outcomes if not o.verified]

@@ -8,3 +8,8 @@ __pycache__/
 *.pyo
 *.pyd
 .pytest_cache/
+
+.venv/
+.ruff_cache/
+
+test_users_did_list.csv.*.tmp

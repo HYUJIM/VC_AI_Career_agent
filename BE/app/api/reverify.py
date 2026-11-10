@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from starlette.concurrency import run_in_threadpool
 
 from app.core.auth import Principal, ensure_can_read_subject, get_principal, require_user
+from app.core.text import StorableText
 from app.integrations import get_verifier
 from app.integrations.ports import CredentialVerifier
 from app.services.database import db_service
@@ -35,7 +36,8 @@ async def reverify_credential(
 
 @router.get("/subjects/{did}/evidence")
 async def get_evidence(
-    did: str,
+    # NUL(%00)이 든 DID는 DB 조회에서 500이 나지 않게 422로 거절한다.
+    did: StorableText,
     mode: Literal["strict", "labeled"] = "strict",
     record_id: Optional[list[UUID]] = Query(default=None),
     principal: Principal = Depends(get_principal),

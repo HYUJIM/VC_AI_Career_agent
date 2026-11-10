@@ -1,0 +1,8 @@
+# AI 실행 의존성의 허용 범위 (사람이 고치는 원본). 설치·Docker 이미지는 정확히 고정한 requirements.txt를 쓴다.
+# 여기 범위를 바꾸면 requirements.txt를 다시 만든다(방법은 requirements.txt 머리말). 테스트 도구는 requirements-dev.txt.
+fastapi>=0.115,<1
+uvicorn>=0.30,<1
+pydantic>=2.10,<3
+rfc8785>=0.1,<1
+httpx>=0.27,<1
+python-dotenv>=1,<2
