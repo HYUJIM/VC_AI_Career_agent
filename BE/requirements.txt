@@ -1,10 +1,38 @@
-fastapi
-uvicorn
-httpx
-python-dotenv
-psycopg[binary]
-pydantic
-bcrypt
-PyJWT>=2.8,<3
-cryptography>=42
-rfc8785>=0.1,<1
+# 생성 파일: 손으로 고치지 않는다. 사람이 고치는 목록은 requirements.in이다.
+# requirements.in의 런타임 의존성 전체(전이 의존성 포함)를 테스트를 통과한 BE/.venv 설치 버전(CPython 3.11.15)으로
+# == 고정해, Docker 이미지·CI가 언제 빌드해도 같은 버전을 설치하게 한다.
+# Windows 전용 의존성(colorama 등)은 넣지 않는다 (Windows에서는 pip가 함께 설치한다).
+#
+# 다시 만들기 (BE/ 에서, uv 사용):
+#   1) .venv에 requirements.in 범위의 새 버전을 설치하고 BE·AI 테스트를 통과시킨다.
+#        uv pip install --python .venv/bin/python -U -r requirements.in "pytest>=8,<10" "pytest-asyncio>=0.23,<2"
+#   2) 설치된 버전으로 아래 목록을 다시 뽑아 바꾼다 (이 머리 주석은 남긴다).
+#        uv pip freeze --python .venv/bin/python > /tmp/be-installed.txt
+#        uv pip compile requirements.in -c /tmp/be-installed.txt --python-version 3.11 --no-strip-extras --no-header --no-annotate
+#   3) requirements-dev.txt의 테스트 전용 고정과 ai/requirements.txt의 같은 패키지도 같은 버전으로 맞춘다.
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.16.0
+bcrypt==5.0.0
+certifi==2026.10.23
+cffi==2.1.1
+click==8.5.0
+cryptography==50.0.2
+fastapi==0.162.0
+h11==0.16.0
+httpcore==1.0.9
+httpx==0.28.1
+idna==3.20
+opentelemetry-api==1.45.2
+psycopg[binary]==3.3.8
+psycopg-binary==3.3.8
+pycparser==3.12
+pydantic==2.14.3
+pydantic-core==2.50.4
+pyjwt==2.15.1
+python-dotenv==1.2.4
+rfc8785==0.1.4
+starlette==1.10.0
+typing-extensions==4.16.0
+typing-inspection==0.4.5
+uvicorn==0.54.0

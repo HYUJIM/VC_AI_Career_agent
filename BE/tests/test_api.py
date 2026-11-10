@@ -1,10 +1,22 @@
 """API 통합 테스트 (실제 PostgreSQL + 포트를 직접 구현한 가짜 발급·검증기, 가상 데이터)."""
+import base64
+import logging
 import uuid
 
 from app.integrations.ports import ProviderError
 from tests.conftest import make_vc_jwt
 
 SERVICE = {"X-Service-Key": "test-service-key"}
+
+
+def allowed_origin() -> str:
+    """CORS_ORIGINS에 들어 있는 FE 출처 하나 (다른 출처에서 띄운 FE를 흉내 낸다)."""
+    from fastapi.middleware.cors import CORSMiddleware
+
+    from main import app
+
+    [cors] = [m for m in app.user_middleware if m.cls is CORSMiddleware]
+    return cors.kwargs["allow_origins"][0]
 
 
 # ── 회원가입 / 로그인 / 토큰 ─────────────────────────────────────────
@@ -51,15 +63,22 @@ def test_seed_account_can_login(client):
     assert res.status_code == 200
 
 
-def test_me_requires_token_even_when_auth_optional(client):
+def test_me_requires_token(client):
     assert client.get("/api/v1/users/me").status_code == 401
 
 
 def test_invalid_and_tampered_tokens_are_401(client, register):
     user = register()
     assert client.get("/api/v1/users/me", headers={"Authorization": "Bearer garbage"}).status_code == 401
-    tampered = user["token"][:-2] + ("aa" if not user["token"].endswith("aa") else "bb")
-    assert client.get("/api/v1/users/me", headers={"Authorization": f"Bearer {tampered}"}).status_code == 401
+    # 서명(HS256, 32바이트)의 한 비트를 뒤집어 정규 base64url로 다시 붙인다.
+    # 끝 두 글자만 바꾸면 'aY'→'aa'처럼 같은 서명으로 디코딩될 수 있다 (PyJWT 버전에 따라 약 1/1024).
+    signing_input, signature = user["token"].rsplit(".", 1)
+    raw = bytearray(base64.urlsafe_b64decode(signature + "=" * (-len(signature) % 4)))
+    raw[0] ^= 0x01
+    tampered = f"{signing_input}.{base64.urlsafe_b64encode(bytes(raw)).decode().rstrip('=')}"
+    res = client.get("/api/v1/users/me", headers={"Authorization": f"Bearer {tampered}"})
+    assert res.status_code == 401
+    assert res.json() == {"detail": "Invalid token"}
 
 
 # ── careers 접근 제어 ─────────────────────────────────────────────────
@@ -74,20 +93,17 @@ def test_careers_owner_can_read_other_user_cannot(client, register):
     assert other.status_code == 403
 
 
-def test_careers_anonymous_allowed_only_while_auth_optional(client, register):
-    user = register()
-    assert client.get(f"/api/v1/subjects/{user['did']}/careers").status_code == 200
-
-
-def test_careers_anonymous_rejected_when_auth_required(client, register, auth_required):
+def test_careers_requires_token(client, register):
+    # 예전 전환 기간(AUTH_REQUIRED=false)에는 토큰 없이도 DID만 알면 이메일·자격증명 전체를 읽을 수 있었다.
     user = register()
     res = client.get(f"/api/v1/subjects/{user['did']}/careers")
     assert res.status_code == 401
+    assert res.json() == {"detail": "Authentication required"}
     assert res.headers["www-authenticate"] == "Bearer"
     assert client.get(f"/api/v1/subjects/{user['did']}/careers", headers=user["headers"]).status_code == 200
 
 
-def test_careers_service_key(client, register, auth_required):
+def test_careers_service_key(client, register):
     user = register()
     assert client.get(f"/api/v1/subjects/{user['did']}/careers", headers=SERVICE).status_code == 200
     bad = client.get(f"/api/v1/subjects/{user['did']}/careers", headers={"X-Service-Key": "wrong"})
@@ -95,7 +111,8 @@ def test_careers_service_key(client, register, auth_required):
 
 
 def test_careers_unknown_did_is_404(client):
-    res = client.get("/api/v1/subjects/did:key:z6MkNobody/careers")
+    # 사용자 토큰은 본인 DID만 읽으므로(남의 DID는 403, 없어진 사용자의 토큰은 401) 서비스 키로 확인한다.
+    res = client.get("/api/v1/subjects/did:key:z6MkNobody/careers", headers=SERVICE)
     assert res.status_code == 404
     assert res.json() == {"detail": "User not found or not verified yet."}
 
@@ -129,7 +146,7 @@ def test_verify_badge_stores_original_token_and_checks(client, register, db):
     careers = client.get(f"/api/v1/subjects/{user['did']}/careers", headers=user["headers"]).json()
     assert [c["record_id"] for c in careers["verified_credentials"]] == [body["record_id"]]
     assert set(careers["verified_credentials"][0]) == {"record_id", "issuer", "achievement_name", "status",
-                                                      "issued_at", "raw_data"}  # FE/AI 계약 유지
+                                                      "issued_at", "raw_data"}  # FE 계약 유지
 
 
 def test_verify_same_badge_twice_updates_in_place(client, register, db):
@@ -159,19 +176,24 @@ def test_verify_badge_for_someone_else_is_403(client, register):
     assert res.status_code == 403
 
 
-def test_verify_badge_unregistered_recipient_is_404_not_auto_created(client, db):
+def test_verify_badge_unregistered_recipient_is_403_not_auto_created(client, register, db):
     # 회귀: 예전 코드는 test@example.com 임시 사용자를 자동 생성했고, 두 번째부터 이메일 중복으로 500이 났다.
+    user = register()
     did = f"did:key:z6MkUnregistered{uuid.uuid4().hex[:6]}"
-    res = client.post("/api/v1/verify", json={"type": "badge", "token": make_vc_jwt(did)})
-    assert res.status_code == 404
-    assert res.json() == {"detail": "Recipient DID is not registered"}
+    res = client.post("/api/v1/verify", json={"type": "badge", "token": make_vc_jwt(did)}, headers=user["headers"])
+    assert res.status_code == 403
+    assert res.json() == {"detail": "Forbidden: credential was issued to a different DID"}
     assert db.execute("SELECT 1 FROM users WHERE subject_did = %s", (did,)).fetchone() is None
 
 
-def test_verify_badge_anonymous_saves_to_registered_recipient(client, register):
+def test_verify_badge_without_token_is_401_and_saves_nothing(client, register, fake_dx, db):
+    # 예전 전환 기간에는 토큰 없이도 수신자 DID의 지갑에 저장됐다 (남의 지갑에 배지를 넣을 수 있었음).
     user = register()
-    body = client.post("/api/v1/verify", json={"type": "badge", "token": make_vc_jwt(user["did"])}).json()
-    assert body["success"] is True
+    fake_dx.error = AssertionError("verifier must not be called")  # 인증 전에는 협력사 API를 부르지 않는다
+    res = client.post("/api/v1/verify", json={"type": "badge", "token": make_vc_jwt(user["did"])})
+    assert res.status_code == 401 and res.json() == {"detail": "Authentication required"}
+    assert res.headers["www-authenticate"] == "Bearer"
+    assert db.execute("SELECT count(*) AS n FROM credentials WHERE user_id = %s", (user["id"],)).fetchone()["n"] == 0
 
 
 def test_verify_unparseable_token_is_not_saved(client, register, fake_dx):
@@ -181,8 +203,9 @@ def test_verify_unparseable_token_is_not_saved(client, register, fake_dx):
     assert body["success"] is False and body["data"]["record_id"] is None
 
 
-def test_verify_invalid_type_is_400(client):
-    res = client.post("/api/v1/verify", json={"type": "diploma", "token": "x"})
+def test_verify_invalid_type_is_400(client, register):
+    user = register()
+    res = client.post("/api/v1/verify", json={"type": "diploma", "token": "x"}, headers=user["headers"])
     assert res.status_code == 400
 
 
@@ -206,13 +229,41 @@ def test_verify_identity_does_not_create_users(client, register, db):
     assert other.status_code == 403
 
 
-def test_dxworks_error_is_502_with_message(client, register, fake_dx):
+def test_dxworks_error_is_502_with_generic_message(client, register, fake_dx):
     user = register()
+    origin = allowed_origin()
     fake_dx.error = ProviderError("DXWorks 오류 (INTERNAL): upstream down", upstream_status=500)
     res = client.post("/api/v1/verify", json={"type": "badge", "token": make_vc_jwt(user["did"])},
-                      headers=user["headers"])
+                      headers={**user["headers"], "Origin": origin})
     assert res.status_code == 502
-    assert "upstream down" in res.json()["detail"]
+    # 협력사 오류 문구는 운영 로그에만 남기고, 응답에는 고정 문구와 기계용 code만 싣는다 (main.py).
+    assert res.json() == {"detail": "Credential service error", "code": "PROVIDER_ERROR"}
+    assert res.headers["access-control-allow-origin"] == origin
+
+
+def test_unexpected_error_is_json_500_with_cors_header(client, register, fake_dx, caplog):
+    from fastapi.middleware.cors import CORSMiddleware
+
+    from main import app
+
+    user = register()
+    origin = allowed_origin()
+    fake_dx.error = RuntimeError("boom: SELECT secret FROM internals")  # ProviderError가 아니라 처리되지 않는 예외
+    body = {"type": "badge", "token": make_vc_jwt(user["did"])}
+    with caplog.at_level(logging.ERROR, logger="vc-be"):
+        res = client.post("/api/v1/verify", json=body, headers={**user["headers"], "Origin": origin})
+    assert res.status_code == 500 and res.json() == {"detail": "Internal server error"}
+    # 다른 출처의 FE도 응답을 읽을 수 있어야 네트워크 오류가 아닌 서버 오류로 보여 준다.
+    assert res.headers["access-control-allow-origin"] == origin
+    assert "boom" not in res.text and "SELECT" not in res.text  # 내부 예외 메시지는 응답에 싣지 않는다
+    [record] = [r for r in caplog.records if r.name == "vc-be" and r.getMessage() == "Unhandled error"]
+    assert record.exc_info is not None
+
+    same_origin = client.post("/api/v1/verify", json=body, headers=user["headers"])
+    assert same_origin.status_code == 500 and same_origin.json() == {"detail": "Internal server error"}
+    # exception_handler(Exception/500)는 CORS 바깥에서 실행되므로 쓰지 않고, CORS가 가장 바깥 미들웨어여야 한다.
+    assert Exception not in app.exception_handlers and 500 not in app.exception_handlers
+    assert app.user_middleware[0].cls is CORSMiddleware
 
 
 # ── 모의 발급 ────────────────────────────────────────────────────────
@@ -253,9 +304,16 @@ def test_mock_issue_to_other_did_is_403(client, register, fake_dx):
     assert fake_dx.issued == []
 
 
-def test_mock_issue_to_unregistered_did_is_404(client, fake_dx):
-    res = client.post("/api/mock-issuer/issue", json={"templateId": "tpl", "holderDid": "did:key:z6MkGhost"})
-    assert res.status_code == 404
+def test_mock_issue_needs_a_valid_user_token(client, register, fake_dx, db):
+    # 회사 API 키로 발급하는 API: 토큰 없는 요청·서비스 키·없어진 계정의 토큰은 모두 401이고 협력사 API를 부르지 않는다.
+    user = register()
+    body = {"templateId": "tpl", "holderDid": user["did"]}
+    for headers in ({}, SERVICE):
+        res = client.post("/api/mock-issuer/issue", json=body, headers=headers)
+        assert res.status_code == 401 and res.json() == {"detail": "Authentication required"}
+    db.execute("DELETE FROM users WHERE id = %s", (user["id"],))  # 토큰은 서명·만료가 유효한 채로 계정만 없어진 경우
+    res = client.post("/api/mock-issuer/issue", json=body, headers=user["headers"])
+    assert res.status_code == 401 and res.json() == {"detail": "Invalid token"}
     assert fake_dx.issued == []
 
 

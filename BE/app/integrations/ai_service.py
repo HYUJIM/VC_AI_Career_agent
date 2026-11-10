@@ -4,9 +4,12 @@ BE는 자격증명을 실행 시점에 다시 검증한 결과, 연구자가 반
 VC 서명 원본·비밀번호·키는 보내지 않는다. AI는 계산만 하고 DB·키를 갖지 않는다.
 
 - 서비스 토큰(AI_SERVICE_TOKEN)과 공유 형식 ID(app/ai_contract)를 모든 요청에 싣고, 응답의 ID도 확인한다.
-- 오류는 HTTPException 하위 클래스라 API는 그대로 상태 코드·메시지를 돌려준다.
-  AIRejected: AI가 거절(예: 공고 주석 오류 422) / AIUnavailable: 연결·설정 문제(503) /
-  AIContractViolation: 형식이 다르거나 BE 재검사를 통과하지 못한 응답(502).
+- 오류는 모두 AIServiceError 하위 클래스다. main.py의 핸들러가 상태 코드·detail은 그대로 두고
+  기계용 `code`를 더해 `{"detail", "code"}`로 답하며, 분류 정보(code·upstream 등)만 로그로 남긴다.
+  AIRejected: AI가 거절한 요청 — AI의 4xx 상태·메시지·코드를 그대로 전달 (예: 공고 주석 오류 422) /
+  AIUnavailable: 연결 실패·시간 초과·AI 5xx·인증 실패·설정 누락(503) /
+  AIContractViolation: 형식 ID가 다르거나, AI가 BE 요청을 형식 오류로 거절했거나,
+  응답이 형식·BE 재검사를 통과하지 못함(502).
 """
 from urllib.parse import urlsplit
 
@@ -44,6 +47,9 @@ class AIServiceError(HTTPException):
     def __init__(self, status_code: int, detail: str, code: str, retryable: bool = False):
         super().__init__(status_code=status_code, detail=detail)
         self.code, self.retryable = code, retryable
+        # 로그용 분류 정보 (_call이 채운다). 요청·응답 본문은 담지 않는다.
+        self.upstream: str | None = None          # 예: "POST /v1/career-analyses"
+        self.upstream_status: int | None = None   # AI가 응답한 HTTP 상태 (응답을 못 받았으면 None)
 
 
 class AIRejected(AIServiceError):
@@ -137,8 +143,15 @@ class AIServiceClient:
                     json=body.model_dump(mode="json") if body is not None else None,
                 )
         except httpx.HTTPError as exc:
-            raise _unavailable() from exc
-        return _decode(response, model)
+            error = _unavailable()
+            error.upstream = f"{method} {path}"
+            raise error from exc
+        try:
+            return _decode(response, model)
+        except AIServiceError as exc:
+            # 상태·detail·code·원인(__cause__)은 그대로 두고 어느 호출이 어떤 상태로 실패했는지만 붙인다.
+            exc.upstream, exc.upstream_status = f"{method} {path}", response.status_code
+            raise
 
     async def skill_catalog(self) -> SkillCatalog:
         return await self._call("GET", "/v1/skills", SkillCatalog)

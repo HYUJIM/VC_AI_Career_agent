@@ -7,7 +7,9 @@ from .verification import EvidenceModel
 
 CATALOG_VERSION = "local-data-engineer/1"
 MAPPING_VERSION = "exact-claim-mapping/1"
-GAP_POLICY_VERSION = "evidence-gap/1"
+# 2: a verified credential that no mapping rule covers only adds a warning; it no longer turns
+# every unevidenced requirement into "unknown" (version 1 did).
+GAP_POLICY_VERSION = "evidence-gap/2"
 SkillID = Literal[
     "sql",
     "python",

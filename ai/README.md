@@ -38,7 +38,7 @@ python3.11 -m venv .venv
 
 BE도 로컬에서 실행하면 BE의 기본값 `AI_SERVICE_URL=http://127.0.0.1:8100`으로 연결됩니다. Windows는 `.venv/bin/python` 대신 `.venv\Scripts\python`을 씁니다.
 
-- API 문서: <http://127.0.0.1:8100/docs> (`/v1/...`는 모두 `Authorization: Bearer <AI_SERVICE_TOKEN>` 필요)
+- API 문서: <http://127.0.0.1:8100/docs> (`/v1/...`는 모두 `Authorization: Bearer <AI_SERVICE_TOKEN>` 필요. 토큰 없이 "Try it out"을 누르면 본문 형식과 관계없이 401)
 - AI를 다른 PC(예: GPU PC)에서 실행하면 BE의 `AI_SERVICE_URL`을 그 주소로 바꿉니다. 근거 데이터가 오가므로 HTTPS 또는 신뢰된 내부망만 쓰고,
   평문 HTTP는 BE에서 `AI_SERVICE_ALLOW_HTTP=true`로 명시해야 허용됩니다.
 
@@ -51,6 +51,12 @@ BE도 로컬에서 실행하면 BE의 기본값 `AI_SERVICE_URL=http://127.0.0.1
 3. 같은 화면에서 학습 계획을 만듭니다 (`POST /api/v1/curricula`, 비교 후 5분 이내). 템플릿은 즉시, LLM은 최대 90초.
 
 ## 4. 테스트
+
+테스트 도구(pytest)는 실행용 `requirements.txt`가 아니라 `requirements-dev.txt`에 있습니다.
+
+```bash
+.venv/bin/python -m pip install -r requirements-dev.txt
+```
 
 ```bash
 .venv/bin/python -m pytest -q
@@ -102,7 +108,13 @@ CURRICULUM_LOCAL_ALLOW_DOWNLOAD=true
 ```
 
 `CURRICULUM_LOCAL_ALLOW_DOWNLOAD=true`는 처음 모델을 받을 때만 쓰고 이후 `false`로 되돌립니다.
-입력 2,048·출력 256 토큰 상한을 넘으면 `LLM_CONTEXT_TOO_LARGE`로 실패하므로 템플릿 모드를 쓰거나 대상 공고를 좁힙니다.
+로컬 모델의 상한은 입력 2,048·출력 256 토큰이고, 넘었을 때 동작이 다릅니다.
+
+- 입력 초과: 생성 단계에서 `LLM_CONTEXT_TOO_LARGE`(BE 422)로 실패합니다. 계획 컨텍스트 단계의 사전 검사는 공급자 공통 60,000바이트 기준이라 로컬 상한 초과는 생성할 때 처음 걸립니다.
+- 출력 초과: 오류가 아닙니다. 잘린 초안은 불완전한 출력으로 버리고 한 번 다시 생성하며, 그것도 잘리면 기본(템플릿) 계획을
+  `generation_method: "llm_fallback"`과 경고 `UNTRUSTED_MODEL_OUTPUT_DISCARDED`로 돌려줍니다(GPU 생성 2회).
+- 단계마다 UUID가 들어가 출력이 빨리 찹니다. 보완할 기술이 3개 정도만 되어도(기본 `assess` 기준) 기본 계획으로 대체될 수 있으니,
+  큰 계획은 템플릿 모드나 OpenAI 호환 API(출력 4,096 토큰)를 쓰거나 대상 공고를 좁힙니다.
 
 ## 7. 문제 해결
 
@@ -113,4 +125,5 @@ CURRICULUM_LOCAL_ALLOW_DOWNLOAD=true
 | BE 502 "contract checks" | 공유 형식이 다름 → 5번 실행 후 둘 다 재시작 |
 | `/v1/...`가 503 `AI_SERVICE_TOKEN_NOT_CONFIGURED` | AI의 토큰이 비었거나 32바이트 미만 |
 | 비교할 공고가 없음 | 연구자 반입 공고가 없거나, 수집 7일·게시 90일이 지났거나, `dataset_kind`가 `real`이 아님 |
+| 공고·자료 미리보기·반입이 422 `TEXT_EXPANDS_TOO_MUCH_WHEN_NORMALIZED` | 원문·인용에 NFKC 정규화로 크게 늘어나는 호환 문자(예: U+FDFA)가 많음 → 풀어 쓴 문자로 고쳐 다시 반입 |
 | 커리큘럼 409 | 비교 결과 유효시간(5분)이 지남 → 다시 비교 |

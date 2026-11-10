@@ -113,7 +113,8 @@ class GenerationOutcome(EvidenceModel):
     result: CurriculumResult | None = None
     error_code: str | None = None
     retryable: bool = False
-    # Encrypted and signed by BE; never logged by the AI service.
+    # Per-call LLM audit, never logged by the AI service. BE keeps only prompt_hash, provider_error,
+    # usage, validation_errors and output_encoding (BE _audit_summary) as plain JSONB; it drops raw_output.
     audit: list[dict[str, Any]] = Field(default_factory=list, repr=False)
 
     @model_validator(mode="after")

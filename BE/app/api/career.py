@@ -1,7 +1,9 @@
 """직무 비교·커리큘럼 API. 계산은 AI 서비스(ai/), 증거·저장·권한은 BE가 맡는다.
 
-- 사용자 API는 로그인 토큰이 반드시 필요하다 (AUTH_REQUIRED와 무관).
+- 사용자 API는 로그인 토큰이 반드시 필요하다 (서비스 키는 401).
 - 공고·학습자료 반입은 RESEARCHER_USER_IDS에 있는 연구자만 한다.
+- 사용자 조회 응답(공고·학습자료·커리큘럼)에는 반입 내부 정보(연구자 ID·검토 메모·권리 근거·원문)를 넣지 않는다.
+  연구자 반입 응답에는 저장한 버전 전체가 나간다.
 """
 from datetime import datetime, timezone
 from typing import Optional
@@ -23,7 +25,7 @@ from app.integrations import get_verifier
 from app.integrations.ai_service import AIServiceClient, get_ai_service
 from app.integrations.ports import CredentialVerifier
 from app.services.career import career_service, require_researcher
-from app.services.career_store import career_store, curriculum_view
+from app.services.career_store import JOB_INTERNAL_FIELDS, RESOURCE_INTERNAL_FIELDS, career_store, curriculum_view
 
 router = APIRouter(tags=["career"])
 
@@ -91,7 +93,7 @@ async def get_job_posting(posting_id: UUID, version_id: Optional[UUID] = None,
                           _: Principal = Depends(require_user)):
     version = await run_in_threadpool(career_store.get_job, str(posting_id),
                                       str(version_id) if version_id else None)
-    return _ok(version.model_dump(mode="json"))
+    return _ok(version.model_dump(mode="json", exclude=JOB_INTERNAL_FIELDS))
 
 
 @router.get("/learning-resources")
@@ -103,7 +105,7 @@ async def search_learning_resources(
 ):
     resources = await run_in_threadpool(career_store.resources)
     found = await ai.search_resources(resources, skill_id, budget_krw)
-    return _ok([item.model_dump(mode="json") for item in found])
+    return _ok([item.model_dump(mode="json", exclude=RESOURCE_INTERNAL_FIELDS) for item in found])
 
 
 # ── 사용자: 직무 비교 ─────────────────────────────────────────────

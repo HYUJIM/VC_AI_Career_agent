@@ -1,6 +1,6 @@
 """Deterministic evidence comparison (moved from BE app/services/career_analysis.py).
 
-BE loads the verified snapshot and the signed job versions, then persists the result.
+BE loads the verified snapshot and the stored job versions, then persists the result.
 This module only computes; it never sees passwords, keys or other users' data.
 """
 
@@ -48,7 +48,7 @@ def reference(version, target_id=None):
 
 
 def check_sources(versions: list[JobVersion]):
-    """Defense in depth: BE verified the signatures; re-check content and annotations."""
+    """Defense in depth: BE re-hashed the stored versions; re-check content and annotations."""
     for version in versions:
         try:
             if version.content_hash != digest_json(version.posting.model_dump(mode="json")):
@@ -167,7 +167,7 @@ def analyze(
         comparisons=compare_requirements(
             [target] if target else market,
             evidence,
-            bool(snapshot.excluded_credentials or unmapped),
+            bool(snapshot.excluded_credentials),
         ),
         market_demand=demand_statistics(market),
         unmapped_record_ids=unmapped,

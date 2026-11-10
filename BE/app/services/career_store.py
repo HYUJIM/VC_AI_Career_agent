@@ -20,6 +20,13 @@ from app.services.database import get_db_connection
 MAX_CANDIDATES = 1000  # AI 계약의 한도와 같다.
 MAX_RESOURCES = 500
 
+# 사용자 조회 응답에서 빼는 반입 내부 정보: 반입한 연구자 계정 ID, 검토 메모, 권리 근거, 원문 전체.
+# 저장본·content_hash·AI로 보내는 계약 객체는 그대로 두고 응답으로 내보낼 때만 뺀다 (연구자 반입 응답은 전체).
+_SOURCE_INTERNAL = {"rights_basis", "review_note", "raw_text"}
+JOB_INTERNAL_FIELDS = {"reviewed_by": True, "posting": _SOURCE_INTERNAL}
+RESOURCE_INTERNAL_FIELDS = {"reviewed_by": True, "resource": _SOURCE_INTERNAL}
+_CURRICULUM_INTERNAL_FIELDS = {"steps": {"__all__": {"resource": RESOURCE_INTERNAL_FIELDS}}}
+
 
 def digest_json(value: Any) -> str:
     """RFC 8785 정규화 JSON의 SHA-256. AI 서비스도 같은 방식으로 대조한다."""
@@ -223,7 +230,10 @@ career_store = CareerStore()
 
 
 def curriculum_view(row: dict) -> dict:
-    """저장된 커리큘럼 행 → API 응답. 저장본이 계약과 다르면 409."""
+    """저장된 커리큘럼 행 → API 응답. 저장본이 계약과 다르면 409.
+
+    단계의 학습자료(steps[].resource)는 GET /learning-resources와 같은 형태로 반입 내부 정보를 빼고 내보낸다.
+    """
     try:
         result = CurriculumResult.model_validate(row["result"])
         request = CurriculumRequest.model_validate(row["request"])
@@ -232,4 +242,5 @@ def curriculum_view(row: dict) -> dict:
     if str(result.job_id) != str(row["id"]) or str(result.analysis_id) != str(row["analysis_id"]):
         raise HTTPException(status_code=409, detail="Stored curriculum integrity check failed")
     return {"curriculum_id": str(row["id"]), "request": request.model_dump(mode="json"),
-            "result": result.model_dump(mode="json"), "created_at": row["created_at"].isoformat()}
+            "result": result.model_dump(mode="json", exclude=_CURRICULUM_INTERNAL_FIELDS),
+            "created_at": row["created_at"].isoformat()}

@@ -1,7 +1,8 @@
 """Learning-resource retrieval and planning entry points (moved from BE curriculum_service).
 
-BE keeps imports, idempotency, LLM account allowlists and the job queue. The functions
-here receive BE's signed resource versions and the stored analysis and only compute.
+BE keeps imports, idempotency, LLM account allowlists and storage; generation is
+synchronous. The functions here receive BE's stored resource versions and the stored
+analysis and only compute.
 """
 
 from datetime import datetime
@@ -16,7 +17,7 @@ from src.career.llm_client import ProviderFailure, selector_payload
 
 
 def check_resources(versions: list[LearningResourceVersion]):
-    """Defense in depth: BE verified the signatures; re-check content and citations."""
+    """Defense in depth: BE re-hashed the stored versions; re-check content and citations."""
     for version in versions:
         try:
             if version.content_hash != digest_json(version.resource.model_dump(mode="json")):
@@ -58,7 +59,7 @@ def planning_context(
     try:
         context = build_context(analysis, resources, request, now)
         if request.mode == "llm":
-            selector_payload(context, request)  # Fail fast before queuing an oversized prompt.
+            selector_payload(context, request)  # Fail fast on an oversized prompt.
     except (EvidenceError, ProviderFailure) as exc:
         raise Rejection(422, str(exc), str(exc)) from exc
     return context

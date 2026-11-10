@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { getApiErrorKind, getApiErrorMessage } from '@/lib/apiClient';
 import { isPreviewSession } from '@/lib/preview';
+import { randomUUID } from '@/lib/uuid';
 import { useAuthStore } from '@/store/authStore';
 import type {
   CareerAnalysis,
@@ -169,6 +170,8 @@ export function CareerPlanPage() {
       setAlternatives({});
       setActions({});
       setPlan(null);
+      // 이전 비교로 시작한 계획 요청의 오류·진행 표시를 뗀다. 요청은 끝까지 가지만 결과는 화면에 반영하지 않는다.
+      generate.reset();
     },
   });
 
@@ -177,7 +180,7 @@ export function CareerPlanPage() {
       const gaps = analysis ? gapSkills(analysis, alternatives) : [];
       return createCurriculum({
         analysis_id: analysis!.analysis_id,
-        idempotency_key: crypto.randomUUID(),
+        idempotency_key: randomUUID(),
         weeks,
         hours_per_week: hoursPerWeek,
         budget_krw: budget.trim() === '' ? null : Number(budget),
@@ -192,7 +195,7 @@ export function CareerPlanPage() {
           .map((skill) => ({ skill_id: skill, action: actions[skill] })),
       });
     },
-    onSuccess: setPlan,
+    // setPlan 은 버튼의 mutate(…, { onSuccess }) 에 둔다. 훅 옵션의 onSuccess 는 reset 뒤에도 이전 요청 결과로 불린다.
   });
 
   if (preview) {
@@ -423,7 +426,10 @@ export function CareerPlanPage() {
             모델로 전달되는 것에 동의해요. 자격증명 원문과 개인정보는 전달되지 않아요.
           </label>
           <div className="flex flex-wrap items-center gap-3">
-            <Button onClick={() => generate.mutate()} isLoading={generate.isPending}>
+            <Button
+              onClick={() => generate.mutate(undefined, { onSuccess: (view) => setPlan(view) })}
+              isLoading={generate.isPending}
+            >
               학습 계획 만들기
             </Button>
             <span className="text-[13px] text-[var(--color-text-muted)]">

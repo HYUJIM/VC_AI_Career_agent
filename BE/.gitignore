@@ -11,3 +11,5 @@ __pycache__/
 
 .venv/
 .ruff_cache/
+
+test_users_did_list.csv.*.tmp

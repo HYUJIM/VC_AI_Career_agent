@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { writeClipboard } from '@/lib/clipboard';
 
 /**
  * 클립보드 복사 + "복사됨" 피드백 상태.
@@ -17,11 +18,8 @@ export function useCopy(resetMs = 1500) {
 
   const copy = useCallback(
     async (text: string, key = 'default') => {
-      try {
-        await navigator.clipboard.writeText(text);
-      } catch {
-        return; // 권한 거부 등 — 피드백 없이 무시
-      }
+      // 클립보드 API가 없거나(HTTP) 거부되면 execCommand 로 대신 복사한다. 그래도 실패하면 피드백 없이 무시
+      if (!(await writeClipboard(text))) return;
       setCopiedKey(key);
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(() => setCopiedKey(null), resetMs);
@@ -29,5 +27,5 @@ export function useCopy(resetMs = 1500) {
     [resetMs],
   );
 
-  return { copiedKey, copy, isCopied: (key = 'default') => copiedKey === key };
+  return { copy, isCopied: (key = 'default') => copiedKey === key };
 }

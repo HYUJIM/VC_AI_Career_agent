@@ -23,3 +23,13 @@ export async function loginUser(payload: LoginPayload): Promise<LoginResponse> {
   const { data } = await apiClient.post<LoginResponse>('/v1/users/login', payload);
   return data;
 }
+
+/**
+ * POST /api/v1/users/logout (204): 이 계정에 발급된 액세스 토큰을 서버에서 모두 무효로 만든다 (다른 기기 포함).
+ * 화면 로그아웃이 스토어의 토큰을 먼저 지우므로 토큰을 직접 받아 헤더에 싣는다.
+ */
+export async function logoutUser(accessToken: string): Promise<void> {
+  await apiClient.post('/v1/users/logout', undefined, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}

@@ -2,24 +2,35 @@ import re
 from datetime import datetime, timedelta
 
 from src.career.contracts.curriculum import LearningResourceInput, LearningResourceVersion
-from src.career.job_requirements import infer_logic
+from src.career.job_requirements import OR_PATTERN, infer_logic_normalized
 from src.career.errors import EvidenceError
-from src.career.skill_catalog import contains_skill, normalized_text
+from src.career.skill_catalog import (
+    bounded_normalized_text,
+    contains_skill,
+    mentions_skill,
+    normalized_text,
+)
 
 RESOURCE_FRESHNESS_DAYS = 30
 MAX_RESOURCES = 500
+# 선수지식 주석 하나는 필수 기술 하나만 가리켜야 한다. 공고 요구사항의 "또는" 어휘(OR_PATTERN)에
+# "/"만 더해 그대로 써서 두 검사가 다시 어긋나지 않게 한다.
+AMBIGUOUS_PREREQUISITE_PATTERN = OR_PATTERN + r"|/"
 
 
 def validate_resource(resource: LearningResourceInput, now: datetime):
     if resource.captured_at > now:
         raise EvidenceError("RESOURCE_CAPTURE_IS_IN_THE_FUTURE")
+    texts = []  # 주석 인용마다 한 번만 정규화하고, 아래 선수지식 검사에서 그 결과를 다시 쓴다.
     for annotation in [*resource.skill_annotations, *resource.prerequisite_annotations]:
-        if not contains_skill(annotation.quote, annotation.skill_id):
+        text = bounded_normalized_text(annotation.quote)
+        if not mentions_skill(text, annotation.skill_id):
             raise EvidenceError("RESOURCE_SKILL_NOT_IN_CITED_TEXT")
-    for annotation in resource.prerequisite_annotations:
-        if infer_logic(annotation.quote) in {"any", "unspecified"}:
+        texts.append(text)
+    for text in texts[len(resource.skill_annotations) :]:  # 선수지식 인용
+        if infer_logic_normalized(text) in {"any", "unspecified"}:
             # Single prerequisite text is fine; disjunctions need a richer model.
-            if re.search(r"\bor\b|또는|혹은|/|중\s*하나", normalized_text(annotation.quote)):
+            if re.search(AMBIGUOUS_PREREQUISITE_PATTERN, text):
                 raise EvidenceError("AMBIGUOUS_RESOURCE_PREREQUISITES")
     if resource.cost_krw == 0 and not re.search(
         r"\bfree\b|무료", normalized_text(resource.cost_annotation.quote)

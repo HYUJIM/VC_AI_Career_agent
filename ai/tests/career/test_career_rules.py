@@ -13,7 +13,7 @@ from src.career.gap_analyzer import (
 )
 from src.career.job_requirements import infer_logic, preview_requirements, validate_annotations
 from src.career.errors import EvidenceError
-from src.career.skill_catalog import contains_skill
+from src.career.skill_catalog import bounded_normalized_text, contains_skill
 from src.career.skill_normalizer import map_skills
 from pydantic import ValidationError
 
@@ -318,3 +318,71 @@ def test_sufficient_unique_sample_stays_at_30_days(make_posting, make_version):
     sources.append(make_version(make_posting(posted_at=now - timedelta(days=50))))
     selected, _, window = select_market(sources, CareerAnalysisRequest(), now)
     assert window == 30 and len(selected) == 5
+
+
+# NFKC로 한 글자가 18자가 된다 (연구자 텍스트의 정규화 증폭, CWE-400).
+EXPANDING = "\ufdfa"
+TEXT_EXPANDS = "TEXT_EXPANDS_TOO_MUCH_WHEN_NORMALIZED"
+
+
+def test_each_text_is_normalized_once_not_once_per_skill(make_posting, monkeypatch):
+    import unicodedata
+
+    posting = make_posting()
+    calls = []
+    real = unicodedata.normalize
+    monkeypatch.setattr(
+        unicodedata, "normalize", lambda form, value: calls.append(form) or real(form, value)
+    )
+    validate_annotations(posting, datetime.now(timezone.utc))
+    # 기술 수(12)와 무관하게 원문 한 번 + 인용마다 한 번
+    assert len(calls) == 1 + len(posting.requirements)
+    calls.clear()
+    preview_requirements(posting.raw_text)
+    assert len(calls) == 1 + len(posting.raw_text.splitlines())  # 원문 전체 한 번 + 줄마다 한 번
+
+
+def test_text_that_explodes_under_normalization_is_refused(make_posting):
+    with pytest.raises(EvidenceError, match=TEXT_EXPANDS):
+        preview_requirements("SQL 경험\n" + EXPANDING * 100)
+    # 인용만 넘는 경우: 원문 전체는 일반 문장이 많아 상한 안에 든다.
+    data = make_posting([{"quote": "SQL " + EXPANDING * 100, "skill_ids": ["sql"]}]).model_dump(
+        mode="json"
+    )
+    data["raw_text"] += "plain uncited text " * 200
+    bounded_normalized_text(data["raw_text"])
+    with pytest.raises(EvidenceError, match=TEXT_EXPANDS):
+        validate_annotations(JobPostingInput.model_validate(data), datetime.now(timezone.utc))
+    # 원문만 넘는 경우: 인용은 정상이고 인용하지 않은 부분만 늘어난다.
+    data = make_posting().model_dump(mode="json")
+    data["raw_text"] += EXPANDING * 1000
+    with pytest.raises(EvidenceError, match=TEXT_EXPANDS):
+        validate_annotations(JobPostingInput.model_validate(data), datetime.now(timezone.utc))
+
+
+def test_real_text_that_grows_a_little_under_normalization_is_kept(make_posting):
+    # ㈜ → (주), ① → 1, 전각 → ASCII: 계약 최대 크기의 공고와 짧은 인용도 그대로 통과한다.
+    line = "㈜데이터컴퍼니 SQL 및 Python 기반 ETL 파이프라인 운영 ① 우대 ＡＷＳ\n"
+    quote = (line * 100)[:4000]
+    posting = make_posting(
+        [
+            {"quote": quote, "kind": "other", "skill_ids": []},
+            {"quote": "㈜㈜㈜", "kind": "other", "skill_ids": []},
+            {"quote": "ＳＱＬ ① 우대", "skill_ids": ["sql"]},
+        ]
+    )
+    data = posting.model_dump(mode="json")
+    data["raw_text"] += (line * 3000)[: 100000 - len(data["raw_text"])]
+    posting = JobPostingInput.model_validate(data)
+    assert len(posting.raw_text) == 100000
+    validate_annotations(posting, datetime.now(timezone.utc))
+    candidates = preview_requirements(posting.raw_text)
+    assert candidates and candidates[0].skill_ids == ["sql", "python", "etl", "aws"]
+    assert candidates[0].match == "all"
+
+
+def test_growth_bound_is_twice_the_length_plus_slack():
+    # "…"는 NFKC로 "..."(3자)가 된다: 2배 + 64자까지만 받는다.
+    assert bounded_normalized_text("…" * 64) == "." * 192  # 192 <= 2 * 64 + 64
+    with pytest.raises(EvidenceError, match=TEXT_EXPANDS):
+        bounded_normalized_text("…" * 65)  # 195 > 2 * 65 + 64

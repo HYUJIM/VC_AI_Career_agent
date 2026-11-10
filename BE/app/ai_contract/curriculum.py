@@ -152,7 +152,8 @@ class PlanningContext(EvidenceModel):
     questions: list[PlanningQuestion]
     warnings: list[str]
     # Earliest expiry of the analysis or any retrieved resource option. BE re-checks it
-    # before and after generation. None only appears in contexts frozen before the split.
+    # before and after generation. None only appears in the planner's internal provisional
+    # context; BE rejects a context without it.
     valid_until: AwareDatetime | None = None
 
 
@@ -194,13 +195,3 @@ class CurriculumResult(EvidenceModel):
     questions: list[PlanningQuestion]
     warnings: list[str]
     validation_errors: list[str]
-
-
-class CurriculumJob(EvidenceModel):
-    job_id: UUID
-    analysis_id: UUID
-    state: Literal["queued", "running", "completed", "partial", "failed"]
-    attempts: int
-    error_code: str | None = None
-    result: CurriculumResult | None = None
-    historical_only: Literal[True] = True

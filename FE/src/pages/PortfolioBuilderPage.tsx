@@ -56,7 +56,7 @@ export function PortfolioBuilderPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [thinking, setThinking] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['careers', user?.did],
@@ -83,8 +83,12 @@ export function PortfolioBuilderPage() {
     ]);
   }, [user]);
 
+  // 새 메시지가 오면 채팅 목록 안에서만 맨 아래로 스크롤한다.
+  // (scrollIntoView 는 문서(window)까지 함께 스크롤해 페이지 전체가 튄다)
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const list = listRef.current;
+    if (!list) return;
+    list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
   }, [messages, thinking]);
 
   if (!user) return null;
@@ -204,7 +208,7 @@ export function PortfolioBuilderPage() {
           </ul>
         </Card>
 
-        <Card className="flex h-[600px] flex-col p-0">
+        <Card className="flex h-[600px] flex-col">
           <div className="flex items-center justify-between gap-2 border-b border-[var(--color-border)] px-5 py-3">
             <div className="flex items-center gap-2">
               <span className="text-[15px] font-bold">커리어 에이전트</span>
@@ -258,6 +262,7 @@ export function PortfolioBuilderPage() {
           )}
 
           <div
+            ref={listRef}
             className={`flex-1 flex-col gap-3 overflow-y-auto px-5 py-4 ${tab === 'chat' ? 'flex' : 'hidden'}`}
           >
             {messages.map((m) => (
@@ -278,7 +283,8 @@ export function PortfolioBuilderPage() {
                 ···
               </p>
             )}
-            <div ref={bottomRef} />
+            {/* 마지막 말풍선 아래 여백(gap-3)을 그대로 유지하는 빈 요소. 지우면 맨 아래 여백이 12px 줄어든다 */}
+            <div />
           </div>
 
           <div

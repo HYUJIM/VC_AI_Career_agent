@@ -1,8 +1,10 @@
 """Grounded curriculum generation (moved from BE app/services/curriculum_worker.py).
 
-BE keeps the durable queue: claiming, leases, retries, evidence currency checks and
-signed storage. This module receives one frozen job and returns either a validated
-result or a failure code, together with the LLM audit that BE encrypts and stores.
+BE calls this synchronously and keeps permissions, idempotency, evidence currency checks
+and storage. This module receives one request with a frozen planning context and returns
+either a validated result or a failure code, together with a per-call LLM audit; BE keeps
+only the prompt hash, provider error, usage, check results and output encoding, never the raw
+model output.
 Model output is an untrusted draft: it is parsed strictly, validated against the
 frozen options, repaired at most once and otherwise replaced by the baseline.
 """

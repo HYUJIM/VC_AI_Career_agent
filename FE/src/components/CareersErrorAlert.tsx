@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
-import { getApiErrorKind, getApiErrorMessage } from '@/lib/apiClient';
+import { getApiErrorKind, getApiErrorMessage, getConnectionHint } from '@/lib/apiClient';
 import { useAuthStore } from '@/store/authStore';
 
 /**
@@ -45,7 +45,7 @@ export function CareersErrorAlert({ error, onRetry }: { error: unknown; onRetry:
   if (kind === 'network') {
     return (
       <Alert variant="warning" title="서버에 연결할 수 없습니다." actions={retry}>
-        BE 서버(http://localhost:3000)가 실행 중인지 확인해주세요.
+        {getConnectionHint()}
       </Alert>
     );
   }

@@ -23,11 +23,11 @@ from app.ai_contract.verification import (
 )
 from app.core.config import get_settings
 from app.domain.credential import BadgeEvaluation, _parse_datetime
-from app.integrations.ai_service import AIServiceClient, contract_violation
+from app.integrations.ai_service import AIRejected, AIServiceClient, AIUnavailable, contract_violation
 from app.integrations.ports import CredentialVerifier
 from app.services.career_store import career_store, curriculum_view
 from app.services.database import db_service
-from app.services.reverify import ReverifyOutcome, reverify_rows
+from app.services.reverify import ReverifyOutcome, raise_on_verifier_outage, reverify_rows
 
 SNAPSHOT_TTL = timedelta(minutes=5)  # 분석에 쓰는 재검증 결과의 유효 시간
 OUTCOME_STATUSES = {"verified", "invalid", "revoked", "expired", "unverifiable"}
@@ -70,6 +70,9 @@ async def build_snapshot(user: dict, verifier: CredentialVerifier) -> Verificati
     started = datetime.now(timezone.utc)
     rows = await run_in_threadpool(db_service.get_credential_rows, str(user["id"]), None)
     outcomes = await reverify_rows(rows, verifier)
+    # 검증기 장애(설정 누락·연결 실패·5xx 등)로는 분석을 만들지 않는다: 502/503으로 끝나고 아무것도 저장하지 않는다.
+    # 특정 서명 원본에 대한 4xx 거절은 지금처럼 그 자격증명만 제외한다.
+    raise_on_verifier_outage(outcomes)
     accepted, excluded = [], []
     for outcome in outcomes:
         if outcome.verified and outcome.evaluation is not None:
@@ -183,7 +186,9 @@ class CareerService:
         ))
         if outcome.state == "failed":
             status = 503 if outcome.retryable or outcome.error_code.startswith("GENERATOR_") else 422
-            raise HTTPException(status_code=status, detail=outcome.error_code)
+            # 상태·detail은 예전과 같다. AI 연동 오류로 기록되고 응답에 code가 붙는다 (main.py 핸들러).
+            error_class = AIUnavailable if status == 503 else AIRejected
+            raise error_class(status, outcome.error_code, outcome.error_code, outcome.retryable)
         check_result(outcome.result, context, analysis, job_id, request)
         if outcome.result.valid_until <= datetime.now(timezone.utc):
             raise HTTPException(status_code=409, detail="Evidence expired during generation; create a new analysis")
