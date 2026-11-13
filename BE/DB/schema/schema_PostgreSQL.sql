@@ -120,3 +120,18 @@ CREATE TABLE shares (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX idx_shares_user ON shares(user_id);
+-- ====================================================================
+-- 7. OAuth 소셜 로그인 연동 계정 (08 마이그레이션에서 추가)
+-- ====================================================================
+CREATE TABLE oauth_accounts (
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id           UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider          VARCHAR(50) NOT NULL,
+    provider_user_id  VARCHAR(255) NOT NULL,
+    email             VARCHAR(255) NOT NULL,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (provider, provider_user_id),
+    UNIQUE (user_id, provider)
+);
+CREATE INDEX idx_oauth_accounts_user ON oauth_accounts(user_id);

@@ -2,7 +2,7 @@ import json
 import os
 import uuid
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Callable, Optional
 
 import psycopg
 from psycopg.rows import dict_row
@@ -27,6 +27,24 @@ class EmailAlreadyRegistered(Exception):
     pass
 
 
+class OAuthAccountConflict(Exception):
+    pass
+
+
+def _insert_holder_key(cur, user_id: str, holder_key: Optional[StoredHolderKey], now: datetime) -> None:
+    if holder_key is None:
+        return
+    cur.execute(
+        """
+        INSERT INTO holder_keys (user_id, did, key_type, public_key_multibase,
+                                 encrypted_private_key, nonce, kek_id, created_at)
+        VALUES (%s, %s, 'Ed25519', %s, %s, %s, %s, %s)
+        """,
+        (user_id, holder_key.did, holder_key.public_key_multibase,
+         holder_key.encrypted_private_key, holder_key.nonce, holder_key.kek_id, now),
+    )
+
+
 class DatabaseService:
     # ── 사용자 ────────────────────────────────────────────────
     def create_user(self, *, email: str, name: str, did: str, password_hash: str,
@@ -46,16 +64,7 @@ class DatabaseService:
                         (user_id, email, name, did, password_hash, now, now),
                     )
                     user = cur.fetchone()
-                    if holder_key is not None:
-                        cur.execute(
-                            """
-                            INSERT INTO holder_keys (user_id, did, key_type, public_key_multibase,
-                                                     encrypted_private_key, nonce, kek_id, created_at)
-                            VALUES (%s, %s, 'Ed25519', %s, %s, %s, %s, %s)
-                            """,
-                            (user_id, holder_key.did, holder_key.public_key_multibase,
-                             holder_key.encrypted_private_key, holder_key.nonce, holder_key.kek_id, now),
-                        )
+                    _insert_holder_key(cur, user_id, holder_key, now)
                     return user
         except psycopg.errors.UniqueViolation as exc:
             raise EmailAlreadyRegistered(email) from exc
@@ -88,6 +97,112 @@ class DatabaseService:
         with get_db_connection() as conn, conn.cursor() as cur:
             cur.execute("SELECT * FROM users WHERE subject_did = %s", (did,))
             return cur.fetchone()
+
+    def get_user_oauth_providers(self, user_id: str) -> list[str]:
+        with get_db_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT provider FROM oauth_accounts WHERE user_id = %s ORDER BY provider",
+                (user_id,),
+            )
+            return [row["provider"] for row in cur.fetchall()]
+
+    def find_or_create_oauth_user(
+        self,
+        *,
+        provider: str,
+        provider_user_id: str,
+        email: str,
+        name: str,
+        issue_identity: Callable[[str], tuple[str, Optional[StoredHolderKey]]],
+    ) -> tuple[dict, bool, bool]:
+        """OAuth 사용자를 조회·연동하거나 새로 생성한다. (user, created, linked) 반환."""
+        for attempt in range(2):
+            try:
+                return self._find_or_create_oauth_user_once(
+                    provider=provider,
+                    provider_user_id=provider_user_id,
+                    email=email,
+                    name=name,
+                    issue_identity=issue_identity,
+                )
+            except psycopg.errors.UniqueViolation as exc:
+                constraint = exc.diag.constraint_name or ""
+                if "user_id" in constraint and "provider" in constraint:
+                    raise OAuthAccountConflict("User is already linked to another account for this provider") from exc
+                if attempt == 1:
+                    raise
+
+    def _find_or_create_oauth_user_once(
+        self,
+        *,
+        provider: str,
+        provider_user_id: str,
+        email: str,
+        name: str,
+        issue_identity: Callable[[str], tuple[str, Optional[StoredHolderKey]]],
+    ) -> tuple[dict, bool, bool]:
+        now = datetime.now(timezone.utc)
+        with get_db_connection() as conn:
+            with conn.transaction(), conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT u.*, oa.email AS oauth_email
+                    FROM oauth_accounts oa
+                    JOIN users u ON u.id = oa.user_id
+                    WHERE oa.provider = %s AND oa.provider_user_id = %s
+                    """,
+                    (provider, provider_user_id),
+                )
+                linked_row = cur.fetchone()
+                if linked_row:
+                    if linked_row["oauth_email"] != email:
+                        cur.execute(
+                            "UPDATE oauth_accounts SET email = %s, updated_at = %s "
+                            "WHERE provider = %s AND provider_user_id = %s",
+                            (email, now, provider, provider_user_id),
+                        )
+                    linked_row.pop("oauth_email", None)
+                    return linked_row, False, False
+
+                cur.execute("SELECT * FROM users WHERE lower(email) = lower(%s)", (email,))
+                existing_user = cur.fetchone()
+                if existing_user:
+                    cur.execute(
+                        "SELECT provider_user_id FROM oauth_accounts WHERE user_id = %s AND provider = %s",
+                        (existing_user["id"], provider),
+                    )
+                    existing_link = cur.fetchone()
+                    if existing_link is not None:
+                        raise OAuthAccountConflict("User is already linked to another account for this provider")
+                    cur.execute(
+                        """
+                        INSERT INTO oauth_accounts (user_id, provider, provider_user_id, email, created_at, updated_at)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                        """,
+                        (existing_user["id"], provider, provider_user_id, email, now, now),
+                    )
+                    return existing_user, False, True
+
+                user_id = str(uuid.uuid4())
+                did, holder_key = issue_identity(user_id)
+                cur.execute(
+                    """
+                    INSERT INTO users (id, email, name, subject_did, password_hash, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, NULL, %s, %s)
+                    RETURNING *
+                    """,
+                    (user_id, email, name, did, now, now),
+                )
+                new_user = cur.fetchone()
+                _insert_holder_key(cur, user_id, holder_key, now)
+                cur.execute(
+                    """
+                    INSERT INTO oauth_accounts (user_id, provider, provider_user_id, email, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    """,
+                    (user_id, provider, provider_user_id, email, now, now),
+                )
+                return new_user, True, False
 
     # ── 자격증명 ──────────────────────────────────────────────
     def save_badge(self, *, user_id: str, provider: str, evaluation: BadgeEvaluation, vc_jwt: str) -> dict:

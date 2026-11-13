@@ -215,10 +215,183 @@ paths:
                       key_type:
                         type: [string, "null"]
                         example: Ed25519
+                  oauth_providers:
+                    type: array
+                    items:
+                      type: string
+                    description: 연동된 OAuth 제공자 목록 (예: `["google"]`)
+                    example: [google]
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           description: 토큰은 유효하지만 사용자가 삭제됨
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/users/oauth/google/authorize:
+    get:
+      tags: [users]
+      summary: Google OAuth 인가 URL 발급 (또는 리다이렉트)
+      description: |
+        Google OAuth 2.0 로그인 시작 URL과 CSRF 방지용 서명된 `state`를 발급한다.
+        - `redirect=true`면 JSON 대신 302 Redirect로 Google 로그인 페이지로 보낸다.
+        - `redirect_uri`를 생략하면 서버 `GOOGLE_REDIRECT_URI`를 쓰며, 지정 시 허용 목록(`GOOGLE_ALLOWED_REDIRECT_URIS`)에 있어야 한다.
+        - PKCE를 쓸 경우 `code_challenge`와 `code_challenge_method=S256`을 전달할 수 있다.
+        - `GOOGLE_CLIENT_ID` 또는 `GOOGLE_CLIENT_SECRET`이 없으면 503을 반환한다.
+      operationId: googleOAuthAuthorize
+      security: []
+      parameters:
+        - name: redirect_uri
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: code_challenge
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: code_challenge_method
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [S256]
+        - name: redirect
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: 인가 URL 발급 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OAuthAuthorizeResponse"
+        "302":
+          description: "`redirect=true`일 때 Google 로그인 페이지로 리다이렉트"
+        "400":
+          description: 허용되지 않은 `redirect_uri` 또는 잘못된 PKCE 파라미터
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Google OAuth 설정 누락 (`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/users/oauth/google/callback:
+    get:
+      tags: [users]
+      summary: Google OAuth 콜백 처리 (GET)
+      description: |
+        Google이 리다이렉트한 `code`와 `state`를 검증해 로그인/회원가입을 완료하고 JWT(`AuthResponse`)를 반환한다.
+        - 신규 사용자면 관리형 `did:key`(또는 임시 DID)를 발급해 가입시킨다.
+        - Google에서 인증된 이메일(`email_verified=true`)이 기존 계정과 같으면 해당 계정에 Google을 연동해 로그인한다.
+      operationId: googleOAuthCallbackGet
+      security: []
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: error
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: code_verifier
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OAuth 로그인/가입 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: 잘못된 `state`/`code`, 인증되지 않은 이메일, 또는 사용자 취소
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: 해당 이메일 계정에 이미 다른 Google 계정이 연동되어 있음
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: Google OAuth 서버 통신/응답 오류
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Google OAuth 설정 누락
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags: [users]
+      summary: Google OAuth 콜백 코드 교환 (POST, SPA용)
+      description: |
+        프론트엔드(SPA) 콜백 페이지가 Google로부터 받은 `code`와 `state`를 전달해 로그인/회원가입을 완료한다.
+        동작 규칙은 `GET /api/v1/users/oauth/google/callback`과 같다.
+      operationId: googleOAuthCallbackPost
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OAuthCallbackRequest"
+      responses:
+        "200":
+          description: OAuth 로그인/가입 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: 잘못된 `state`/`code`/`redirect_uri` 또는 인증되지 않은 이메일
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: 해당 이메일 계정에 이미 다른 Google 계정이 연동되어 있음
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "502":
+          description: Google OAuth 서버 통신/응답 오류
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Google OAuth 설정 누락
           content:
             application/json:
               schema:
@@ -994,6 +1167,38 @@ components:
         expires_in:
           type: integer
           description: 토큰 만료까지 남은 초 (서버 `JWT_EXPIRES_MINUTES`, 기본 1일)
+
+    OAuthAuthorizeResponse:
+      type: object
+      required: [success, provider, authorization_url, state, expires_in]
+      properties:
+        success:
+          type: boolean
+        provider:
+          type: string
+          example: google
+        authorization_url:
+          type: string
+          format: uri
+        state:
+          type: string
+          description: 서명된 OAuth state 토큰 (유효기간 10분)
+        expires_in:
+          type: integer
+          example: 600
+
+    OAuthCallbackRequest:
+      type: object
+      required: [code, state]
+      properties:
+        code:
+          type: string
+        state:
+          type: string
+        redirect_uri:
+          type: string
+        code_verifier:
+          type: string
 
     # ── 자격증명 ──────────────────────────────────────────────
     CredentialStatus:

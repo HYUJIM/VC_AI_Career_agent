@@ -40,6 +40,12 @@ class Settings:
     mock_issuer_enabled: bool
     # 관리형 홀더 키 암호화용 마스터 키(32바이트). None이면 키를 만들지 않고 가짜 DID로 가입시킨다(전환 기간).
     holder_key_encryption_key: Optional[bytes]
+    # Google OAuth 2.0 / OIDC 설정
+    google_client_id: str
+    google_client_secret: str
+    google_redirect_uri: str
+    google_allowed_redirect_uris: list[str]
+    google_oauth_timeout_seconds: float
 
 
 @lru_cache
@@ -59,6 +65,14 @@ def get_settings() -> Settings:
     else:
         logger.warning("HOLDER_KEY_ENCRYPTION_KEY가 설정되지 않아 새 가입자에게 홀더 키 없이 임시 DID를 발급합니다.")
 
+    google_redirect_uri = os.getenv(
+        "GOOGLE_REDIRECT_URI", "http://localhost:5173/auth/google/callback"
+    ).strip()
+    raw_allowed_redirects = _env_list("GOOGLE_ALLOWED_REDIRECT_URIS", "")
+    allowed_redirects = list(
+        dict.fromkeys(([google_redirect_uri] if google_redirect_uri else []) + raw_allowed_redirects)
+    )
+
     settings = Settings(
         dxworks_api_host=os.getenv("DXWORKS_API_HOST", "").strip().rstrip("/"),
         dxworks_api_key=os.getenv("DXWORKS_API_KEY", "").strip(),
@@ -71,6 +85,11 @@ def get_settings() -> Settings:
         cors_origins=_env_list("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"),
         mock_issuer_enabled=_env_bool("MOCK_ISSUER_ENABLED", True),
         holder_key_encryption_key=holder_key,
+        google_client_id=os.getenv("GOOGLE_CLIENT_ID", "").strip(),
+        google_client_secret=os.getenv("GOOGLE_CLIENT_SECRET", "").strip(),
+        google_redirect_uri=google_redirect_uri,
+        google_allowed_redirect_uris=allowed_redirects,
+        google_oauth_timeout_seconds=float(os.getenv("GOOGLE_OAUTH_TIMEOUT_SECONDS", "10")),
     )
     if not settings.auth_required:
         logger.warning("AUTH_REQUIRED=false: 토큰 없는 요청도 허용합니다 (FE/AI 토큰 연동 전 전환 기간용).")

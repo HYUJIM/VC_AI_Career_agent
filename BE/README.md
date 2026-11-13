@@ -98,6 +98,7 @@ docker compose up -d --build
 docker compose exec -T postgres psql -U postgres -d vc_career_agent < DB/migrations/05_credentials_raw_token.sql
 docker compose exec -T postgres psql -U postgres -d vc_career_agent < DB/migrations/06_holder_keys.sql
 docker compose exec -T postgres psql -U postgres -d vc_career_agent < DB/migrations/07_shares.sql
+docker compose exec -T postgres psql -U postgres -d vc_career_agent < DB/migrations/08_oauth_accounts.sql
 ```
 (DB를 통째로 새로 만들어도 되면 `docker compose down -v && docker compose up -d --build`)
 
@@ -122,6 +123,7 @@ docker compose exec -T postgres psql -U postgres -d vc_career_agent < DB/migrati
 - AI 등 내부 서비스는 `X-Service-Key: <SERVICE_API_KEY>` 헤더로 `careers` 조회만 할 수 있습니다.
 - **전환 기간:** `.env`의 `AUTH_REQUIRED=false`(기본값)이면 토큰 없는 요청도 받습니다. FE·AI가 토큰을 보내도록 바뀌면 `true`로 바꿉니다.
 - 운영에서는 `.env`에 `JWT_SECRET`을 반드시 설정하세요. 비우면 서버가 재시작될 때마다 기존 토큰이 무효가 됩니다.
+- **Google OAuth 2.0:** `.env`에 `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`를 설정하면 `GET /api/v1/users/oauth/google/authorize`와 `GET|POST /api/v1/users/oauth/google/callback`으로 소셜 로그인·자동 가입(관리형 `did:key` 발급)·기존 이메일 계정 자동 연동이 동작합니다.
 
 ### 🧪 테스트
 DXWorks는 가짜 응답으로 대체하고, 실제 PostgreSQL(pgvector)에 테스트 전용 DB를 만들어 스키마 → 시드 → 마이그레이션 순서로 적용한 뒤 검증합니다. 개발 DB(`vc-postgres`)는 건드리지 않습니다.

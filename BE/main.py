@@ -9,7 +9,7 @@ from fastapi import FastAPI, Request  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
 
-from app.api import auth, mock_issuer, portfolios, reverify, shares, user, verify  # noqa: E402
+from app.api import auth, mock_issuer, oauth, portfolios, reverify, shares, user, verify  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
 from app.integrations.ports import ProviderError  # noqa: E402
 
@@ -48,6 +48,7 @@ def health_check():
 
 app.include_router(verify.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1/users")
+app.include_router(oauth.router, prefix="/api/v1/users/oauth")
 app.include_router(user.router, prefix="/api/v1/subjects")
 app.include_router(mock_issuer.router, prefix="/api/mock-issuer")
 app.include_router(reverify.router, prefix="/api/v1")
