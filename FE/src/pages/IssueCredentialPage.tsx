@@ -16,7 +16,8 @@ import {
 } from '@/lib/apiClient';
 import { useAuthStore } from '@/store/authStore';
 import type { DashboardLocationState } from '@/pages/DashboardPage';
-import type { BadgeVerifyData } from '@/types/api';
+import { StatusBadge } from '@/components/StatusBadge';
+import type { BadgeVerifyData, CredentialStatus } from '@/types/api';
 
 type Step = 'issue' | 'verify' | 'done';
 
@@ -26,12 +27,16 @@ interface IssueError {
   kind: ApiErrorKind | 'rejected';
   message: string;
   /** HTTP 상태 코드 (응답이 없거나 rejected 면 undefined) */
-  status?: number;
+  httpStatus?: number;
+  /** rejected 일 때 BE가 판정한 자격증명 상태 (data.status) */
+  credentialStatus?: CredentialStatus;
+  /** rejected 여도 BE가 해당 status로 지갑에 저장했는지 (data.record_id 존재 여부) */
+  saved?: boolean;
 }
 
 const STEPS: { key: Step; title: string; desc: string }[] = [
   { key: 'issue', title: '배지 발급', desc: 'Mock Issuer에서 VC(JWT)를 받아요' },
-  { key: 'verify', title: '검증 및 저장', desc: 'DXWorks API로 검증한 뒤 지갑에 저장해요' },
+  { key: 'verify', title: '검증 및 저장', desc: '서명·발급기관·폐기 여부를 검증한 뒤 지갑에 저장해요' },
   { key: 'done', title: '완료', desc: '자격증명 지갑에서 확인할 수 있어요' },
 ];
 
@@ -61,7 +66,7 @@ export function IssueCredentialPage() {
         stage: 'issue',
         kind: getApiErrorKind(error),
         message: getApiErrorMessage(error),
-        status: getApiErrorStatus(error),
+        httpStatus: getApiErrorStatus(error),
       }),
   });
 
@@ -69,13 +74,18 @@ export function IssueCredentialPage() {
     mutationFn: () => verifyCredential({ type: 'badge', token: jwt! }),
     onSuccess: (res) => {
       // BE는 검증 실패도 HTTP 200 + success:false 로 응답한다.
-      if (res.success) {
-        setVerified(res.data as BadgeVerifyData);
-        setStep('done');
+      // 폐기·만료 배지는 success:false 여도 해당 status로 저장된다(data.record_id 존재).
+      const data = res.data as BadgeVerifyData;
+      const saved = Boolean(data?.record_id);
+      if (res.success || saved) {
         // 대시보드/포트폴리오가 새로 저장된 자격증명을 다시 불러오도록 캐시 무효화
         queryClient.invalidateQueries({ queryKey: ['careers'] });
+      }
+      if (res.success) {
+        setVerified(data);
+        setStep('done');
       } else {
-        setIssueError({ stage: 'verify', kind: 'rejected', message: res.message });
+        setIssueError({ stage: 'verify', kind: 'rejected', message: res.message, credentialStatus: data?.status, saved });
       }
     },
     onError: (error) =>
@@ -105,12 +115,38 @@ export function IssueCredentialPage() {
           title="배지 검증에 실패했습니다."
           onClose={close}
           actions={
-            <Button variant="outline" size="sm" onClick={restart}>
-              처음부터 다시 발급
-            </Button>
+            <>
+              {err.saved && (
+                <Button variant="outline" size="sm" onClick={() => navigate('/dashboard')}>
+                  지갑에서 확인하기
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={restart}>
+                처음부터 다시 발급
+              </Button>
+            </>
           }
         >
-          DXWorks 검증을 통과하지 못해 지갑에 저장되지 않았습니다. (서버 메시지: {err.message})
+          {err.credentialStatus && (
+            <span className="mr-1.5 align-middle">
+              <StatusBadge status={err.credentialStatus} />
+            </span>
+          )}
+          {err.saved
+            ? '검증을 통과하지 못했지만 판정된 상태로 지갑에 기록되었습니다. 포트폴리오 근거로는 사용되지 않아요.'
+            : '검증을 통과하지 못해 지갑에 저장되지 않았습니다.'}{' '}
+          (서버 메시지: {err.message})
+        </Alert>
+      );
+    }
+    if (err.kind === 'forbidden' || err.kind === 'notFound' || err.kind === 'conflict') {
+      return (
+        <Alert
+          variant="warning"
+          title={err.stage === 'issue' ? '배지를 발급할 수 없습니다.' : '배지를 저장할 수 없습니다.'}
+          onClose={close}
+        >
+          {err.message}
         </Alert>
       );
     }
@@ -129,11 +165,11 @@ export function IssueCredentialPage() {
       >
         {err.message}
         {/* 429(발급 한도 초과)는 메시지가 이미 "나중에 다시 시도"를 안내한다 */}
-        {err.stage === 'issue' && err.status !== 429 && (
+        {err.stage === 'issue' && err.httpStatus !== 429 && (
           <>
             <br />
             {import.meta.env.DEV
-              ? 'Template ID가 올바른지, BE의 DXWORKS_API_KEY 설정을 확인해주세요.'
+              ? 'Template ID가 올바른지, BE의 DXWORKS_API_KEY 설정을 확인해주세요. (발급 API 오류 502 / 설정 누락 503)'
               : RETRY_LATER_MESSAGE}
           </>
         )}

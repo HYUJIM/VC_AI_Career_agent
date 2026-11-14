@@ -13,6 +13,7 @@ import {
   RecentActivityCard,
 } from '@/components/dashboard/SidePanel';
 import { StatsCard } from '@/components/dashboard/StatsCard';
+import { StatusRingCard } from '@/components/dashboard/StatusRingCard';
 import { Alert } from '@/components/ui/Alert';
 import { type StatusFilter, getStatusGroup } from '@/lib/credentialStatus';
 import { hasUsedPortfolio } from '@/lib/onboarding';
@@ -23,6 +24,7 @@ import type { VerifiedCredential } from '@/types/api';
 export interface DashboardLocationState {
   welcome?: string;
   newUser?: boolean;
+  oauthLinked?: boolean;
   issued?: string;
 }
 
@@ -83,7 +85,9 @@ export function DashboardPage() {
         >
           {banner.newUser
             ? `${banner.welcome} 님의 DID가 발급되었습니다. "새 자격증명 발급받기"로 첫 배지를 받아보세요.`
-            : '로그인되었습니다.'}
+            : banner.oauthLinked
+              ? '기존 계정에 Google 계정이 연동되어 로그인되었습니다.'
+              : '로그인되었습니다.'}
         </Alert>
       )}
 
@@ -94,8 +98,8 @@ export function DashboardPage() {
         </p>
       </section>
 
-      <div className="grid items-start gap-4 lg:grid-cols-[1fr_300px]">
-        <div className="flex min-w-0 flex-col gap-4">
+      <div className="grid items-start gap-5 lg:grid-cols-[1fr_340px]">
+        <div className="flex min-w-0 flex-col gap-5">
           <StatsCard
             total={counts.all}
             verified={counts.verified}
@@ -126,13 +130,20 @@ export function DashboardPage() {
 
         <aside className="flex flex-col gap-4">
           <ProfileCard user={user} />
+          <StatusRingCard
+            total={counts.all}
+            verified={counts.verified}
+            attention={counts.attention}
+            pending={counts.pending}
+          />
           <QuickActionsCard />
           <IssuerStatsCard stats={issuerStats} />
           <RecentActivityCard newestFirst={newestFirst} onSelect={setDetail} />
         </aside>
       </div>
 
-      <CredentialDetailModal credential={detail} onClose={() => setDetail(null)} />
+      {/* key: 다른 자격증명을 열면 이전 재검증 결과를 초기화한다 */}
+      <CredentialDetailModal key={detail?.record_id} credential={detail} onClose={() => setDetail(null)} />
     </div>
   );
 }

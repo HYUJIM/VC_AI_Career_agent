@@ -1,7 +1,12 @@
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { reverifyCredential } from '@/api/credentials';
 import { IssuerAvatar } from '@/components/IssuerAvatar';
 import { StatusBadge } from '@/components/StatusBadge';
+import { VerificationChecks } from '@/components/VerificationChecks';
+import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
+import { getApiErrorMessage } from '@/lib/apiClient';
 import { getStatusDescription, getStatusGroup } from '@/lib/credentialStatus';
 import { useCopy } from '@/lib/useCopy';
 import type { VerifiedCredential } from '@/types/api';
@@ -11,12 +16,27 @@ interface Props {
   onClose: () => void;
 }
 
+/** 재검증 결과 메시지 (BE reverify 의 excluded reason 과 같은 값) */
+function reverifyFailText(status: string, verifiedAt: string | null): string {
+  if (!verifiedAt) return '서명 원본이 저장되어 있지 않아 다시 검증할 수 없어요. (이전 방식으로 저장된 자격증명)';
+  return `지금 검증을 통과하지 못했어요. 상태가 갱신되었습니다. (${status})`;
+}
+
 export function CredentialDetailModal({ credential, onClose }: Props) {
   const { copy, isCopied } = useCopy();
+  const queryClient = useQueryClient();
+  // BE v0.6.0 실행 시점 재검증: 저장된 서명 원본을 지금 다시 검증하고 DB 상태도 갱신한다.
+  const reverify = useMutation({
+    mutationFn: (recordId: string) => reverifyCredential(recordId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['careers'] }),
+  });
 
   if (!credential) return null;
 
-  const group = getStatusGroup(credential.status);
+  // 재검증했으면 갱신된 상태를 우선 표시한다.
+  const result = reverify.data?.data;
+  const status = result?.status ?? credential.status;
+  const group = getStatusGroup(status);
   const rawJson = JSON.stringify(credential.raw_data ?? {}, null, 2);
   const hasRaw = Object.keys(credential.raw_data ?? {}).length > 0;
   const descBox =
@@ -49,12 +69,42 @@ export function CredentialDetailModal({ credential, onClose }: Props) {
             <p className="text-[19px] font-bold leading-snug">{credential.achievement_name}</p>
             <p className="truncate text-[13px] text-[var(--color-text-muted)]">{credential.issuer}</p>
           </div>
-          <StatusBadge status={credential.status} />
+          <StatusBadge status={status} />
         </div>
 
         <p className={`rounded-2xl px-4 py-3 text-[13px] leading-relaxed text-[var(--color-text-sub)] ${descBox}`}>
-          {getStatusDescription(credential.status)}
+          {getStatusDescription(status)}
         </p>
+
+        <div className="flex flex-col gap-3">
+          <Button
+            variant="secondary"
+            isLoading={reverify.isPending}
+            onClick={() => reverify.mutate(credential.record_id)}
+          >
+            지금 다시 검증하기
+          </Button>
+          {reverify.isError && (
+            <Alert variant="error" title="재검증 요청에 실패했습니다.">
+              {getApiErrorMessage(reverify.error)}
+            </Alert>
+          )}
+          {result && (
+            <Alert
+              variant={result.verified ? 'success' : 'warning'}
+              title={result.verified ? '지금도 유효한 자격증명이에요.' : '재검증을 통과하지 못했어요.'}
+            >
+              {result.verified
+                ? `서명 원본을 ${new Date(result.verified_at!).toLocaleString('ko-KR')}에 다시 검증했습니다.`
+                : reverifyFailText(result.status, result.verified_at)}
+              {result.checks.length > 0 && (
+                <div className="mt-2">
+                  <VerificationChecks checks={result.checks} />
+                </div>
+              )}
+            </Alert>
+          )}
+        </div>
 
         <dl className="flex flex-col gap-3 text-[15px]">
           <div className="flex justify-between gap-4">

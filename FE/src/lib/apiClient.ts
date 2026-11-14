@@ -19,15 +19,28 @@ export const apiClient = axios.create({
   },
 });
 
-// 로그인 토큰이 있으면 모든 요청에 싣는다. BE는 토큰의 DID로 본인 데이터만 허용한다.
+/**
+ * 토큰이 필요 없는 공개 엔드포인트. 여기에는 토큰을 싣지 않는다(열람자·로그인 전 사용자의 토큰을 보낼 이유가 없음).
+ * 여기서 나는 401은 "이메일 또는 비밀번호 오류" 등 요청 자체의 실패이지 세션 만료가 아니다.
+ * - 로그인·회원가입
+ * - 소셜 로그인 시작·콜백 (`/v1/users/oauth/{provider}/...`)
+ * - 기업용 공유 링크 조회 (v0.6.0)
+ */
+const PUBLIC_PATHS: ReadonlySet<string> = new Set(['/v1/users/login', '/v1/users/register']);
+const PUBLIC_PREFIXES: readonly string[] = ['/v1/users/oauth/', '/v1/public/'];
+
+function isPublicPath(url: string): boolean {
+  return PUBLIC_PATHS.has(url) || PUBLIC_PREFIXES.some((prefix) => url.startsWith(prefix));
+}
+
+// 로그인 토큰이 있으면 공개 API를 뺀 모든 요청에 싣는다. BE는 토큰의 DID로 본인 데이터만 허용한다.
 apiClient.interceptors.request.use((config) => {
   const token = useAuthStore.getState().accessToken;
-  if (token) config.headers.set('Authorization', `Bearer ${token}`);
+  if (token && !isPublicPath(config.url ?? '')) {
+    config.headers.set('Authorization', `Bearer ${token}`);
+  }
   return config;
 });
-
-/** 로그인·가입 요청의 401은 "이메일 또는 비밀번호 오류"이므로 세션 만료로 보지 않는다. */
-const CREDENTIAL_ENDPOINTS = new Set(['/v1/users/login', '/v1/users/register']);
 
 // 로그인 상태에서 BE가 401(토큰 만료·무효, 토큰 없는 이전 세션)을 주면 로그아웃한다.
 // ProtectedRoute 가 /login 으로 보내고, 로그인 화면이 logoutReason 으로 만료 안내 배너를 띄운다.
@@ -40,11 +53,7 @@ apiClient.interceptors.response.use(undefined, (error: unknown) => {
     // 이전 토큰의 401은 무시한다. 둘 다 없으면(토큰 없는 이전 세션) 같다고 보고 로그아웃한다.
     const sentAuthorization = config?.headers?.get('Authorization') ?? null;
     const currentAuthorization = accessToken ? `Bearer ${accessToken}` : null;
-    if (
-      isAuthenticated &&
-      !CREDENTIAL_ENDPOINTS.has(config?.url ?? '') &&
-      sentAuthorization === currentAuthorization
-    ) {
+    if (isAuthenticated && !isPublicPath(config?.url ?? '') && sentAuthorization === currentAuthorization) {
       logout('tokenExpired');
     }
   }
@@ -59,18 +68,23 @@ export function getApiErrorStatus(error: unknown): number | undefined {
 /**
  * 화면 분기용 에러 종류.
  * - network: BE에 연결 불가 (서버 미실행 / vite 프록시가 연결 실패 시 본문 없이 5xx 반환)
- * - unauthorized: 401 (로그인 실패 — 비밀번호 오류와 미가입 이메일을 BE가 구분하지 않음)
- * - conflict: 400 (이미 가입된 이메일 등 요청 거부)
- * - notFound: 404 (DID에 해당하는 사용자 없음)
- * - validation: 422 (요청 본문 검증 실패)
- * - server: BE가 detail과 함께 반환한 5xx (DB/DXWorks 오류 등)
+ * - unauthorized: 401 (로그인 실패 — 비밀번호 오류와 미가입 이메일을 BE가 구분하지 않음,
+ *   또는 토큰 없음/만료/위조)
+ * - forbidden: 403 (남의 DID에 접근 — BE v0.4.0)
+ * - conflict: 400 (이미 가입된 이메일 등 요청 거부), 409 (다른 사용자에게 이미 등록된 자격증명)
+ * - notFound: 404 (DID에 해당하는 사용자 없음 / 가입되지 않은 DID로 발급·검증 / 없는 자격증명·포트폴리오,
+ *   없거나 철회·만료된 공유 링크)
+ * - validation: 422 (요청 본문 검증 실패 / 포트폴리오에 쓸 검증된 자격증명 없음)
+ * - server: BE가 detail과 함께 반환한 5xx (발급·검증 API 오류 502, 설정 누락 503, 내부 오류 500)
  */
 export type ApiErrorKind =
   | 'network'
   | 'unauthorized'
+  | 'forbidden'
   | 'conflict'
   | 'notFound'
   | 'validation'
+  | 'rateLimited'
   | 'server'
   | 'unknown';
 
@@ -81,13 +95,18 @@ export function getApiErrorKind(error: unknown): ApiErrorKind {
   const hasDetail = Boolean((response.data as ApiErrorBody | undefined)?.detail);
   switch (response.status) {
     case 400:
+    case 409:
       return 'conflict';
     case 401:
       return 'unauthorized';
+    case 403:
+      return 'forbidden';
     case 404:
       return 'notFound';
     case 422:
       return 'validation';
+    case 429:
+      return 'rateLimited';
     default:
       if (response.status >= 500) return hasDetail ? 'server' : 'network';
       return 'unknown';
@@ -107,6 +126,15 @@ const KNOWN_ERROR_MESSAGES: Record<string, string> = {
   'Token expired': '로그인이 만료되었습니다. 다시 로그인해주세요.',
   // 같은 이메일로 로그인을 너무 많이 틀림 (BE 429)
   'Too many attempts. Try again later.': TOO_MANY_ATTEMPTS_MESSAGE,
+  // 권한 (403)
+  'Forbidden: not your DID': '본인 DID의 정보만 조회할 수 있습니다.',
+  'Forbidden: can only issue to your own DID': '본인 DID로만 배지를 발급받을 수 있습니다.',
+  'Forbidden: credential was issued to a different DID': '다른 DID로 발급된 배지는 저장할 수 없습니다.',
+  'Forbidden: presentation holder is not you': '본인의 신원 증명만 검증할 수 있습니다.',
+  // 발급·검증
+  'Holder DID is not registered': '가입되지 않은 DID입니다. 다시 로그인해주세요.',
+  'Credential already registered to another user': '이미 다른 사용자의 지갑에 등록된 자격증명입니다.',
+  'Internal server error': '서버 내부 오류가 발생했습니다.',
   // 모의 발급 (403 / 429 / 404)
   'Template not allowed': '허용되지 않은 배지 템플릿입니다.',
   'Mock issuance limit reached; try again later': '모의 발급 한도(24시간)를 넘었습니다. 나중에 다시 시도해주세요.',
@@ -114,6 +142,29 @@ const KNOWN_ERROR_MESSAGES: Record<string, string> = {
   // 발급·검증 협력사 오류 (502 / 503). 협력사 메시지는 BE 로그에만 남는다.
   'Credential service error': '배지 발급·검증 서비스에서 오류가 발생했습니다.',
   'Credential service is not configured': '배지 발급·검증 서비스를 지금 사용할 수 없습니다.',
+  // 재검증·포트폴리오·선택 공개 (v0.6.0)
+  'Credential not found': '자격증명을 찾을 수 없습니다. 목록을 새로고침해주세요.',
+  'No verified credentials selected': '선택한 자격증명 중 지금 검증을 통과한 것이 없습니다.',
+  'Portfolio not found': '포트폴리오를 찾을 수 없습니다.',
+  'Nothing to update': '수정할 내용이 없습니다.',
+  'Title must not be blank': '제목을 입력해주세요.',
+  'Status must not be null': '게시 상태를 선택해주세요.',
+  'Share not found': '공유 링크를 찾을 수 없습니다.',
+  'Share link not found or expired': '링크가 없거나 철회·만료되었습니다.',
+  'Share verification is busy. Try again later.': '현재 검증 요청이 많습니다. 잠시 후 다시 열어주세요.',
+  // 소셜 로그인 (Google OAuth 2.0). 400 / 409 / 503
+  'Invalid or expired OAuth state': '로그인 요청이 만료되었거나 올바르지 않습니다. 처음부터 다시 시도해주세요.',
+  'Invalid or expired OAuth authorization code': '로그인 인증이 만료되었습니다. 처음부터 다시 시도해주세요.',
+  'Invalid OAuth access token': '소셜 계정 정보를 확인하지 못했습니다. 처음부터 다시 시도해주세요.',
+  'OAuth email is not verified': '소셜 계정의 이메일이 인증되지 않아 로그인할 수 없습니다.',
+  'Missing OAuth code or state': '로그인 응답이 올바르지 않습니다. 처음부터 다시 시도해주세요.',
+  'redirect_uri does not match OAuth state': '로그인 요청이 올바르지 않습니다. 처음부터 다시 시도해주세요.',
+  'Invalid redirect_uri': '허용되지 않은 로그인 경로입니다. 관리자에게 문의해주세요.',
+  'User is already linked to another account for this provider':
+    '이 이메일 계정에는 이미 다른 Google 계정이 연동되어 있습니다. 연동된 Google 계정으로 로그인해주세요.',
+  'Google OAuth is not configured': 'Google 로그인을 지금 사용할 수 없습니다.',
+  'Google OAuth redirect_uri is not configured': 'Google 로그인을 지금 사용할 수 없습니다.',
+  // 직무 비교·커리큘럼 (AI)
   'AI service temporarily unavailable': 'AI 서버에 연결할 수 없습니다. AI 서버가 실행 중인지 확인해주세요.',
   'No eligible reviewed job sources; import sources first':
     '비교에 쓸 수 있는 최근 공고가 없습니다. 연구자가 공고를 먼저 반입해야 합니다.',
@@ -137,6 +188,10 @@ const KNOWN_ERROR_MESSAGES: Record<string, string> = {
           '발급·검증(DXWorks) 호출에 실패했습니다. 원인은 BE 로그의 "Provider error" 줄에서 확인해주세요.',
         'Credential service is not configured':
           'BE에 발급·검증 설정이 없습니다 (DXWORKS_API_HOST, DXWORKS_API_KEY, DXWORKS_BADGE_TEMPLATE_ID).',
+        'Google OAuth is not configured': 'BE에 Google OAuth 설정이 없습니다 (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET).',
+        'Google OAuth redirect_uri is not configured': 'BE에 GOOGLE_REDIRECT_URI가 설정되지 않았습니다.',
+        'Invalid redirect_uri':
+          'BE가 허용하지 않은 콜백 주소입니다. GOOGLE_REDIRECT_URI / GOOGLE_ALLOWED_REDIRECT_URIS에 FE 콜백 주소를 넣어주세요.',
       }
     : {}),
 };
@@ -174,6 +229,27 @@ const FIELD_LABELS: Record<string, string> = {
   holderDid: 'DID',
   token: '토큰',
   type: '타입',
+  title: '제목',
+  target_role: '희망 직무',
+  status: '게시 상태',
+  record_ids: '자격증명',
+  source: '근거 출처',
+  label: '링크 이름',
+  expires_in_days: '유효 기간',
+  code: '인가 코드',
+  state: '인증 상태값',
+  redirect_uri: '콜백 주소',
+  code_verifier: 'PKCE 검증값',
+  target_posting_id: '비교 대상 공고',
+  analysis_id: '직무 비교 ID',
+  idempotency_key: '요청 식별자',
+  weeks: '기간(주)',
+  hours_per_week: '주당 학습 시간',
+  budget_krw: '예산(원)',
+  mode: '생성 모드',
+  allow_external_processing: '외부 모델 전달 동의',
+  alternative_choices: '대안 기술 선택',
+  learning_choices: '학습 진행 방식',
 };
 
 /** FastAPI 422 의 detail 배열을 한 줄 메시지로 합친다. */

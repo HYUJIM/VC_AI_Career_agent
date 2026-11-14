@@ -1,8 +1,15 @@
 import { apiClient } from '@/lib/apiClient';
-import { isPreviewSession, previewCareers, previewIssue, previewVerify } from '@/lib/preview';
+import {
+  isPreviewSession,
+  previewCareers,
+  previewIssue,
+  previewReverify,
+  previewVerify,
+} from '@/lib/preview';
 import type {
   CareersResponse,
   IssueMockBadgeResponse,
+  ReverifyResponse,
   VerifyRequest,
   VerifyResponse,
 } from '@/types/api';
@@ -37,5 +44,17 @@ export async function issueMockBadge(
 export async function verifyCredential(payload: VerifyRequest): Promise<VerifyResponse> {
   if (isPreviewSession()) return previewVerify();
   const { data } = await apiClient.post<VerifyResponse>('/v1/verify', payload);
+  return data;
+}
+
+/**
+ * POST /api/v1/credentials/{record_id}/reverify (v0.6.0 실행 시점 재검증)
+ * 저장된 서명 원본을 지금 다시 검증하고 DB 상태를 갱신한다. 서명 원본이 없으면 status: unverifiable.
+ */
+export async function reverifyCredential(recordId: string): Promise<ReverifyResponse> {
+  if (isPreviewSession()) return previewReverify(recordId);
+  const { data } = await apiClient.post<ReverifyResponse>(
+    `/v1/credentials/${encodeURIComponent(recordId)}/reverify`,
+  );
   return data;
 }

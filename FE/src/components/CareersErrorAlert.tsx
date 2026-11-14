@@ -13,11 +13,12 @@ export function CareersErrorAlert({ error, onRetry }: { error: unknown; onRetry:
   const navigate = useNavigate();
   const kind = getApiErrorKind(error);
 
-  if (kind === 'notFound') {
+  // 404: 저장된 DID가 서버에 없음 / 403(BE v0.4.0): 저장된 DID와 토큰의 DID가 다름 → 둘 다 세션 정보가 어긋난 상태
+  if (kind === 'notFound' || kind === 'forbidden') {
     return (
       <Alert
         variant="warning"
-        title="계정 정보를 서버에서 찾을 수 없습니다."
+        title={kind === 'notFound' ? '계정 정보를 서버에서 찾을 수 없습니다.' : '로그인 정보가 일치하지 않습니다.'}
         actions={
           <Button
             variant="outline"
@@ -31,7 +32,9 @@ export function CareersErrorAlert({ error, onRetry }: { error: unknown; onRetry:
           </Button>
         }
       >
-        저장된 로그인 정보의 DID가 서버에 없습니다. DB가 초기화되었을 수 있으니 다시 로그인해주세요.
+        {kind === 'notFound'
+          ? '저장된 로그인 정보의 DID가 서버에 없습니다. DB가 초기화되었을 수 있으니 다시 로그인해주세요.'
+          : '저장된 DID와 로그인 토큰의 DID가 다릅니다. 다시 로그인해주세요.'}
       </Alert>
     );
   }
