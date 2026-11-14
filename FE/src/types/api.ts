@@ -1,6 +1,7 @@
 /**
  * BE(FastAPI) 요청/응답 타입 정의
- * 출처: BE/openapi.yaml (v0.6.0 — JWT 인증, 관리형 지갑, 실행 시점 재검증, 포트폴리오(VC_ONLY), 선택 공개)
+ * 출처: BE/openapi.yaml (v0.6.0 — JWT 인증, 관리형 지갑, 실행 시점 재검증, 포트폴리오(VC_ONLY), 선택 공개
+ *       + BE 브랜치 Google OAuth 2.0 소셜 로그인)
  */
 
 export interface UserProfile {
@@ -11,7 +12,7 @@ export interface UserProfile {
 }
 
 /**
- * 회원가입/로그인 공통 응답 (openapi `AuthResponse`).
+ * 회원가입·로그인·소셜 로그인 공통 응답 (openapi `AuthResponse`).
  * v0.4.0부터 `data`(UserProfile)는 그대로 두고 토큰 필드가 최상위에 추가되었다.
  */
 export interface AuthResponse {
@@ -28,6 +29,29 @@ export interface AuthResponse {
 export type RegisterResponse = AuthResponse;
 export type LoginResponse = AuthResponse;
 
+/** BE가 지원하는 소셜 로그인 제공자 (BE `/api/v1/users/oauth/{provider}`) */
+export type OAuthProviderId = 'google';
+
+/** GET /api/v1/users/oauth/{provider}/authorize (openapi `OAuthAuthorizeResponse`) */
+export interface OAuthAuthorizeResponse {
+  success: boolean;
+  provider: OAuthProviderId;
+  /** 제공자(Google) 로그인 화면 주소. 브라우저를 이 주소로 보낸다. */
+  authorization_url: string;
+  /** BE가 서명한 CSRF 방지용 state (expires_in 초 동안 유효). 콜백에서 돌아온 값과 비교한다. */
+  state: string;
+  expires_in: number;
+}
+
+/** POST /api/v1/users/oauth/{provider}/callback 요청 본문 (openapi `OAuthCallbackRequest`) */
+export interface OAuthCallbackRequest {
+  code: string;
+  state: string;
+  redirect_uri?: string;
+  /** PKCE(S256) 원문. authorize 때 보낸 code_challenge 의 원본 */
+  code_verifier?: string;
+}
+
 /**
  * GET /api/v1/users/me (v0.5.0). 토큰의 사용자 프로필 + 지갑(홀더 키) 상태.
  * - managed: BE가 Ed25519 홀더 키를 암호화 보관 (진짜 did:key)
@@ -41,6 +65,8 @@ export interface MeResponse {
     custody: 'managed' | 'none';
     key_type: string | null;
   };
+  /** 연동된 소셜 로그인 제공자 (BE OAuth 지원 이후). 이전 BE는 이 필드가 없을 수 있다. */
+  oauth_providers?: OAuthProviderId[];
 }
 
 export interface IssueMockBadgeResponse {

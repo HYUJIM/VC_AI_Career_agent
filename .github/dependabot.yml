@@ -1,0 +1,11 @@
+# 워크플로(.github/workflows)의 액션은 태그 대신 커밋 SHA로 고정한다 (태그는 다른 커밋으로 옮겨질 수 있다).
+# Dependabot이 매주 새 릴리스를 확인해, SHA와 버전 주석(# vX.Y.Z)을 함께 바꾸는 PR을 하나로 묶어 연다.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]

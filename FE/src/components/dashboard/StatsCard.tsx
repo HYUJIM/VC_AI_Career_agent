@@ -38,7 +38,7 @@ interface StatsCardProps {
 
 export function StatsCard({ total, verified, attention, latestDate }: StatsCardProps) {
   return (
-    <Card className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
+    <Card className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       <Stat label="전체" value={total} unit="개" />
       <Stat label="검증됨" value={verified} unit="개" tone="success" />
       <Stat label="확인 필요" value={attention} unit="개" tone={attention > 0 ? 'warning' : 'default'} />

@@ -7,6 +7,7 @@ from typing import Optional
 import psycopg
 from psycopg.rows import dict_row
 
+from app.core.config import db_password
 from app.domain.credential import BadgeEvaluation
 from app.services.key_custody import StoredHolderKey
 
@@ -16,8 +17,11 @@ def get_db_connection():
         host=os.getenv("DB_HOST", "localhost"),
         port=int(os.getenv("DB_PORT", 5432)),
         user=os.getenv("DB_USER", "postgres"),
-        password=os.getenv("DB_PASSWORD", "password"),
+        # development는 지금처럼 없으면 로컬 기본값, production은 비었거나 로컬 기본값이면 접속하지 않는다.
+        password=db_password(),
         dbname=os.getenv("DB_NAME", "vc_career_agent"),
+        # DB에 닿지 않을 때 psycopg 기본값(130초)까지 기다리지 않고 빨리 실패한다 (초, 기본 10).
+        connect_timeout=int(os.getenv("DB_CONNECT_TIMEOUT") or os.getenv("PGCONNECT_TIMEOUT") or 10),
         row_factory=dict_row,
         autocommit=True,
     )
@@ -89,6 +93,18 @@ class DatabaseService:
             cur.execute("SELECT * FROM users WHERE subject_did = %s", (did,))
             return cur.fetchone()
 
+    def get_token_version(self, user_id: str) -> Optional[int]:
+        """액세스 토큰 검사용 현재 토큰 버전 (로그아웃할 때마다 1씩 오른다). 사용자가 없으면 None."""
+        with get_db_connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT token_version FROM users WHERE id = %s", (user_id,))
+            row = cur.fetchone()
+            return row["token_version"] if row else None
+
+    def bump_token_version(self, user_id: str) -> None:
+        """그 사용자에게 지금까지 발급한 액세스 토큰을 모든 탭·기기에서 한 번에 무효로 만든다 (로그아웃)."""
+        with get_db_connection() as conn, conn.cursor() as cur:
+            cur.execute("UPDATE users SET token_version = token_version + 1 WHERE id = %s", (user_id,))
+
     # ── 자격증명 ──────────────────────────────────────────────
     def save_badge(self, *, user_id: str, provider: str, evaluation: BadgeEvaluation, vc_jwt: str) -> dict:
         """검증 결과를 credentials(원본 vcJwt 포함)와 verification_checks에 한 트랜잭션으로 저장한다."""
@@ -140,7 +156,7 @@ class DatabaseService:
             return str(row["user_id"]) if row else None
 
     def get_user_and_credentials(self, user_did: str):
-        """FE 대시보드/AI가 쓰는 careers 응답. 응답 형식은 FE `CareersResponse` 계약이므로 바꾸지 않는다."""
+        """FE 대시보드가 쓰는 careers 응답. 응답 형식은 FE `CareersResponse` 계약이므로 바꾸지 않는다."""
         with get_db_connection() as conn, conn.cursor() as cur:
             cur.execute("SELECT * FROM users WHERE subject_did = %s", (user_did,))
             user = cur.fetchone()
@@ -209,6 +225,41 @@ class DatabaseService:
                     " VALUES (%s, %s, %s, %s, %s)",
                     [(record_id, c.name, c.result, c.detail, checked_at) for c in latest.values()],
                 )
+
+    # ── 모의 발급 기록 ────────────────────────────────────────
+    def reserve_mock_issuance(self, user_id: str, template_id: str, daily_limit: int) -> Optional[str]:
+        """최근 24시간 발급 수가 한도 안이면 발급 기록을 먼저 남기고 그 id를, 한도에 닿았으면 None을 돌려준다.
+
+        협력사를 부르기 전에 자리를 잡는다. 같은 사용자의 동시 요청(여러 ECS 태스크 포함)은 트랜잭션 advisory lock으로
+        줄을 세워 한도를 넘지 못하게 한다. 발급에 실패하면 cancel_mock_issuance로 자리를 돌려준다.
+        """
+        with get_db_connection() as conn:
+            with conn.transaction(), conn.cursor() as cur:
+                # 잠금을 얻은 뒤의 count가 앞 요청이 커밋한 기록을 보도록 이 트랜잭션은 READ COMMITTED로 고정한다.
+                # DB·역할·파라미터 그룹의 기본값이 REPEATABLE READ면 잠금을 기다리기 전에 잡은 스냅샷으로 세어 한도를 넘고,
+                # SERIALIZABLE이면 직렬화 오류(500)가 난다. 트랜잭션의 첫 문장이어야 한다.
+                cur.execute("SET TRANSACTION ISOLATION LEVEL READ COMMITTED")
+                cur.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"mock_issuance:{user_id}",))
+                cur.execute(
+                    "SELECT count(*) AS n FROM mock_issuances"
+                    " WHERE user_id = %s AND created_at > NOW() - INTERVAL '24 hours'",
+                    (user_id,),
+                )
+                if cur.fetchone()["n"] >= daily_limit:
+                    return None
+                cur.execute("INSERT INTO mock_issuances (user_id, template_id) VALUES (%s, %s) RETURNING id",
+                            (user_id, template_id))
+                return str(cur.fetchone()["id"])
+
+    def complete_mock_issuance(self, issuance_id: str, token_sha256: str) -> None:
+        """발급에 성공한 기록에 VC-JWT의 SHA-256(hex)을 남긴다 (원문은 저장하지 않는다)."""
+        with get_db_connection() as conn, conn.cursor() as cur:
+            cur.execute("UPDATE mock_issuances SET token_sha256 = %s WHERE id = %s", (token_sha256, issuance_id))
+
+    def cancel_mock_issuance(self, issuance_id: str) -> None:
+        """협력사 발급이 실패한 기록을 지운다 (실패한 요청은 한도에 세지 않는다)."""
+        with get_db_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM mock_issuances WHERE id = %s", (issuance_id,))
 
     # ── 포트폴리오 ────────────────────────────────────────────
     def create_portfolio(self, *, user_id: str, title: str, target_role: Optional[str], bio_summary: str,

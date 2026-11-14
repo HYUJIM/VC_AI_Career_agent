@@ -55,7 +55,7 @@ export function ProfileCard({ user }: { user: UserProfile }) {
 
 export function QuickActionsCard() {
   return (
-    <Card className="flex flex-col gap-2 p-4">
+    <Card className="flex flex-col gap-2">
       <h2 className="px-2 pb-1 text-[15px] font-bold">바로가기</h2>
       <Link to="/issue">
         <Button size="lg" className="w-full">

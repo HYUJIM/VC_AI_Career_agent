@@ -1,8 +1,9 @@
 """BE 테스트 공통 설정.
 
-- DB: TEST_DB_* 환경변수의 PostgreSQL(pgvector)에 테스트 전용 DB를 새로 만들고,
-  docker-compose initdb와 같은 순서(스키마 → 시드 → 마이그레이션)로 SQL을 적용한다.
-  로컬 예: docker run -d --name vc-be-test -e POSTGRES_PASSWORD=password -p 55432:5432 pgvector/pgvector:pg16
+- DB: TEST_DB_* 환경변수의 PostgreSQL(pgvector)에 테스트 전용 DB를 새로 만들고, 배포와 같은 마이그레이션 실행기
+  (app.migrate, 시드 포함)로 스키마 → 시드 → 마이그레이션을 적용한다.
+  로컬 예 (기본 비밀번호이므로 이 PC에서만 연다):
+  docker run -d --name vc-be-test -e POSTGRES_PASSWORD=password -p 127.0.0.1:55432:5432 pgvector/pgvector:0.8.7-pg16-bookworm
 - 발급·검증 인프라: 실제 API 대신 포트(CredentialVerifier/CredentialIssuer)를 직접 구현한 FakeProvider를
   의존성 주입으로 넣는다. 외부 API의 요청·응답 형식은 tests/test_dxworks_adapter.py에서만 다룬다.
 - 테스트 값(발급기관, DID, ID)은 모두 가상의 값이다.
@@ -10,6 +11,7 @@
 import base64
 import json
 import os
+import secrets
 import uuid
 from pathlib import Path
 
@@ -18,61 +20,49 @@ import pytest
 
 BE_DIR = Path(__file__).resolve().parents[1]
 TEST_DB_NAME = os.getenv("TEST_DB_NAME", "vc_career_agent_test")
+# 테스트 DB의 실제 비밀번호 (로컬 기본값). production_env가 DB_PASSWORD 환경변수를 바꿔도 테스트 DB 접속에는 이 값을 쓴다.
+TEST_DB_PASSWORD = os.getenv("TEST_DB_PASSWORD", "password")
 
 # app 모듈을 import하기 전에 환경을 고정한다 (.env보다 우선).
+# 아래 비밀값은 이 공개 저장소에 들어 있는 테스트 전용 값이라 APP_ENV=production에서는 거부된다 (production_env 참고).
 os.environ.update(
     {
         "DB_HOST": os.getenv("TEST_DB_HOST", "localhost"),
         "DB_PORT": os.getenv("TEST_DB_PORT", "55432"),
         "DB_USER": os.getenv("TEST_DB_USER", "postgres"),
-        "DB_PASSWORD": os.getenv("TEST_DB_PASSWORD", "password"),
+        "DB_PASSWORD": TEST_DB_PASSWORD,
         "DB_NAME": TEST_DB_NAME,
         "JWT_SECRET": "test-secret-for-pytest-only-0123456789",
-        "AUTH_REQUIRED": "false",
         "SERVICE_API_KEY": "test-service-key",
         "MOCK_ISSUER_ENABLED": "true",
         "DXWORKS_API_HOST": "https://dx.invalid",
         "DXWORKS_API_KEY": "test-key",
         "DXWORKS_BADGE_TEMPLATE_ID": "tpl-default",
+        "MOCK_ISSUER_TEMPLATE_IDS": "tpl",  # 기본 템플릿 말고 모의 발급에 허용하는 템플릿 (가상 값)
         # 테스트 전용 마스터 키 (32바이트 0x01 반복). 실제 키가 아니다.
         "HOLDER_KEY_ENCRYPTION_KEY": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=",
     }
 )
 
-# docker-compose.yml의 docker-entrypoint-initdb.d 마운트 순서와 같다.
-INIT_SQL = [
-    "DB/schema/schema_PostgreSQL.sql",
-    "DB/schema/schema_pgvector.sql",
-    "DB/seeds/03_seed_data.sql",
-    "DB/migrations/04_users_password_hash.sql",
-    "DB/migrations/05_credentials_raw_token.sql",
-    "DB/migrations/06_holder_keys.sql",
-    "DB/migrations/07_shares.sql",
-]
+
+def _conn_kwargs(dbname: str) -> dict:
+    return dict(host=os.environ["DB_HOST"], port=int(os.environ["DB_PORT"]), user=os.environ["DB_USER"],
+                password=TEST_DB_PASSWORD, dbname=dbname)
 
 
 def _connect(dbname: str):
-    return psycopg.connect(
-        host=os.environ["DB_HOST"], port=int(os.environ["DB_PORT"]), user=os.environ["DB_USER"],
-        password=os.environ["DB_PASSWORD"], dbname=dbname, autocommit=True,
-    )
-
-
-def _apply_sql(path: Path) -> None:
-    # psql 전용 메타 명령(\restrict 등)은 서버가 이해하지 못하므로 뺀다.
-    # 시드 덤프가 search_path를 비우므로 파일마다 새 연결을 쓴다.
-    sql = "\n".join(line for line in path.read_text(encoding="utf-8").splitlines() if not line.startswith("\\"))
-    with _connect(TEST_DB_NAME) as conn:
-        conn.execute(sql)
+    return psycopg.connect(**_conn_kwargs(dbname), autocommit=True)
 
 
 @pytest.fixture(scope="session", autouse=True)
 def test_database():
+    from app.migrate import migrate
+
     with _connect("postgres") as admin:
         admin.execute(f'DROP DATABASE IF EXISTS "{TEST_DB_NAME}" WITH (FORCE)')
         admin.execute(f'CREATE DATABASE "{TEST_DB_NAME}"')
-    for rel in INIT_SQL:
-        _apply_sql(BE_DIR / rel)
+    # 배포(빈 RDS)와 같은 실행기로 만들되 시드도 넣는다: 기본 스키마 → 시드 → DB/migrations (원장 public.schema_migrations 포함).
+    migrate(seed=True, **_conn_kwargs(TEST_DB_NAME))
     yield
     with _connect("postgres") as admin:
         admin.execute(f'DROP DATABASE IF EXISTS "{TEST_DB_NAME}" WITH (FORCE)')
@@ -82,7 +72,7 @@ def test_database():
 def db():
     with psycopg.connect(
         host=os.environ["DB_HOST"], port=int(os.environ["DB_PORT"]), user=os.environ["DB_USER"],
-        password=os.environ["DB_PASSWORD"], dbname=TEST_DB_NAME, autocommit=True,
+        password=TEST_DB_PASSWORD, dbname=TEST_DB_NAME, autocommit=True,
         row_factory=psycopg.rows.dict_row,
     ) as conn:
         yield conn
@@ -183,12 +173,28 @@ def client(fake_dx, monkeypatch):
 
 
 @pytest.fixture
-def auth_required(monkeypatch):
-    from app.core.config import get_settings
+def production_env(monkeypatch):
+    """APP_ENV=production으로 앱을 돌리는 테스트용 환경. 넣은 값을 dict로 돌려준다 (예: X-Service-Key에 쓸 SERVICE_API_KEY).
 
-    monkeypatch.setenv("AUTH_REQUIRED", "true")
+    위의 고정 테스트 비밀값과 로컬 기본 DB 비밀번호는 공개된 값이라 production에서 거부되므로(app.core.config),
+    운영 검사를 통과하는 값을 실행할 때마다 새로 만든다. 테스트 DB에는 실제 비밀번호(TEST_DB_PASSWORD)로 접속하도록
+    접속 비밀번호만 바꿔 끼운다. 이 픽스처보다 먼저 받은 토큰은 JWT_SECRET이 바뀌므로 쓸 수 없다.
+    """
+    from app.core.config import get_settings
+    from app.services import database
+
+    values = {
+        "APP_ENV": "production",
+        "JWT_SECRET": secrets.token_urlsafe(48),
+        "HOLDER_KEY_ENCRYPTION_KEY": base64.b64encode(os.urandom(32)).decode(),
+        "SERVICE_API_KEY": secrets.token_urlsafe(32),
+        "DB_PASSWORD": secrets.token_urlsafe(24),  # get_settings() 검사용 값 (접속에는 쓰지 않는다)
+    }
+    for name, value in values.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setattr(database, "db_password", lambda: TEST_DB_PASSWORD)
     get_settings.cache_clear()
-    yield
+    yield values
     get_settings.cache_clear()
 
 

@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { CareerPlanPage } from '@/pages/CareerPlanPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { IssueCredentialPage } from '@/pages/IssueCredentialPage';
 import { PortfolioBuilderPage } from '@/pages/PortfolioBuilderPage';
@@ -38,6 +39,14 @@ function App() {
           element={
             <ProtectedRoute>
               <PortfolioBuilderPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/career"
+          element={
+            <ProtectedRoute>
+              <CareerPlanPage />
             </ProtectedRoute>
           }
         />

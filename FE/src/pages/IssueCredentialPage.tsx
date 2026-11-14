@@ -6,7 +6,14 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Alert } from '@/components/ui/Alert';
-import { type ApiErrorKind, getApiErrorKind, getApiErrorMessage } from '@/lib/apiClient';
+import {
+  type ApiErrorKind,
+  getApiErrorKind,
+  getApiErrorMessage,
+  getApiErrorStatus,
+  getConnectionHint,
+  RETRY_LATER_MESSAGE,
+} from '@/lib/apiClient';
 import { useAuthStore } from '@/store/authStore';
 import type { DashboardLocationState } from '@/pages/DashboardPage';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -19,8 +26,10 @@ interface IssueError {
   /** rejected: BE가 HTTP 200 + success:false 로 검증 실패를 알린 경우 */
   kind: ApiErrorKind | 'rejected';
   message: string;
-  /** rejected 일 때 BE가 판정한 상태 (data.status) */
-  status?: CredentialStatus;
+  /** HTTP 상태 코드 (응답이 없거나 rejected 면 undefined) */
+  httpStatus?: number;
+  /** rejected 일 때 BE가 판정한 자격증명 상태 (data.status) */
+  credentialStatus?: CredentialStatus;
   /** rejected 여도 BE가 해당 status로 지갑에 저장했는지 (data.record_id 존재 여부) */
   saved?: boolean;
 }
@@ -53,7 +62,12 @@ export function IssueCredentialPage() {
       setStep('verify');
     },
     onError: (error) =>
-      setIssueError({ stage: 'issue', kind: getApiErrorKind(error), message: getApiErrorMessage(error) }),
+      setIssueError({
+        stage: 'issue',
+        kind: getApiErrorKind(error),
+        message: getApiErrorMessage(error),
+        httpStatus: getApiErrorStatus(error),
+      }),
   });
 
   const verifyMutation = useMutation({
@@ -71,7 +85,7 @@ export function IssueCredentialPage() {
         setVerified(data);
         setStep('done');
       } else {
-        setIssueError({ stage: 'verify', kind: 'rejected', message: res.message, status: data?.status, saved });
+        setIssueError({ stage: 'verify', kind: 'rejected', message: res.message, credentialStatus: data?.status, saved });
       }
     },
     onError: (error) =>
@@ -90,7 +104,7 @@ export function IssueCredentialPage() {
     if (err.kind === 'network') {
       return (
         <Alert variant="warning" title="서버에 연결할 수 없습니다." onClose={close}>
-          BE 서버(http://localhost:3000)가 실행 중인지 확인한 뒤 다시 시도해주세요.
+          {getConnectionHint()}
         </Alert>
       );
     }
@@ -113,9 +127,9 @@ export function IssueCredentialPage() {
             </>
           }
         >
-          {err.status && (
+          {err.credentialStatus && (
             <span className="mr-1.5 align-middle">
-              <StatusBadge status={err.status} />
+              <StatusBadge status={err.credentialStatus} />
             </span>
           )}
           {err.saved
@@ -150,10 +164,13 @@ export function IssueCredentialPage() {
         onClose={close}
       >
         {err.message}
-        {err.stage === 'issue' && (
+        {/* 429(발급 한도 초과)는 메시지가 이미 "나중에 다시 시도"를 안내한다 */}
+        {err.stage === 'issue' && err.httpStatus !== 429 && (
           <>
             <br />
-            Template ID가 올바른지, BE 서버의 발급 API 설정(.env)을 확인해주세요. (발급 API 오류 502 / 설정 누락 503)
+            {import.meta.env.DEV
+              ? 'Template ID가 올바른지, BE의 DXWORKS_API_KEY 설정을 확인해주세요. (발급 API 오류 502 / 설정 누락 503)'
+              : RETRY_LATER_MESSAGE}
           </>
         )}
       </Alert>

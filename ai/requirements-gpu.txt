@@ -1,5 +1,5 @@
-# Model runs for studies 02-04 (Qwen2.5-1.5B-Instruct, CUDA, FP32). Install after requirements.txt.
-# Verified environment: Python 3.11 (conda env "vc-ai"), NVIDIA GPU with CUDA 11.8 drivers.
+# Only for CURRICULUM_LLM_PROVIDER=local-transformers (pinned Qwen2.5-1.5B-Instruct, CUDA, FP32).
+# Install after requirements.txt. Verified: Python 3.11, NVIDIA GPU with CUDA 11.8 drivers.
 # torch must come from the CUDA 11.8 index:
 #   pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu118
 torch==2.5.1

@@ -1,3 +1,9 @@
 -r requirements.txt
-pytest>=8,<10
-pytest-asyncio>=0.23,<2
+# 테스트 전용 고정 (허용 범위: pytest>=8,<10, pytest-asyncio>=0.23,<2). requirements.txt와 같은 방법으로
+# BE/.venv 설치 버전을 적되, requirements.txt에 이미 있는 패키지는 빼고 테스트에만 쓰는 것만 둔다.
+iniconfig==2.3.1
+packaging==26.3
+pluggy==1.7.0
+pygments==2.21.0
+pytest==9.2.0
+pytest-asyncio==1.4.1.post1
