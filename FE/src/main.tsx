@@ -1,3 +1,5 @@
+// 가장 먼저 import 한다: 스키마가 만들어지기 전에 zod 설정을 바꿔야 한다 (lib/zodConfig.ts)
+import './lib/zodConfig'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'

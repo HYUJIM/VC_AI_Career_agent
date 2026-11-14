@@ -1,6 +1,7 @@
 """포트폴리오 본문 작성기.
 
 입력은 **실행 시점 재검증을 통과한 근거(Evidence)**뿐이다 (VC_ONLY). 사용자 자유 텍스트는 받지 않는다.
+사용자 값은 머리말의 제목·이름·희망 직무 한 줄씩뿐이고, 줄을 나눌 수 없게 한 줄로 넣는다(_one_line).
 지금은 템플릿 작성기이고, AI 연동 시 같은 포트를 구현하는 작성기로 바꾼다.
 """
 from typing import Optional, Protocol
@@ -22,6 +23,15 @@ def _date(value: Optional[str]) -> str:
     return value[:10] if value else "-"
 
 
+def _one_line(value: Optional[str]) -> Optional[str]:
+    """사용자 값(제목·이름·희망 직무)의 줄 구분 문자(\\n, \\r, U+2028 등)를 공백으로 바꾼다.
+
+    요청 검사(ensure_single_line) 전에 저장됐거나 DB에 직접 넣은 여러 줄 값이 있어도 본문 Markdown의 줄 구조를 바꾸지
+    못하게 한다. 한 줄 값은 그대로다.
+    """
+    return " ".join(value.splitlines()) if value else value
+
+
 class TemplatePortfolioWriter:
     name = "template"
 
@@ -30,9 +40,9 @@ class TemplatePortfolioWriter:
         issuers = sorted({e["issuer_name"] for e in evidence})
         summary = (f"{len(issuers)}개 기관에서 발급한 {len(evidence)}개의 검증된 자격증명을 근거로 "
                    f"역량을 증명합니다.")
-        lines = [f"# {title}", "", f"- 이름: {holder_name}"]
+        lines = [f"# {_one_line(title)}", "", f"- 이름: {_one_line(holder_name)}"]
         if target_role:
-            lines.append(f"{ROLE_PREFIX}{target_role}")
+            lines.append(f"{ROLE_PREFIX}{_one_line(target_role)}")
         lines += ["", "## 요약", "", summary, "", "## 검증된 자격증명", ""]
         for e in sorted(evidence, key=lambda item: item["issued_at"] or "", reverse=True):
             lines.append(f"### {e['achievement_name']}")
@@ -53,6 +63,7 @@ def rewrite_header(content: str, *, title: str, target_role: Optional[str]) -> s
 
     근거 섹션은 생성 시점에 재검증한 결과이므로 건드리지 않는다.
     """
+    title, target_role = _one_line(title), _one_line(target_role)
     lines = content.split("\n")
     end = next((i for i, line in enumerate(lines) if line.startswith("## ")), len(lines))
     head = [line for line in lines[:end] if not line.startswith(ROLE_PREFIX)]

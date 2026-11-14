@@ -1,4 +1,4 @@
-"""Pinned CUDA-only development backend matching the successful user smoke run."""
+"""Pinned CUDA-only Qwen backend, used by the local-transformers curriculum selector."""
 import re
 from time import perf_counter
 

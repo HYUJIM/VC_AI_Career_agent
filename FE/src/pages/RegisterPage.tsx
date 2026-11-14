@@ -9,13 +9,22 @@ import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
-import { type ApiErrorKind, getApiErrorKind, getApiErrorMessage } from '@/lib/apiClient';
+import {
+  type ApiErrorKind,
+  getApiErrorKind,
+  getApiErrorMessage,
+  getApiErrorStatus,
+  getConnectionHint,
+  RETRY_LATER_MESSAGE,
+} from '@/lib/apiClient';
 import { useAuthStore } from '@/store/authStore';
 
 interface RegisterError {
   kind: ApiErrorKind;
   message: string;
   email: string;
+  /** HTTP 상태 코드 (응답이 없으면 undefined) */
+  status?: number;
 }
 
 /** BE는 bcrypt 제약으로 UTF-8 기준 72바이트를 넘는 비밀번호를 거부한다(422). */
@@ -59,12 +68,17 @@ export function RegisterPage() {
     mutationFn: registerUser,
     onSuccess: (res) => {
       // BE가 가입과 동시에 사용자 정보(DID 포함)를 내려주므로 바로 로그인 상태로 전환
-      setUser(res.data);
+      setUser(res.data, res.access_token, res.expires_in);
       navigate('/dashboard', { state: { welcome: res.data.name, newUser: true } });
     },
     onError: (error, variables) => {
       const kind = getApiErrorKind(error);
-      setRegisterError({ kind, message: getApiErrorMessage(error), email: variables.email });
+      setRegisterError({
+        kind,
+        message: getApiErrorMessage(error),
+        email: variables.email,
+        status: getApiErrorStatus(error),
+      });
       if (kind === 'conflict') {
         setError('email', { message: '이미 가입된 이메일입니다.' }, { shouldFocus: true });
       }
@@ -105,15 +119,22 @@ export function RegisterPage() {
       case 'network':
         return (
           <Alert variant="warning" title="서버에 연결할 수 없습니다." onClose={() => setRegisterError(null)}>
-            BE 서버(http://localhost:3000)가 실행 중인지 확인한 뒤 다시 시도해주세요.
+            {getConnectionHint()}
           </Alert>
         );
       default:
         return (
           <Alert variant="error" title="회원가입 중 오류가 발생했습니다." onClose={() => setRegisterError(null)}>
             {err.message}
-            <br />
-            잠시 후 다시 시도해주세요. 계속되면 BE 서버 로그(DB 마이그레이션 여부)를 확인해주세요.
+            {/* 429(시도 횟수 초과, 운영 WAF)는 메시지가 이미 "잠시 후 다시 시도"를 안내한다 */}
+            {err.status !== 429 && (
+              <>
+                <br />
+                {import.meta.env.DEV
+                  ? '잠시 후 다시 시도해주세요. 계속되면 BE 서버 로그(DB 마이그레이션 여부)를 확인해주세요.'
+                  : RETRY_LATER_MESSAGE}
+              </>
+            )}
           </Alert>
         );
     }

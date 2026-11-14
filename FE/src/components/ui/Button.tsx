@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
-type Variant = 'primary' | 'secondary' | 'tertiary' | 'outline' | 'ghost' | 'danger';
+type Variant = 'primary' | 'secondary' | 'tertiary' | 'outline';
 type Size = 'sm' | 'md' | 'lg';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -23,8 +23,6 @@ const variantClasses: Record<Variant, string> = {
   /** 색 배경(알림 등) 위에 올리는 흰 버튼 */
   outline:
     'border border-[var(--color-border)] bg-white text-[var(--color-text)] hover:bg-[var(--color-card-hover)] disabled:opacity-50',
-  ghost: 'bg-transparent text-[var(--color-text-sub)] hover:bg-[var(--color-surface)]',
-  danger: 'bg-[var(--color-danger)] text-white hover:opacity-90',
 };
 
 const sizeClasses: Record<Size, string> = {

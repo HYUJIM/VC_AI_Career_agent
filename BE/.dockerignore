@@ -1,9 +1,16 @@
-__pycache__
-*.pyc
-*.pyo
-*.pyd
-.pytest_cache
-.env
+# 이미지에는 Dockerfile의 COPY 목록(main.py, app/, DB/schema, DB/migrations, requirements.txt)만 들어간다.
+# 그래도 빌드 컨텍스트에 비밀값·로컬 가상환경·테스트 자료·캐시가 실리지 않게 뺀다 (**/는 하위 폴더까지).
+**/.env
+**/.env.*
+.venv
 .git
 .gitignore
-.DS_Store
+tests
+DB/seeds
+**/*.csv
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+**/.DS_Store

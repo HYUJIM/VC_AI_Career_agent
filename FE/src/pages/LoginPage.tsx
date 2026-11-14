@@ -9,7 +9,14 @@ import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
-import { type ApiErrorKind, getApiErrorKind, getApiErrorMessage } from '@/lib/apiClient';
+import {
+  type ApiErrorKind,
+  getApiErrorKind,
+  getApiErrorMessage,
+  getApiErrorStatus,
+  getConnectionHint,
+  RETRY_LATER_MESSAGE,
+} from '@/lib/apiClient';
 import { PREVIEW_ENABLED, PREVIEW_USER } from '@/lib/preview';
 import { useAuthStore } from '@/store/authStore';
 
@@ -23,6 +30,8 @@ interface LoginError {
   kind: ApiErrorKind;
   message: string;
   email: string;
+  /** HTTP 상태 코드 (응답이 없으면 undefined) */
+  status?: number;
 }
 
 const loginSchema = z.object({
@@ -43,7 +52,9 @@ export function LoginPage() {
   const [notice, setNotice] = useState(() => useAuthStore.getState().logoutReason);
 
   useEffect(() => {
-    clearLogoutReason();
+    // 비울 안내가 있을 때만 set()을 부른다. persist 는 set() 마다 이 탭의 세션을 저장소에 다시 쓰므로,
+    // 로그인한 채 뒤로 가기로 이 화면에 온 오래된 탭이 다른 탭의 로그아웃·로그인을 덮어쓰지 않게 한다.
+    if (useAuthStore.getState().logoutReason !== null) clearLogoutReason();
   }, [clearLogoutReason]);
 
   const {
@@ -60,12 +71,17 @@ export function LoginPage() {
   const mutation = useMutation({
     mutationFn: loginUser,
     onSuccess: (res) => {
-      setUser(res.data);
+      setUser(res.data, res.access_token, res.expires_in);
       navigate('/dashboard', { state: { welcome: res.data.name } });
     },
     onError: (error, variables) => {
       const kind = getApiErrorKind(error);
-      setLoginError({ kind, message: getApiErrorMessage(error), email: variables.email });
+      setLoginError({
+        kind,
+        message: getApiErrorMessage(error),
+        email: variables.email,
+        status: getApiErrorStatus(error),
+      });
       if (kind === 'unauthorized') {
         // 비밀번호만 비우고 다시 입력하도록 포커스
         setValue('password', '');
@@ -109,7 +125,7 @@ export function LoginPage() {
       case 'network':
         return (
           <Alert variant="warning" title="서버에 연결할 수 없습니다." onClose={() => setLoginError(null)}>
-            BE 서버(http://localhost:3000)가 실행 중인지 확인한 뒤 다시 시도해주세요.
+            {getConnectionHint()}
           </Alert>
         );
       case 'validation':
@@ -122,8 +138,15 @@ export function LoginPage() {
         return (
           <Alert variant="error" title="로그인 중 오류가 발생했습니다." onClose={() => setLoginError(null)}>
             {err.message}
-            <br />
-            잠시 후 다시 시도해주세요. 계속되면 BE 서버 로그를 확인해주세요.
+            {/* 429(시도 횟수 초과)는 메시지가 이미 "잠시 후 다시 시도"를 안내한다 */}
+            {err.status !== 429 && (
+              <>
+                <br />
+                {import.meta.env.DEV
+                  ? '잠시 후 다시 시도해주세요. 계속되면 BE 서버 로그를 확인해주세요.'
+                  : RETRY_LATER_MESSAGE}
+              </>
+            )}
           </Alert>
         );
     }
@@ -141,6 +164,11 @@ export function LoginPage() {
         {notice === 'sessionExpired' && (
           <Alert variant="warning" title="로그인 정보가 만료되었습니다." className="mb-4" onClose={() => setNotice(null)}>
             저장된 계정 정보를 서버에서 찾을 수 없습니다. 다시 로그인해주세요.
+          </Alert>
+        )}
+        {notice === 'tokenExpired' && (
+          <Alert variant="warning" title="로그인 시간이 만료되었습니다." className="mb-4" onClose={() => setNotice(null)}>
+            보안을 위해 다시 로그인해주세요.
           </Alert>
         )}
         {notice === 'loggedOut' && (

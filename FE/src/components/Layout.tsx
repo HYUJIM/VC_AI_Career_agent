@@ -1,4 +1,5 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { logoutUser } from '@/api/auth';
 import { ProfileMenu } from '@/components/ProfileMenu';
 import { Button } from '@/components/ui/Button';
 import { useAuthStore } from '@/store/authStore';
@@ -9,6 +10,7 @@ const CURRENT_YEAR = new Date().getFullYear();
 const NAV_ITEMS = [
   { to: '/issue', label: '자격증명 발급' },
   { to: '/dashboard', label: '자격증명 지갑' },
+  { to: '/career', label: '직무 비교·커리큘럼' },
   { to: '/portfolio', label: 'AI 포트폴리오' },
 ];
 
@@ -17,6 +19,9 @@ export function Layout() {
   const navigate = useNavigate();
 
   function handleLogout() {
+    // 서버에서도 이 계정의 토큰을 무효로 만든다. 응답을 기다리지 않고, 실패해도 이 브라우저에서는 로그아웃한다.
+    const token = useAuthStore.getState().accessToken;
+    if (token) logoutUser(token).catch(() => undefined);
     logout('loggedOut');
     navigate('/login');
   }

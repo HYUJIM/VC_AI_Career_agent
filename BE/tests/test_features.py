@@ -1,6 +1,8 @@
 """실행 시점 재검증 / 포트폴리오(VC_ONLY) / 선택 공개 (실제 PostgreSQL + 가짜 발급·검증기, 가상 데이터)."""
 import uuid
 
+import pytest
+
 from app.integrations.ports import ProviderError
 from tests.conftest import make_vc_jwt
 
@@ -52,6 +54,41 @@ def test_reverify_provider_error_is_502(client, register, fake_dx):
     record_id, _ = store_badge(client, user)
     fake_dx.error = ProviderError("DXWorks 연결 실패: ConnectError")
     assert client.post(f"/api/v1/credentials/{record_id}/reverify", headers=user["headers"]).status_code == 502
+
+
+@pytest.mark.parametrize("error,outage", [
+    (ProviderError("DXWORKS_API_HOST가 설정되지 않았습니다", unavailable=True), True),
+    (ProviderError("DXWorks 연결 실패: ReadTimeout"), True),
+    (ProviderError("DXWorks 오류 (500): boom", upstream_status=500), True),
+    (ProviderError("DXWorks 오류 (503): busy", upstream_status=503), True),
+    (ProviderError("DXWorks 오류 (408): timeout", upstream_status=408), True),
+    (ProviderError("DXWorks 오류 (429): slow down", upstream_status=429), True),
+    (ProviderError("DXWorks 오류 (400): invalid", upstream_status=400), False),
+    (ProviderError("DXWorks 오류 (404): not found", upstream_status=404), False),
+    (ProviderError("DXWorks 오류 (422): bad token", upstream_status=422), False),
+])
+def test_verifier_outage_classification(error, outage):
+    from app.services.reverify import is_verifier_outage
+
+    assert is_verifier_outage(error) is outage
+
+
+def test_evidence_and_share_stay_labeled_on_verifier_outage_and_log(client, register, fake_dx, caplog):
+    user = register()
+    record_id, token = store_badge(client, user)
+    share_token = create_share(client, user, [record_id]).json()["data"]["token"]
+    fake_dx.error = ProviderError("DXWorks 연결 실패: ConnectError")
+
+    # 읽기 전용 조회는 지금처럼 200으로 '검증 불가' 표시만 한다 (저장하지 않으므로). 대신 로그를 남긴다.
+    body = evidence(client, user)
+    assert body["evidence"] == []
+    assert body["excluded"] == [{"record_id": record_id, "status": "unverifiable", "reason": "verifier_error"}]
+    view = client.get(f"/api/v1/public/shares/{share_token}")
+    assert view.status_code == 200 and view.json()["credentials"][0]["status"] == "unverifiable"
+
+    logs = [r.getMessage() for r in caplog.records if r.name == "app.services.reverify"]
+    assert len(logs) == 2 and all(record_id in message for message in logs)
+    assert not any(token in message or user["did"] in message for message in logs)  # 서명 원본·DID는 남기지 않는다
 
 
 def test_seed_credential_without_signed_original_is_unverifiable(client):
@@ -170,6 +207,24 @@ def test_portfolio_with_no_verified_credential_is_422(client, register, fake_dx)
     fake_dx.set_badge_result(token, valid=False, credential_status="REVOKED")
     res = create_portfolio(client, user, [record_id])
     assert res.status_code == 422 and res.json() == {"detail": "No verified credentials selected"}
+
+
+@pytest.mark.parametrize("error,status,body", [
+    (ProviderError("DXWorks 연결 실패: ConnectError"), 502,
+     {"detail": "Credential service error", "code": "PROVIDER_ERROR"}),
+    (ProviderError("DXWORKS_API_HOST가 설정되지 않았습니다", unavailable=True), 503,
+     {"detail": "Credential service is not configured", "code": "PROVIDER_NOT_CONFIGURED"}),
+])
+def test_portfolio_verifier_outage_is_5xx_not_422_and_saves_nothing(client, register, fake_dx, db, error, status,
+                                                                     body):
+    user = register()
+    record_id, _ = store_badge(client, user)
+    fake_dx.error = error
+    res = create_portfolio(client, user, [record_id])
+    # 검증기 장애를 사용자 탓(422 No verified credentials selected)으로 돌리지 않는다.
+    # 응답은 main.py의 일반 오류 본문이다 (내부 메시지·환경 변수 이름은 로그에만 남는다).
+    assert res.status_code == status and res.json() == body and error.message not in res.text
+    assert db.execute("SELECT count(*) AS n FROM portfolios WHERE user_id = %s", (user["id"],)).fetchone()["n"] == 0
 
 
 def test_portfolio_with_someone_elses_credential_is_404(client, register):

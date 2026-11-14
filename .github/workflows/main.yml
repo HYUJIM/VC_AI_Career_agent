@@ -3,34 +3,53 @@ name: strix-penetration-test
 on:
   pull_request:
 
+# GITHUB_TOKEN은 저장소 읽기만 허용한다 (저장소 기본 권한이 읽기·쓰기여도 이 워크플로는 쓰지 못한다).
+permissions:
+  contents: read
+
 jobs:
   security-scan:
     runs-on: ubuntu-latest
     # Strix는 LLM을 사용하므로 저장소 Secrets에 STRIX_LLM, LLM_API_KEY가 필요하다.
     # 키가 등록되지 않았으면 스캔을 건너뛰고 성공으로 처리한다. 키를 등록하면 자동으로 다시 실행된다.
-    env:
-      STRIX_LLM: ${{ secrets.STRIX_LLM }}
-      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+    # 비밀값은 job env에 두지 않고 Run Strix 단계에만 넘긴다. 확인 단계는 등록 여부(true/false)만 받는다.
     steps:
       - name: Check Strix secrets
         id: secrets
+        env:
+          HAS_STRIX_SECRETS: ${{ secrets.STRIX_LLM != '' && secrets.LLM_API_KEY != '' }}
         run: |
-          if [ -n "$STRIX_LLM" ] && [ -n "$LLM_API_KEY" ]; then
+          if [ "$HAS_STRIX_SECRETS" = "true" ]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
             echo "::notice title=Strix 보안 스캔 건너뜀::STRIX_LLM / LLM_API_KEY Secrets가 등록되지 않아 스캔을 실행하지 않았습니다."
           fi
 
-      - uses: actions/checkout@v6
+      # 액션은 태그 대신 커밋 SHA로 고정한다 (# 뒤는 그 SHA의 버전). .github/dependabot.yml이 갱신 PR을 연다.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: steps.secrets.outputs.enabled == 'true'
         with:
           fetch-depth: 0
+          # GITHUB_TOKEN을 git 설정에 남기지 않는다 (이후 단계의 Strix·LLM 에이전트가 읽지 못하게).
+          persist-credentials: false
+
+      # Strix를 설치할 Python. 러너 기본 Python에 기대지 않도록 버전을 고정한다 (BE·AI 테스트의 3.11과는 별개).
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        if: steps.secrets.outputs.enabled == 'true'
+        with:
+          python-version: "3.12"
 
       - name: Install Strix
         if: steps.secrets.outputs.enabled == 'true'
-        run: curl -sSL https://strix.ai/install | bash
+        # 원격 설치 스크립트(curl | bash)를 실행하지 않고 PyPI에서 버전을 고정해 설치한다. 버전은 이 줄에서만 올린다.
+        # (선택) 의존성까지 해시로 고정하려면 `uv pip compile --generate-hashes --python-version 3.12`로 만든
+        # requirements 파일을 `python -m pip install --require-hashes -r <파일>`로 설치한다.
+        run: python -m pip install "strix-agent==1.7.0"
 
       - name: Run Strix
         if: steps.secrets.outputs.enabled == 'true'
+        env:
+          STRIX_LLM: ${{ secrets.STRIX_LLM }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: strix -n -t ./ --scan-mode quick

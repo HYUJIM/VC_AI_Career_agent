@@ -6,7 +6,14 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Alert } from '@/components/ui/Alert';
-import { type ApiErrorKind, getApiErrorKind, getApiErrorMessage } from '@/lib/apiClient';
+import {
+  type ApiErrorKind,
+  getApiErrorKind,
+  getApiErrorMessage,
+  getApiErrorStatus,
+  getConnectionHint,
+  RETRY_LATER_MESSAGE,
+} from '@/lib/apiClient';
 import { useAuthStore } from '@/store/authStore';
 import type { DashboardLocationState } from '@/pages/DashboardPage';
 import type { BadgeVerifyData } from '@/types/api';
@@ -18,6 +25,8 @@ interface IssueError {
   /** rejected: BE가 HTTP 200 + success:false 로 검증 실패를 알린 경우 */
   kind: ApiErrorKind | 'rejected';
   message: string;
+  /** HTTP 상태 코드 (응답이 없거나 rejected 면 undefined) */
+  status?: number;
 }
 
 const STEPS: { key: Step; title: string; desc: string }[] = [
@@ -48,7 +57,12 @@ export function IssueCredentialPage() {
       setStep('verify');
     },
     onError: (error) =>
-      setIssueError({ stage: 'issue', kind: getApiErrorKind(error), message: getApiErrorMessage(error) }),
+      setIssueError({
+        stage: 'issue',
+        kind: getApiErrorKind(error),
+        message: getApiErrorMessage(error),
+        status: getApiErrorStatus(error),
+      }),
   });
 
   const verifyMutation = useMutation({
@@ -80,7 +94,7 @@ export function IssueCredentialPage() {
     if (err.kind === 'network') {
       return (
         <Alert variant="warning" title="서버에 연결할 수 없습니다." onClose={close}>
-          BE 서버(http://localhost:3000)가 실행 중인지 확인한 뒤 다시 시도해주세요.
+          {getConnectionHint()}
         </Alert>
       );
     }
@@ -114,10 +128,13 @@ export function IssueCredentialPage() {
         onClose={close}
       >
         {err.message}
-        {err.stage === 'issue' && (
+        {/* 429(발급 한도 초과)는 메시지가 이미 "나중에 다시 시도"를 안내한다 */}
+        {err.stage === 'issue' && err.status !== 429 && (
           <>
             <br />
-            Template ID가 올바른지, BE의 DXWORKS_API_KEY 설정을 확인해주세요.
+            {import.meta.env.DEV
+              ? 'Template ID가 올바른지, BE의 DXWORKS_API_KEY 설정을 확인해주세요.'
+              : RETRY_LATER_MESSAGE}
           </>
         )}
       </Alert>

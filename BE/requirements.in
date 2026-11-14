@@ -1,0 +1,14 @@
+# BE 런타임 의존성 (사람이 고치는 목록: 직접 쓰는 패키지와 허용 범위).
+# Docker 이미지·CI는 이 범위 안에서 테스트한 버전을 == 로 고정한 requirements.txt를 설치한다.
+# 여기를 고치면 requirements.txt도 다시 만든다 (방법은 requirements.txt 머리 주석).
+fastapi
+starlette>=1.10  # starlette.middleware.body_limit (main.py 요청 본문 상한)
+uvicorn
+httpx
+python-dotenv
+psycopg[binary]
+pydantic
+bcrypt
+PyJWT>=2.8,<3
+cryptography>=42
+rfc8785>=0.1,<1

@@ -17,6 +17,8 @@ _PATH_VERIFY_BADGE = "/api/v1/verifier/ob3/verify"
 _PATH_VERIFY_PRESENTATION = "/api/v1/verifier/holder-presentations/verify"
 _CONNECT_RETRIES = 1
 _RETRY_DELAY_SECONDS = 0.5
+# 평문 http는 같은 기기·태스크 안의 루프백 주소(로컬 테스트 서버 등)만 허용한다 (ai_service.LOOPBACK_HOSTS와 같은 목록).
+_LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
 
 
 def _dict(value: Any) -> dict:
@@ -38,6 +40,18 @@ def _equals(value: Any, expected: str) -> Optional[bool]:
     return str(value).upper() == expected
 
 
+def _is_secure_host(host: str) -> bool:
+    """https 주소이거나 루프백 http 주소인지. 요청에 쓰는 것과 같은 파서(httpx.URL)로 스킴·호스트를 확인한다."""
+    try:
+        url = httpx.URL(host)
+        scheme, hostname = url.scheme, url.host
+    except (httpx.InvalidURL, ValueError):  # 해석할 수 없는 주소 (IDNA 오류 포함)
+        return False
+    if scheme == "https":
+        return bool(hostname)
+    return scheme == "http" and hostname in _LOOPBACK_HOSTS
+
+
 class DXWorksAdapter:
     provider_name = "dxworks_ob3"
 
@@ -55,6 +69,9 @@ class DXWorksAdapter:
     async def _post(self, path: str, payload: dict, *, auth: bool) -> dict:
         if not self.host:
             raise ProviderError("DXWORKS_API_HOST가 설정되지 않았습니다", unavailable=True)
+        if not _is_secure_host(self.host):
+            # 회사 API 키와 사용자 VC-JWT를 평문으로 보내지 않는다. 메시지에 호스트 값은 넣지 않는다.
+            raise ProviderError("DXWORKS_API_HOST는 https:// 주소여야 합니다", unavailable=True)
         headers = {"Content-Type": "application/json"}
         if auth:
             if not self.api_key:
@@ -63,8 +80,10 @@ class DXWorksAdapter:
         response = None
         for attempt in range(1 + _CONNECT_RETRIES):
             try:
-                async with httpx.AsyncClient(base_url=self.host, timeout=self.timeout,
-                                             transport=self.transport) as client:
+                # 주변 프록시 환경변수(HTTP(S)_PROXY·ALL_PROXY)·SSL_CERT_FILE을 쓰지 않고 리다이렉트도 따라가지 않는다
+                # (ai_service와 같음).
+                async with httpx.AsyncClient(base_url=self.host, timeout=self.timeout, transport=self.transport,
+                                             follow_redirects=False, trust_env=False) as client:
                     response = await client.post(path, json=payload, headers=headers)
                 break
             except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
@@ -79,17 +98,23 @@ class DXWorksAdapter:
 
         try:
             body = response.json()
-        except ValueError:
+        except (ValueError, RecursionError):
+            # JSON이 아니거나 너무 깊게 중첩되어 해석할 수 없는 본문은 JSON이 아닌 응답으로 본다 (RecursionError로 500이 나지 않게).
             body = None
 
-        if response.status_code >= 400:
+        # 2xx만 검증·발급 결과로 읽는다. 리다이렉트(3xx)는 따라가지 않고, 본문이 JSON이어도 결과로 쓰지 않고 오류로 끝낸다.
+        if not (200 <= response.status_code < 300):
             error = _dict(_dict(body).get("error"))
             code = error.get("code") or response.status_code
             message = error.get("message") or response.reason_phrase
             raise ProviderError(f"DXWorks 오류 ({code}): {message}", upstream_status=response.status_code)
         if body is None:
             raise ProviderError("DXWorks가 JSON이 아닌 응답을 반환했습니다", upstream_status=response.status_code)
-        return _unwrap(body)
+        try:
+            return _unwrap(body)
+        except ProviderError as exc:
+            # 응답은 받았으므로 상태 코드를 붙인다 (upstream_status None은 "응답 없음"에만 쓴다: reverify.is_verifier_outage).
+            raise ProviderError(exc.message, upstream_status=response.status_code) from None
 
     async def verify_badge(self, vc_jwt: str) -> ProviderBadgeResult:
         data = await self._post(_PATH_VERIFY_BADGE, {"vcJwt": vc_jwt}, auth=False)
@@ -125,9 +150,11 @@ class DXWorksAdapter:
 
     async def verify_presentation(self, vp_token: str) -> PresentationResult:
         data = await self._post(_PATH_VERIFY_PRESENTATION, {"vpToken": vp_token}, auth=True)
+        holder_did = data.get("holderDid")
         return PresentationResult(
             verified=data.get("verified") is True,
-            holder_did=data.get("holderDid"),
+            # 문자열이 아니거나 비어 있으면(공백뿐인 값 포함) 홀더를 모르는 것으로 둔다 (API가 403으로 거절한다).
+            holder_did=holder_did if isinstance(holder_did, str) and holder_did.strip() else None,
             claims=_dict(data.get("claims")),
             raw=data,
         )
