@@ -33,11 +33,15 @@ interface CallbackFailure {
  */
 export function GoogleCallbackPage() {
   const navigate = useNavigate();
+  // React 19 StrictMode 개발 환경에서는 useEffect가 두 번 실행된다.
+  // 첫 번째 이펙트에서 window.history.replaceState로 주소창 쿼리를 지우더라도
+  // 두 번째 이펙트가 동일한 초기 쿼리(code, state)를 읽어 inflightCallbacks 캐시를 공유하도록 초기값을 고정한다.
+  const [initialSearch] = useState(() => window.location.search);
   const [failure, setFailure] = useState<CallbackFailure | null>(null);
   const [retrying, setRetrying] = useState(false);
 
   useEffect(() => {
-    const searchParams = new URLSearchParams(window.location.search);
+    const searchParams = new URLSearchParams(initialSearch);
     if (window.location.search) {
       // 일회성 인가 코드(code)와 state가 브라우저 히스토리·주소창에 남지 않도록 즉시 제거한다.
       window.history.replaceState(null, '', window.location.pathname);
@@ -75,7 +79,7 @@ export function GoogleCallbackPage() {
     return () => {
       cancelled = true;
     };
-  }, [navigate]);
+  }, [initialSearch, navigate]);
 
   async function handleRetryGoogle() {
     setRetrying(true);
