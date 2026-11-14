@@ -13,6 +13,9 @@ const DEFAULT_EXPIRES_IN_SECONDS = 600;
 /** PKCE code_verifier 바이트 길이 (32바이트 → base64url 43자, RFC 7636 43~128자 충족) */
 const PKCE_VERIFIER_BYTES = 32;
 
+/** 콜백 쿼리 파라미터(code, state, error) 최대 허용 길이 (비정상 대용량 쿼리 재전송 방지) */
+const MAX_OAUTH_PARAM_LENGTH = 2048;
+
 /** 허용된 Google 인가 엔드포인트 호스트 (open redirect·javascript: 스킴 방지) */
 const ALLOWED_GOOGLE_AUTH_HOSTS: ReadonlySet<string> = new Set(['accounts.google.com']);
 
@@ -127,6 +130,10 @@ export async function startGoogleOAuth(): Promise<void> {
   const { codeVerifier, codeChallenge } = await createPkcePair();
   const redirectUri = getGoogleRedirectUri();
   const res = await getOAuthAuthorization('google', { redirectUri, codeChallenge });
+  const state = typeof res.state === 'string' ? res.state.trim() : '';
+  if (!state || state.length > MAX_OAUTH_PARAM_LENGTH) {
+    throw new Error('소셜 로그인 상태값(state)이 올바르지 않습니다.');
+  }
   const targetUrl = assertSafeAuthorizationUrl(res.authorization_url);
   const ttlSeconds =
     typeof res.expires_in === 'number' && Number.isFinite(res.expires_in) && res.expires_in > 0
@@ -135,7 +142,7 @@ export async function startGoogleOAuth(): Promise<void> {
 
   saveTransaction({
     provider: 'google',
-    state: res.state,
+    state,
     codeVerifier,
     redirectUri,
     expiresAt: Date.now() + ttlSeconds * 1000,
@@ -170,12 +177,12 @@ export function finishGoogleOAuthCallback(searchParams: URLSearchParams): Promis
 
   const code = searchParams.get('code')?.trim() ?? '';
   const state = searchParams.get('state')?.trim() ?? '';
-  if (!code || !state) {
+  if (!code || !state || code.length > MAX_OAUTH_PARAM_LENGTH || state.length > MAX_OAUTH_PARAM_LENGTH) {
     consumeTransaction();
     return Promise.reject(
       new OAuthCallbackClientError(
         'missing_params',
-        '로그인 응답 정보가 없습니다. 로그인 화면에서 다시 시도해주세요.',
+        '로그인 응답 정보가 올바르지 않습니다. 로그인 화면에서 다시 시도해주세요.',
       ),
     );
   }

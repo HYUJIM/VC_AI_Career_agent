@@ -18,6 +18,7 @@ import {
   getConnectionHint,
   RETRY_LATER_MESSAGE,
 } from '@/lib/apiClient';
+import { SINGLE_LINE_PATTERN } from '@/lib/text';
 import { startSession } from '@/store/authStore';
 
 interface RegisterError {
@@ -30,9 +31,6 @@ interface RegisterError {
 
 /** BE는 bcrypt 제약으로 UTF-8 기준 72바이트를 넘는 비밀번호를 거부한다(422). */
 const MAX_PASSWORD_BYTES = 72;
-/** 줄바꿈·제어문자 금지 (BE 포트폴리오 마크다운 위조 방지 규칙과 동일) */
-// oxlint-disable-next-line no-control-regex
-const NO_CONTROL_CHARS = /^[^\x00-\x1f\x7f]*$/;
 
 const registerSchema = z.object({
   name: z
@@ -40,7 +38,7 @@ const registerSchema = z.object({
     .trim()
     .min(1, '이름을 입력해주세요.')
     .max(100, '이름은 100자 이하여야 합니다.')
-    .regex(NO_CONTROL_CHARS, '이름에 줄바꿈이나 제어문자를 사용할 수 없습니다.'),
+    .regex(SINGLE_LINE_PATTERN, '이름에 줄바꿈이나 제어문자를 사용할 수 없습니다.'),
   email: z
     .string()
     .trim()

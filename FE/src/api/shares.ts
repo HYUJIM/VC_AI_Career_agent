@@ -5,6 +5,7 @@ import {
   previewListShares,
   previewRevokeShare,
 } from '@/lib/preview';
+import { sanitizeSingleLine } from '@/lib/text';
 import type {
   PublicShare,
   ShareCreateRequest,
@@ -27,9 +28,10 @@ export async function listShares(): Promise<ShareListResponse> {
 
 /** POST /api/v1/shares */
 export async function createShare(payload: ShareCreateRequest): Promise<ShareCreateResponse> {
+  const cleanedLabel = payload.label ? sanitizeSingleLine(payload.label) : '';
   const body: ShareCreateRequest = {
     record_ids: payload.record_ids,
-    label: payload.label?.trim() || null,
+    label: cleanedLabel || null,
     ...(payload.expires_in_days ? { expires_in_days: payload.expires_in_days } : {}),
   };
   if (isPreviewSession()) return previewCreateShare(body);
@@ -53,7 +55,18 @@ export async function getPublicShare(token: string): Promise<PublicShare> {
   return data;
 }
 
-/** BE가 준 share_path(/share/{token})로 기업에 전달할 전체 URL을 만든다. */
+/**
+ * BE가 준 share_path(/share/{token})로 기업에 전달할 전체 URL을 만든다.
+ * 다른 출처(//evil.com 등)가 섞이지 않도록 반드시 현재 origin의 `/share/` 경로만 허용한다.
+ */
 export function buildShareUrl(sharePath: string): string {
-  return new URL(sharePath, window.location.origin).toString();
+  const trimmed = sharePath.trim();
+  if (!trimmed.startsWith('/share/') || trimmed.startsWith('//')) {
+    throw new Error('공유 링크 경로 형식이 올바르지 않습니다.');
+  }
+  const resolved = new URL(trimmed, window.location.origin);
+  if (resolved.origin !== window.location.origin) {
+    throw new Error('공유 링크 출처가 올바르지 않습니다.');
+  }
+  return resolved.toString();
 }

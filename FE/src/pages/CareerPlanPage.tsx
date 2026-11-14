@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { getApiErrorKind, getApiErrorMessage } from '@/lib/apiClient';
 import { isPreviewSession } from '@/lib/preview';
+import { safeExternalHref } from '@/lib/text';
 import { randomUUID } from '@/lib/uuid';
 import { useAuthStore } from '@/store/authStore';
 import type {
@@ -265,10 +266,19 @@ export function CareerPlanPage() {
                     </span>
                     <span className="block text-[13px] text-[var(--color-text-muted)]">
                       {s.posted_at ? `${new Date(s.posted_at).toLocaleDateString('ko-KR')} 게시` : '게시일 미상'}
-                      {' · '}
-                      <a href={s.source_url} target="_blank" rel="noreferrer" className="hover:underline">
-                        원문
-                      </a>
+                      {safeExternalHref(s.source_url) && (
+                        <>
+                          {' · '}
+                          <a
+                            href={safeExternalHref(s.source_url)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="hover:underline"
+                          >
+                            원문
+                          </a>
+                        </>
+                      )}
                     </span>
                   </span>
                 </label>
@@ -474,14 +484,18 @@ export function CareerPlanPage() {
                 {step.resource && (
                   <p className="mt-1 text-[13px]">
                     자료:{' '}
-                    <a
-                      href={step.resource.resource.source_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="font-semibold text-[var(--color-primary)] hover:underline"
-                    >
-                      {step.resource.resource.title}
-                    </a>{' '}
+                    {safeExternalHref(step.resource.resource.source_url) ? (
+                      <a
+                        href={safeExternalHref(step.resource.resource.source_url)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-semibold text-[var(--color-primary)] hover:underline"
+                      >
+                        {step.resource.resource.title}
+                      </a>
+                    ) : (
+                      <span className="font-semibold">{step.resource.resource.title}</span>
+                    )}{' '}
                     ({step.resource.resource.provider},{' '}
                     {step.resource.resource.cost_krw === null
                       ? '비용 미상'

@@ -7,6 +7,7 @@ import {
   previewListPortfolios,
   previewUpdatePortfolio,
 } from '@/lib/preview';
+import { sanitizeSingleLine } from '@/lib/text';
 import type {
   PortfolioCreateRequest,
   PortfolioListResponse,
@@ -33,12 +34,6 @@ export async function getPortfolio(id: string): Promise<PortfolioResponse> {
   if (isPreviewSession()) return previewGetPortfolio(id);
   const { data } = await apiClient.get<PortfolioResponse>(`/v1/portfolios/${encodeURIComponent(id)}`);
   return data;
-}
-
-/** 줄바꿈·제어문자를 공백으로 치환하고 앞뒤 공백을 제거한다 (이슈 #14 마크다운 위조 방어). */
-function sanitizeSingleLine(value: string): string {
-  // oxlint-disable-next-line no-control-regex
-  return value.replace(/[\x00-\x1f\x7f]+/g, ' ').trim();
 }
 
 /** POST /api/v1/portfolios */
