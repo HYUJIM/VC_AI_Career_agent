@@ -2,6 +2,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createCareerAnalysis, createCurriculum, getJobPostings, getSkillCatalog } from '@/api/career';
+import { MarketTrendsCard } from '@/components/MarketTrendsCard';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -219,6 +220,8 @@ export function CareerPlanPage() {
           검증된 자격증명과 검토된 채용공고를 비교하고, 근거가 부족한 부분을 채울 학습 계획을 만들어요.
         </p>
       </section>
+
+      <MarketTrendsCard />
 
       <Card className="flex flex-col gap-4">
         <div className="flex items-baseline justify-between gap-2">

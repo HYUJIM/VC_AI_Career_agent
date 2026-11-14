@@ -311,7 +311,7 @@ paths:
                     type: array
                     items:
                       type: string
-                    description: 연동된 OAuth 제공자 목록 (예: `["google"]`)
+                    description: "연동된 OAuth 제공자 목록 (예: `[\"google\"]`)"
                     example: [google]
         "401":
           $ref: "#/components/responses/Unauthorized"
@@ -1533,6 +1533,64 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+
+  /api/v1/market/snapshots:
+    get:
+      tags: [career]
+      summary: 직무별 채용 시장 통계 요약
+      description: |
+        배치(`python -m app.jobs.market`)가 수집한 공고를 AI 서비스가 집계해 저장한 직무별 최신 통계의 요약이다.
+        통계가 있는 직무만 나온다. 공고 원문·수집 내부 정보는 응답에 없다. AI 서비스를 부르지 않는다.
+      operationId: listMarketSnapshots
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: "data = [{role_id, role_label, as_of, sample_size, companies, warnings, top_skills[최대 10개 SkillStatistic]}]"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CareerEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: 저장된 통계가 무결성 검사(내용 해시)에 실패함
+
+  /api/v1/market/snapshots/{role_id}:
+    get:
+      tags: [career]
+      summary: 직무 하나의 최신 채용 시장 통계
+      description: |
+        `skills`는 중요도(importance) 내림차순이다. 기술마다 언급 공고 수, 자격요건·기술스택·우대사항별 공고 수,
+        언급률과 Wilson 95% 구간, 필수 비율이 있다. 중요도는 공고에서 가장 강하게 나온 자리의 가중치
+        (자격요건 1.0, 기술스택 0.7, 우대사항 0.5, 업무 언급 0.3)를 회사별 편중을 줄여 평균한 값이다.
+        `pairs`는 함께 자주 나오는 기술 쌍(lift), `experience`는 요구 경력 분포다.
+        표본이 30건 미만이면 `warnings`에 `SMALL_SAMPLE_STATISTICS_ARE_INDICATIVE_ONLY`가 붙는다.
+      operationId: getMarketSnapshot
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: role_id
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [bigdata_engineer, privacy_specialist, backend_developer, frontend_developer, infra_engineer]
+      responses:
+        "200":
+          description: "data = MarketSnapshot (app/ai_contract/market.py)"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CareerEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: 그 직무의 통계가 아직 없음
+        "409":
+          description: 저장된 통계가 무결성 검사(내용 해시)에 실패함
+        "422":
+          description: 없는 직무 ID
 
 components:
   securitySchemes:

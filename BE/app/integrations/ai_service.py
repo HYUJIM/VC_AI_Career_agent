@@ -36,6 +36,7 @@ from app.ai_contract.api import (
 )
 from app.ai_contract.career import PreviewRequest, SkillCatalog
 from app.ai_contract.curriculum import PlanningContext
+from app.ai_contract.market import MarketCatalog, MarketSnapshotOutput, MarketSnapshotRequest
 from app.core.config import get_settings
 
 LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
@@ -186,6 +187,13 @@ class AIServiceClient:
     async def planning_context(self, analysis, resources, request) -> PlanningContext:
         body = PlanningInput(analysis=analysis, resources=resources, request=request)
         return await self._call("POST", "/v1/curricula/context", PlanningContext, body)
+
+    async def market_catalog(self) -> MarketCatalog:
+        return await self._call("GET", "/v1/market/catalog", MarketCatalog)
+
+    async def market_snapshot(self, body: MarketSnapshotRequest) -> MarketSnapshotOutput:
+        """직무 하나의 공고 묶음 → 통계. 공고 수백 건을 한 번에 보내므로 생성용 시간 제한을 쓴다."""
+        return await self._call("POST", "/v1/market/snapshots", MarketSnapshotOutput, body, generation=True)
 
     async def generate_curriculum(self, body: GenerationInput) -> GenerationOutcome:
         return await self._call("POST", "/v1/curricula/generate", GenerationOutcome, body, generation=True)

@@ -20,7 +20,7 @@ flowchart LR
 ```
 
 - **BE**: 회원·DID 지갑, VC 발급·검증(DXWorks), 실행 시점 재검증, 포트폴리오·공유 링크, 공고·학습자료 보관, 직무 비교·커리큘럼 API
-- **AI**: BE가 보낸 검증된 자격증명과 공고로 직무 요구사항을 비교하고 학습 계획을 계산합니다. DB와 키를 갖지 않습니다.
+- **AI**: BE가 보낸 검증된 자격증명과 공고로 직무 요구사항을 비교하고 학습 계획을 계산합니다. DB와 키를 갖지 않습니다. 수집한 공고 묶음으로 직무별 요구 역량 통계도 계산합니다.
 - **FE**: 지갑, 배지 발급, 직무 비교·커리큘럼 화면
 
 ## 서비스 실행 방법
@@ -221,6 +221,19 @@ cp -n ai/.env.example ai/.env
 ```
 
 FE에서 "LLM으로 단계 순서·시간을 배분" 동의를 체크해야 사용됩니다. OpenAI 호환 API와 로컬 Qwen(GPU) 설정은 [ai/README.md](ai/README.md) 6번을 보세요.
+
+### 7-1. (선택) 직무별 채용 시장 통계 넣기
+
+직무 비교 화면 위쪽의 "직무별 요구 역량 통계" 카드는 DB에 통계가 있을 때만 나타납니다. 저장소에 들어 있는 집계 결과
+(`ai/data/market_snapshots/`, 빅데이터·개인정보보호·백엔드·프런트엔드·인프라 5개 직무)를 넣으려면:
+
+```bash
+(cd BE && docker compose exec backend python -m app.jobs.market import --dir /app/market_snapshots)   # 아래처럼 폴더를 먼저 복사
+```
+
+Compose의 backend 컨테이너에는 `BE/`만 연결되므로 먼저 `cp -r ai/data/market_snapshots BE/market_snapshots`로 복사한 뒤 실행하고, 끝나면 지웁니다.
+Docker 없이 실행 중이면 `BE/`에서 `python -m app.jobs.market import --dir ../ai/data/market_snapshots`를 실행합니다.
+공고를 새로 수집해 통계를 다시 만드는 방법과 수집 원칙은 [BE/README.md](BE/README.md)의 "직무별 채용 시장 통계"를 보세요.
 
 ### 8. 테스트
 

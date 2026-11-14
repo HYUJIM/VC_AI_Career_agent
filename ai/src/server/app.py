@@ -46,6 +46,11 @@ from src.career.contracts.api import (
 )
 from src.career.contracts.career import PreviewRequest, SkillCatalog
 from src.career.contracts.curriculum import PlanningContext
+from src.career.contracts.market import (
+    MarketCatalog,
+    MarketSnapshotOutput,
+    MarketSnapshotRequest,
+)
 from src.career.curriculum_generator import generate
 from src.career.curriculum_service import planning_context, search_resources
 from src.career.errors import ConfigurationError, EvidenceError, Rejection
@@ -53,6 +58,8 @@ from src.career.job_requirements import preview_requirements, validate_annotatio
 from src.career.learning_retrieval import validate_resource
 from src.career.llm_client import generator_from_env
 from src.career.skill_catalog import CATALOG
+from src.market.catalog import CATALOG as MARKET_CATALOG
+from src.market.statistics import build_snapshot
 
 if os.getenv("CAREER_AI_SKIP_DOTENV", "false").lower() != "true":
     load_dotenv(Path(__file__).resolve().parents[2] / ".env")  # ai/.env; never overrides
@@ -244,6 +251,16 @@ def create_app() -> FastAPI:
             body.resources, body.skill_id, body.budget_krw, app.state.clock()
         )
         return ResourceSearchResult(sources=sources)
+
+    # --- Market statistics per role -----------------------------------------------------
+
+    @app.get("/v1/market/catalog", response_model=MarketCatalog, dependencies=secured)
+    def market_catalog():
+        return MARKET_CATALOG
+
+    @app.post("/v1/market/snapshots", response_model=MarketSnapshotOutput, dependencies=secured)
+    def market_snapshot(body: MarketSnapshotRequest):
+        return build_snapshot(body, app.state.clock())
 
     @app.get("/v1/curricula/generator", response_model=GeneratorInfo, dependencies=secured)
     def generator_info():

@@ -24,6 +24,7 @@ services:
       - ./DB/migrations/09_users_token_version.sql:/docker-entrypoint-initdb.d/09_users_token_version.sql
       - ./DB/migrations/10_mock_issuances.sql:/docker-entrypoint-initdb.d/10_mock_issuances.sql
       - ./DB/migrations/11_oauth_accounts.sql:/docker-entrypoint-initdb.d/11_oauth_accounts.sql
+      - ./DB/migrations/12_market_statistics.sql:/docker-entrypoint-initdb.d/12_market_statistics.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-vc_career_agent}"]
       interval: 5s

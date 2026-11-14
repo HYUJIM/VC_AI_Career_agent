@@ -19,7 +19,7 @@ from starlette.datastructures import MutableHeaders  # noqa: E402
 from starlette.middleware.body_limit import RequestBodyLimitMiddleware  # noqa: E402
 from starlette.types import ASGIApp, Message, Receive, Scope, Send  # noqa: E402
 
-from app.api import auth, career, mock_issuer, oauth, portfolios, reverify, shares, user, verify  # noqa: E402
+from app.api import auth, career, market, mock_issuer, oauth, portfolios, reverify, shares, user, verify  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
 from app.core.text import UNSTORABLE_TEXT_MESSAGE  # noqa: E402
 from app.integrations.ai_service import AIServiceError  # noqa: E402
@@ -263,6 +263,7 @@ app.include_router(portfolios.router, prefix="/api/v1/portfolios")
 app.include_router(shares.router, prefix="/api/v1/shares")
 app.include_router(shares.public_router, prefix="/api/v1/public/shares")
 app.include_router(career.router, prefix="/api/v1")
+app.include_router(market.router, prefix="/api/v1")
 
 if __name__ == "__main__":
     import uvicorn

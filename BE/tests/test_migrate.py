@@ -25,7 +25,8 @@ from tests.conftest import BE_DIR, TEST_DB_NAME, _conn_kwargs, _connect
 
 # 지금 있는 마이그레이션. 새 파일은 이 뒤에 다음 번호로 붙는다.
 KNOWN = ["04_users_password_hash.sql", "05_credentials_raw_token.sql", "06_holder_keys.sql", "07_shares.sql",
-         "08_career_curriculum.sql", "09_users_token_version.sql", "10_mock_issuances.sql", "11_oauth_accounts.sql"]
+         "08_career_curriculum.sql", "09_users_token_version.sql", "10_mock_issuances.sql", "11_oauth_accounts.sql",
+         "12_market_statistics.sql"]
 
 
 @pytest.fixture

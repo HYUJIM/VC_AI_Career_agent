@@ -13,3 +13,4 @@ __pycache__/
 .ruff_cache/
 
 test_users_did_list.csv.*.tmp
+market_snapshots/

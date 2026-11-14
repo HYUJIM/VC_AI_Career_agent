@@ -229,6 +229,25 @@ sequenceDiagram
   WHERE lower(normalize(a->>'quote', NFKC)) ~ '(either|중[[:space:]]*한[[:space:]]*가지)';
   ```
 
+### 📊 직무별 채용 시장 통계 (공고 수집 → AI 집계)
+
+커리큘럼 우선순위에 쓸 근거로, 직무별로 채용 공고가 어떤 역량을 얼마나 요구하는지 집계합니다. 지금 다루는 직무는
+빅데이터 개발자(`bigdata_engineer`), 개인정보보호 전문가(`privacy_specialist`), 백엔드 개발자(`backend_developer`),
+프런트엔드 개발자(`frontend_developer`), 인프라 개발자(`infra_engineer`) 5개입니다.
+
+* **흐름:** 배치가 공개 공고 상세 페이지를 읽어 `market_postings`에 저장 → 직무별 공고 묶음을 AI 서비스(`POST /v1/market/snapshots`)에 보내 통계 계산 → BE가 직무·건수·해시를 다시 확인하고 `market_snapshots`에 저장 → `GET /api/v1/market/snapshots`·`/api/v1/market/snapshots/{role_id}`(로그인 필요)로 조회. FE는 직무 비교 화면 위쪽에 "직무별 요구 역량 통계" 카드로 보여 줍니다.
+* **배치 명령** (`BE/`에서, DB_*·AI_SERVICE_URL·AI_SERVICE_TOKEN 필요):
+  ```bash
+  python -m app.jobs.market collect --role backend_developer --ids-file ids.txt   # 공고 번호(쉼표·줄바꿈 구분) 수집
+  python -m app.jobs.market snapshot                # 공고가 있는 모든 직무의 통계 계산·저장
+  python -m app.jobs.market export --out ../ai/data/market_snapshots   # 직무별 최신 통계를 JSON으로 (원문 없음)
+  python -m app.jobs.market import --dir ../ai/data/market_snapshots   # 수집 없이 통계만 넣기 (다른 DB·팀원 환경)
+  ```
+* **수집 원칙** (`app/integrations/job_sources.py`): 지금 출처는 점핏 공개 공고 상세 페이지 하나입니다. robots.txt가 막지 않는 페이지만, 정해 둔 호스트의 HTTPS 주소로, 1.5초 간격으로 읽고 403·429를 받으면 멈춥니다. 목록·검색 API는 부르지 않으므로 **공고 번호는 사람이 공개 목록 화면에서 모아 넘깁니다.** 24시간 안에 수집한 공고는 다시 요청하지 않습니다. 저장하는 것은 통계에 필요한 구간(기술스택·주요업무·자격요건·우대사항)과 회사·제목·경력·마감일뿐이고, 이메일·전화번호는 가립니다.
+* **권리:** 수집 원문은 `rights_basis=research_authorization`(연구 목적)으로 DB에만 두고 API·저장소에 내보내지 않습니다. 저장소에는 집계 결과(`ai/data/market_snapshots/*.json`)만 둡니다. 서비스로 공개하기 전에는 출처 약관을 확인하거나 공식 API(고용24 등)로 바꿔야 합니다.
+* **통계 식** (`ai/src/market/statistics.py`): 공고 하나에서 한 기술은 한 번만 세고 가장 강한 자리를 그 공고의 수준으로 삼습니다(자격요건 1.0 > 기술스택 0.7 > 우대사항 0.5 > 업무 언급 0.3). 중요도는 이 가중치를 회사당 공고 가중 합 3 이하로 줄여 평균한 값입니다. 언급률에는 Wilson 95% 구간이 붙고, 표본이 30건 미만이면 `SMALL_SAMPLE_STATISTICS_ARE_INDICATIVE_ONLY` 경고가 붙습니다.
+* **개인정보보호 전문가**는 출처에 딱 맞는 분류가 없어 정보보안 분류·"개인정보" 검색 결과 가운데 제목이 개인정보·컴플라이언스 직무이거나 업무·자격요건이 개인정보를 두 번 이상 다루는 공고만 남깁니다(`app/jobs/market.py`의 `ROLE_FILTERS`).
+
 ### 🔐 인증 (JWT)
 - 회원가입/로그인 응답의 `access_token`을 이후 요청에 `Authorization: Bearer <access_token>` 헤더로 보냅니다.
 - **인증은 항상 켜져 있습니다(전환 기간 없음):** 토큰도 서비스 키도 없는 요청은 `APP_ENV`와 관계없이 `401 Authentication required`(`WWW-Authenticate: Bearer`)입니다. `Bearer`가 아닌 `Authorization`(예: Basic)도 토큰 없음으로 봅니다. 토큰 없이 부를 수 있는 것은 회원가입·로그인·`/health`·기업용 공유 링크 조회(`GET /api/v1/public/shares/{token}`)와 API 문서(`/docs`·`/redoc`·`/openapi.json`)뿐입니다. 예전 `AUTH_REQUIRED` 설정은 없어졌고, `.env`에 `AUTH_REQUIRED=false`가 남아 있어도 인증은 꺼지지 않습니다(시작 로그에 경고만 남김).
