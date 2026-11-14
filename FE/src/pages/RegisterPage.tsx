@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { registerUser } from '@/api/auth';
+import { GoogleOAuthButton } from '@/components/GoogleOAuthButton';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -30,6 +31,7 @@ interface RegisterError {
 /** BE는 bcrypt 제약으로 UTF-8 기준 72바이트를 넘는 비밀번호를 거부한다(422). */
 const MAX_PASSWORD_BYTES = 72;
 /** 줄바꿈·제어문자 금지 (BE 포트폴리오 마크다운 위조 방지 규칙과 동일) */
+// oxlint-disable-next-line no-control-regex
 const NO_CONTROL_CHARS = /^[^\x00-\x1f\x7f]*$/;
 
 const registerSchema = z.object({
@@ -205,6 +207,7 @@ export function RegisterPage() {
             가입하기
           </Button>
         </form>
+        <GoogleOAuthButton disabled={mutation.isPending} label="Google로 가입·시작하기" />
         <p className="mt-5 text-center text-[15px] text-[var(--color-text-muted)]">
           이미 계정이 있으신가요?{' '}
           <Link to="/login" className="font-semibold text-[var(--color-primary)] hover:underline">

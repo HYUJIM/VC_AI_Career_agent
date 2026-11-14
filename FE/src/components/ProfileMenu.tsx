@@ -1,14 +1,23 @@
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { getMe } from '@/api/auth';
 import { IssuerAvatar } from '@/components/IssuerAvatar';
 import { useCopy } from '@/lib/useCopy';
 import type { UserProfile } from '@/types/api';
 
-/** 헤더 우측 프로필 드롭다운 (DID 복사, 바로가기, 로그아웃) */
+/** 헤더 우측 프로필 드롭다운 (DID 복사, 연동된 소셜 로그인 표시, 바로가기, 로그아웃) */
 export function ProfileMenu({ user, onLogout }: { user: UserProfile; onLogout: () => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const { copy, isCopied } = useCopy();
+  const { data: me } = useQuery({
+    queryKey: ['me', user.did],
+    queryFn: getMe,
+    enabled: open,
+    retry: false,
+  });
+  const googleLinked = Boolean(me?.oauth_providers?.includes('google'));
 
   useEffect(() => {
     if (!open) return;
@@ -51,7 +60,14 @@ export function ProfileMenu({ user, onLogout }: { user: UserProfile; onLogout: (
           className="absolute right-0 mt-2 w-72 rounded-2xl border border-[var(--color-border)] bg-white p-2 shadow-lg"
         >
           <div className="px-3 py-2">
-            <p className="truncate text-[15px] font-bold">{user.name}</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="truncate text-[15px] font-bold">{user.name}</p>
+              {googleLinked && (
+                <span className="shrink-0 rounded-md bg-[var(--color-primary-weak)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--color-primary)]">
+                  Google 연동됨
+                </span>
+              )}
+            </div>
             <p className="truncate text-[13px] text-[var(--color-text-muted)]">{user.email}</p>
             <p className="font-mono-did mt-1 truncate text-[12px] text-[var(--color-text-muted)]">{user.did}</p>
           </div>

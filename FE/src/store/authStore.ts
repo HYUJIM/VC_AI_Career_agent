@@ -142,11 +142,15 @@ function adoptStoredSession() {
   // localStorage 는 동기 저장소라 여기서 바로 반영된다. rehydrate 는 저장소에 다시 쓰지 않는다.
   void useAuthStore.persist.rehydrate();
   const after = useAuthStore.getState();
-  // 로그아웃돼 로그인·회원가입 화면에 있던 탭: 다른 탭에서 로그인했으면 그 계정의 대시보드로 새로 연다
+  // 로그아웃돼 로그인·회원가입·OAuth 콜백 화면에 있던 탭: 다른 탭에서 로그인했으면 그 계정의 대시보드로 새로 연다
   // (그대로 두면 로그인 화면과 "로그아웃되었습니다" 배너 위에 새 계정의 메뉴가 함께 보인다).
   // 라우터처럼 경로의 %인코딩을 풀고 대소문자와 끝의 '/'는 무시한다 (/login/, /LOGIN, /%6Cogin 도 로그인 화면을 보여 준다).
   const path = decodePathLikeRouter(window.location.pathname).replace(/\/+$/, '').toLowerCase();
-  if (!before.isAuthenticated && after.isAuthenticated && (path === '/login' || path === '/register')) {
+  if (
+    !before.isAuthenticated &&
+    after.isAuthenticated &&
+    (path === '/login' || path === '/register' || path === '/auth/google/callback')
+  ) {
     window.location.replace('/dashboard');
     return;
   }

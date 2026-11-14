@@ -24,6 +24,7 @@ import type { VerifiedCredential } from '@/types/api';
 export interface DashboardLocationState {
   welcome?: string;
   newUser?: boolean;
+  oauthLinked?: boolean;
   issued?: string;
 }
 
@@ -84,7 +85,9 @@ export function DashboardPage() {
         >
           {banner.newUser
             ? `${banner.welcome} 님의 DID가 발급되었습니다. "새 자격증명 발급받기"로 첫 배지를 받아보세요.`
-            : '로그인되었습니다.'}
+            : banner.oauthLinked
+              ? '기존 계정에 Google 계정이 연동되어 로그인되었습니다.'
+              : '로그인되었습니다.'}
         </Alert>
       )}
 

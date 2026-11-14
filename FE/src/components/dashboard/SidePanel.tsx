@@ -17,15 +17,23 @@ const formatDate = (iso: string) => new Date(iso).toLocaleDateString('ko-KR');
 
 export function ProfileCard({ user }: { user: UserProfile }) {
   const { copy, isCopied } = useCopy();
-  // BE v0.5.0: 관리형 지갑(홀더 키 보관) 여부. 실패해도 프로필 표시에는 영향 없음.
+  // BE v0.5.0+: 관리형 지갑(홀더 키 보관) 여부 및 연동된 소셜 로그인(oauth_providers). 실패해도 프로필 표시에는 영향 없음.
   const { data: me } = useQuery({ queryKey: ['me', user.did], queryFn: getMe, retry: false });
   const custody = me?.wallet.custody;
+  const googleLinked = Boolean(me?.oauth_providers?.includes('google'));
   return (
     <Card className="flex flex-col gap-4">
       <div className="flex items-center gap-3">
         <IssuerAvatar issuer={user.name} size="lg" />
         <div className="min-w-0">
-          <p className="truncate text-[17px] font-bold">{user.name}</p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <p className="truncate text-[17px] font-bold">{user.name}</p>
+            {googleLinked && (
+              <span className="rounded-md bg-[var(--color-primary-weak)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--color-primary)]">
+                Google 연동됨
+              </span>
+            )}
+          </div>
           <p className="truncate text-[13px] text-[var(--color-text-muted)]">{user.email}</p>
         </div>
       </div>

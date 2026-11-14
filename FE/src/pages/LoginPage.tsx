@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { loginUser } from '@/api/auth';
+import { GoogleOAuthButton } from '@/components/GoogleOAuthButton';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -127,6 +128,7 @@ export function LoginPage() {
           >
             <ul className="list-inside list-disc">
               <li>비밀번호를 다시 확인해주세요. (대소문자 구분)</li>
+              <li>Google 계정으로 가입했다면 아래 "Google로 계속하기"를 이용해주세요.</li>
               <li>
                 <span className="font-mono-did">{err.email}</span> 로 가입한 적이 없다면 먼저
                 회원가입을 해주세요.
@@ -216,6 +218,7 @@ export function LoginPage() {
             로그인
           </Button>
         </form>
+        <GoogleOAuthButton disabled={mutation.isPending} />
         <p className="mt-5 text-center text-[15px] text-[var(--color-text-muted)]">
           계정이 없으신가요?{' '}
           <Link to="/register" className="font-semibold text-[var(--color-primary)] hover:underline">

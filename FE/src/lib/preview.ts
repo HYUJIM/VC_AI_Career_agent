@@ -99,7 +99,13 @@ export async function previewVerify(): Promise<VerifyResponse> {
 
 export async function previewMe(): Promise<MeResponse> {
   await delay(200);
-  return { success: true, message: 'OK', data: PREVIEW_USER, wallet: { custody: 'managed', key_type: 'Ed25519' } };
+  return {
+    success: true,
+    message: 'OK',
+    data: PREVIEW_USER,
+    wallet: { custody: 'managed', key_type: 'Ed25519' },
+    oauth_providers: [],
+  };
 }
 
 /** 미리보기 careers 데이터로 BE `Evidence` 형식을 흉내 낸다 (verified 만 재검증 통과). */
