@@ -3,11 +3,19 @@ from pydantic import BaseModel, Field, field_validator
 from starlette.concurrency import run_in_threadpool
 
 from app.core.auth import Principal, ensure_can_write, get_principal
+from app.core.config import get_settings
 from app.core.text import StorableText
-from app.domain.credential import BadgeEvaluation, ProviderBadgeResult, evaluate_badge, is_issuer_confirmed
+from app.domain.credential import (
+    BadgeEvaluation, ProviderBadgeResult, evaluate_badge, is_compact_jws, is_issuer_confirmed,
+)
 from app.integrations import get_verifier
-from app.integrations.ports import CredentialVerifier
+from app.integrations.ports import CredentialVerifier, ProviderError
 from app.services.database import db_service
+from app.services.reverify import is_verifier_outage
+from app.services.verifier_budget import (
+    audit, caller_key, log_verifier_calls, release_rejected_verification, reserve_rejected_verification,
+    reserve_verifier_calls,
+)
 
 router = APIRouter()
 
@@ -56,12 +64,35 @@ async def verify_credential(
         raise HTTPException(status_code=400, detail='Invalid type. Use "identity" or "badge"')
     ensure_can_write(principal)
     if req.type == "identity":
+        # 신원 VP 검증은 이 제품의 화면·흐름이 쓰지 않는다 (VP를 만드는 곳이 없다). 사용자 입력에 회사 API 키를 붙여 협력사로
+        # 보내는 경로라서 서버 설정(IDENTITY_VERIFICATION_ENABLED)으로 켠 경우에만 받는다.
+        if not get_settings().identity_verification_enabled:
+            raise HTTPException(status_code=400, detail="Identity verification is disabled")
         return await _verify_identity(req.token, principal, verifier)
     return await _verify_badge(req.token, principal, verifier)
 
 
+async def _ask_verifier(principal: Principal, route: str, call):
+    """호출 몫을 가져간 뒤 검증기를 한 번 부르고(call) 감사 로그를 남긴다.
+
+    몫이 모자라면 검증기를 부르지 않고 verifier_budget.VerifierBudgetExceeded를 던진다 (main.py가 429로 답한다).
+    """
+    caller = caller_key(principal)
+    reserve_verifier_calls(caller, route, 1)
+    failed = 1
+    try:
+        result = await call()
+        failed = 0
+        return result
+    finally:
+        log_verifier_calls(caller, route, 1, failed)
+
+
 async def _verify_identity(token: str, principal: Principal, verifier: CredentialVerifier) -> dict:
-    result = await verifier.verify_presentation(token)
+    if not is_compact_jws(token):
+        # compact JWS 모양이 아닌 값은 회사 API 키와 함께 협력사로 보내지 않는다.
+        raise HTTPException(status_code=422, detail="Invalid token format")
+    result = await _ask_verifier(principal, "verify_identity", lambda: verifier.verify_presentation(token))
     # 홀더 DID는 검증기가 돌려준 비어 있지 않은 문자열이고 로그인 사용자 본인 DID와 같아야 한다.
     # 홀더 DID가 없으면 누구의 신원인지(본인인지) 정할 수 없으므로 다른 사람의 VP와 같이 거절하고 클레임도 돌려주지 않는다.
     holder_did = result.holder_did
@@ -76,38 +107,81 @@ async def _verify_identity(token: str, principal: Principal, verifier: Credentia
 
 
 async def _verify_badge(token: str, principal: Principal, verifier: CredentialVerifier) -> dict:
-    result = await verifier.verify_badge(token)
-    evaluation = evaluate_badge(result, token)
-
-    if not evaluation.vc or not evaluation.recipient_did or not is_issuer_confirmed(result, evaluation):
-        # 원본을 해석할 수 없거나 수신자를 알 수 없으면 누구의 자격증명인지 정할 수 없으므로 저장하지 않는다.
-        # 검증기가 발급자 서명·신뢰를 확인하지 못한 토큰도 본문(자격증명 ID·수신자)을 믿을 수 없으므로
-        # 계정·소유 여부를 따지지 않고(DB 조회 없이) 저장하지 않는다 (위조 토큰으로 남의 레코드 덮어쓰기·ID 선점 차단).
+    caller = caller_key(principal)
+    if not is_compact_jws(token):
+        # compact JWS 모양이 아닌 값(아무 문자열, 주입 시도 문자열, alg=none 등)은 검증기(DXWorks)로 넘기지 않는다.
+        # 검증기가 거절한 토큰과 같은 형식으로 답한다 (서명 확인 실패, 저장하지 않음).
+        # 검증기를 부르지 않아 event=verifier_calls 줄이 없으므로, 모양 때문에 거절했다는 흔적을 한 줄 남긴다 (토큰·길이 없음).
+        audit.info("event=verify_shape_refused user=%s", caller)
+        result = ProviderBadgeResult(valid=False, signature_ok=False, issuer_trusted=None, credential_status=None,
+                                     recipient_did=None, credential_id=None, issuer_name=None, achievement_name=None,
+                                     issued_at=None)
         return {
             "success": False,
             "message": "Badge verification failed.",
-            "data": _badge_data(result, evaluation, None),
+            "data": _badge_data(result, evaluate_badge(result, token), None),
         }
+    # 토큰이 거절된 검증은 호출자마다 10분에 10번까지다 (verifier_budget.rejected_verifications). 부르기 전에 자리를 잡고,
+    # 창이 찼으면 여기서 429로 끝난다 (호출 몫을 쓰지 않고 검증기도 부르지 않는다).
+    reserve_rejected_verification(caller)
+    # 잡은 자리를 남길지. 남기는 것은 이 토큰이 거절된 요청뿐이고, 그 자리마다 아래에서 rejected = True로 적는다:
+    # 자격증명 하나에 대한 검증기 오류, 저장하지 않는 success: false(해석할 수 없는 원본·수신자 없음·발급자 미확인),
+    # 다른 DID에 발급된 배지(403), 다른 사용자가 등록한 배지(409). 검증기에 묻는 동안 취소되거나 다른 오류로 끝난
+    # 요청도 남긴다 (답을 모른다: 요청을 끊는 것으로 창을 피해 가지 못하게).
+    # 돌려주는 것: 통과한 요청, 저장된 배지(폐기·만료로 저장돼도 이 사용자의 진짜 배지다), 검증기 장애, 호출 몫 부족(429),
+    # 검증기를 부르기 전에 난 오류, 그리고 검증기가 답한 뒤에 난 우리 쪽 실패(DB가 바쁨·그 밖의 오류·DB 단계에서의 취소).
+    rejected = False
 
-    # 본인(토큰 DID)에게 발급된 자격증명만 본인 지갑에 저장한다.
-    if evaluation.recipient_did != principal.did:
-        raise HTTPException(status_code=403, detail="Forbidden: credential was issued to a different DID")
-    user_id = principal.user_id
+    async def call():
+        nonlocal rejected
+        rejected = True  # 검증기에 묻는 동안: 취소되거나 검증기 오류가 아닌 예외로 끝나면 남긴다
+        return await verifier.verify_badge(token)
 
-    owner = await run_in_threadpool(db_service.find_credential_owner, evaluation.record_id)
-    if owner is not None and owner != user_id:
-        raise HTTPException(status_code=409, detail="Credential already registered to another user")
+    try:
+        try:
+            result = await _ask_verifier(principal, "verify_badge", call)
+        except ProviderError as exc:
+            rejected = not is_verifier_outage(exc)  # 장애는 돌려주고, 자격증명 하나에 대한 오류는 남긴다
+            raise
+        rejected = False  # 검증기가 답했다: 여기부터는 아래의 거절로 끝날 때만 남긴다 (우리 쪽 실패는 사용자 탓이 아니다)
+        evaluation = evaluate_badge(result, token)
 
-    saved = await run_in_threadpool(
-        db_service.save_badge,
-        user_id=user_id,
-        provider=getattr(verifier, "provider_name", "unknown"),
-        evaluation=evaluation,
-        vc_jwt=token,
-    )
-    return {
-        "success": evaluation.verified,
-        "message": "Badge verified and saved." if evaluation.verified
-        else f"Badge verification failed. Saved with status '{saved['status']}'.",
-        "data": _badge_data(result, evaluation, saved["record_id"]),
-    }
+        if not evaluation.vc or not evaluation.recipient_did or not is_issuer_confirmed(result, evaluation):
+            # 원본을 해석할 수 없거나 수신자를 알 수 없으면 누구의 자격증명인지 정할 수 없으므로 저장하지 않는다.
+            # 검증기가 발급자 서명·신뢰를 확인하지 못한 토큰도 본문(자격증명 ID·수신자)을 믿을 수 없으므로
+            # 계정·소유 여부를 따지지 않고(DB 조회 없이) 저장하지 않는다 (위조 토큰으로 남의 레코드 덮어쓰기·ID 선점 차단).
+            rejected = True
+            return {
+                "success": False,
+                "message": "Badge verification failed.",
+                "data": _badge_data(result, evaluation, None),
+            }
+
+        # 본인(토큰 DID)에게 발급된 자격증명만 본인 지갑에 저장한다.
+        if evaluation.recipient_did != principal.did:
+            rejected = True
+            raise HTTPException(status_code=403, detail="Forbidden: credential was issued to a different DID")
+        user_id = principal.user_id
+
+        owner = await run_in_threadpool(db_service.find_credential_owner, evaluation.record_id)
+        if owner is not None and owner != user_id:
+            rejected = True
+            raise HTTPException(status_code=409, detail="Credential already registered to another user")
+
+        saved = await run_in_threadpool(
+            db_service.save_badge,
+            user_id=user_id,
+            provider=getattr(verifier, "provider_name", "unknown"),
+            evaluation=evaluation,
+            vc_jwt=token,
+        )
+        # 저장한 배지는 상태가 무엇이든(verified·revoked·expired) 자리를 돌려준다 (rejected는 False 그대로다).
+        return {
+            "success": evaluation.verified,
+            "message": "Badge verified and saved." if evaluation.verified
+            else f"Badge verification failed. Saved with status '{saved['status']}'.",
+            "data": _badge_data(result, evaluation, saved["record_id"]),
+        }
+    finally:
+        if not rejected:
+            release_rejected_verification(caller)

@@ -48,13 +48,13 @@ cp -n .env.example .env
 docker compose up --build -d
 ```
 > **⚠️ 주의 (API 키 설정):** 
-> 실제 발급/검증 테스트(Step 1, Step 2)를 수행하려면 `.env` 파일의 `DXWORKS_API_HOST`, `DXWORKS_API_KEY`, `DXWORKS_BADGE_TEMPLATE_ID`를 채워야 합니다. (더미 조회 테스트는 키 없이도 즉시 가능합니다.)
+> 실제 발급/검증 테스트(Step 1, Step 2)를 수행하려면 `.env` 파일의 `DXWORKS_API_HOST`, `DXWORKS_API_KEY`, `DXWORKS_BADGE_TEMPLATE_ID`를 채워야 합니다. (더미 조회 테스트는 키 없이도 즉시 가능합니다.) 협력사 전달본의 `API_BASE_URL` → `DXWORKS_API_HOST`, `API_KEY` → `DXWORKS_API_KEY`이고, 템플릿 ID는 전달본 안내서의 준비된 "OB3 배지" 템플릿 ID입니다. `TENANT_CODE`는 BE가 쓰지 않습니다.
 >
 > **🔒 협력사 자료 취급:** 이 값들과 협력사에서 받은 문서·예제 코드는 **비공개 자료**입니다. 공개 저장소(코드, 문서, 이슈, PR 본문, 커밋 메시지)에 그대로 옮기지 말고 `.env`와 팀 내부 채널로만 주고받으세요. 협력사 API 형식은 `app/integrations/dxworks.py`에서만 다룹니다.
 
 > **💡 이 명령어 하나로 자동 완료되는 항목들:**
 > 1. **Python 3.11 런타임 & 의존성(버전 고정 `requirements.txt`)** 도커 컨테이너 내 자동 설치 (로컬 파이썬 버전 충돌 0%)
-> 2. **PostgreSQL 16 + pgvector** 컨테이너 자동 구동
+> 2. **PostgreSQL 16** 컨테이너 자동 구동 (이미지는 `pgvector/pgvector:0.8.7-pg16-bookworm` 그대로지만 앱은 DB 확장을 쓰지 않음)
 > 3. **440여 개 논문 테스트 데이터(`03_seed_data.sql`)** DB에 자동 시딩
 > 4. **DB 마이그레이션**: 한 번 실행하고 끝나는 `migrate` 서비스가 아직 적용하지 않은 `DB/migrations/` 파일을 적용하고, 성공해야 백엔드가 뜹니다 (아래 "🗄️ DB 마이그레이션").
 > 5. **FastAPI 백엔드 서버(포트 3000)** 자동 실행
@@ -81,7 +81,7 @@ docker compose down
 docker compose down -v
 docker compose up -d
 ```
-* **API 문서 (Swagger UI):** [http://localhost:3000/docs](http://localhost:3000/docs)
+* **API 문서 (Swagger UI):** [http://localhost:3000/docs](http://localhost:3000/docs) (`APP_ENV=development`에서만. `production`에서는 `/docs`·`/redoc`·`/openapi.json`이 404이며 계약은 `openapi.yaml`로 봅니다)
 * **헬스 체크:** [http://localhost:3000/health](http://localhost:3000/health)
 
 <details>
@@ -102,18 +102,39 @@ docker compose up -d
 ```bash
 docker compose up -d --build
 ```
-새 DB 컬럼·테이블(`credentials.raw_token`, `holder_keys`, `shares`, 직무 비교 테이블, 로그아웃용 `users.token_version`(09), 모의 발급 기록 `mock_issuances`(10), Google OAuth 연동 `oauth_accounts`(11) 등)은 이 명령이 띄우는 `migrate` 서비스가 기존 볼륨에도 자동으로 적용합니다(아래 "🗄️ DB 마이그레이션"). 마이그레이션 파일을 `psql`로 하나씩 실행할 필요가 없습니다. 09가 없는 DB에서는 로그인·가입과 토큰이 필요한 모든 요청이, 10이 없는 DB에서는 모의 발급이, 11이 없는 DB에서는 OAuth 로그인·내 정보 조회가 500이므로 BE만 따로 띄울 때도 먼저 `python -m app.migrate`를 실행합니다.
+새 DB 컬럼·테이블(`credentials.raw_token`, `holder_keys`, `shares`, 직무 비교 테이블, 로그아웃용 `users.token_version`(09), 모의 발급 기록 `mock_issuances`(10), Google OAuth 연동 `oauth_accounts`(11), 시장 통계 `market_postings`·`market_snapshots`(12), 이메일 유일 인덱스와 쓰지 않는 표 정리(13) 등)은 이 명령이 띄우는 `migrate` 서비스가 기존 볼륨에도 자동으로 적용합니다(아래 "🗄️ DB 마이그레이션"). 마이그레이션 파일을 `psql`로 하나씩 실행할 필요가 없습니다. 09가 없는 DB에서는 로그인·가입과 토큰이 필요한 모든 요청이, 10이 없는 DB에서는 모의 발급이, 11이 없는 DB에서는 OAuth 로그인·내 정보 조회가, 12가 없는 DB에서는 시장 통계 조회가 500이므로 BE만 따로 띄울 때도 먼저 `python -m app.migrate`를 실행합니다.
 (DB를 통째로 새로 만들어도 되면 `docker compose down -v && docker compose up -d --build`. 기존 DB 데이터는 모두 지워집니다)
 예전에 복사한 `.env`에 `AUTH_REQUIRED=false` 줄이 있으면 지웁니다. 이제 인증을 끄는 설정은 없고(아래 "🔐 인증"), 남아 있으면 시작 로그에 경고만 남습니다.
 
 ### 🗄️ DB 마이그레이션 (`python -m app.migrate`, 로컬·CI·AWS 공통)
 - **실행:** `BE/`에서 `python -m app.migrate`. 앱과 같은 `DB_HOST`·`DB_PORT`·`DB_USER`·`DB_PASSWORD`·`DB_NAME`으로 접속하고 `PGSSLMODE` 같은 libpq 환경변수와 `DB_CONNECT_TIMEOUT`(기본 10초)도 그대로 적용됩니다. `.env`가 있으면 읽되 이미 있는 환경변수가 우선하고, DB가 막 뜨는 중이면 최대 60초 기다립니다.
 - **동작:**
-  - 빈 DB(`users` 표 없음): `DB/schema/schema_PostgreSQL.sql` → `DB/schema/schema_pgvector.sql` → (`--seed`일 때만) `DB/seeds/03_seed_data.sql`을 한 트랜잭션으로 적용합니다. `--seed`는 이미 만들어진 DB에서는 무시됩니다.
+  - 빈 DB(`users` 표 없음): `DB/schema/schema_PostgreSQL.sql` → (`--seed`일 때만) `DB/seeds/03_seed_data.sql`을 한 트랜잭션으로 적용합니다. `--seed`는 이미 만들어진 DB에서는 무시됩니다.
+  - 기본 스키마와 마이그레이션은 DB 확장을 만들지 않습니다(기본 키의 `gen_random_uuid()`는 PostgreSQL 13부터 기본 제공 함수). 그래서 마이그레이션 계정에 확장을 만들 권한이 필요 없고, 새로 만든 DB에는 `plpgsql`만 있습니다. 예전 버전이 만들어 둔 `pgcrypto`·`vector`는 지우지 않고 그대로 둡니다(쓰는 코드는 없음).
   - 그다음 `DB/migrations/NN_*.sql` 중 원장 `public.schema_migrations`(filename, checksum, applied_at)에 없는 파일을 번호 순으로, 파일마다 원장 기록과 함께 한 트랜잭션으로 적용합니다. 실패하면 그 파일만 롤백됩니다.
   - 원장 없이 만들어진 기존 DB(Compose initdb·수동 `psql`)는 마이그레이션을 모두 다시 적용하고 기록합니다(모두 여러 번 실행해도 안전).
   - 여러 개가 동시에 실행돼도(ECS 태스크 등) DB별 advisory lock으로 하나씩 실행합니다.
   - 실행기 연결의 `search_path`는 고정합니다. 기본 스키마·마이그레이션 파일을 실행하는 연결은 `public`(`pg_catalog`는 늘 먼저 찾음)이고, 실행기 자신의 SQL(`DB_APP_ROLE` 검사·원장 읽기·시드 해시 확인·`GRANT`/`REVOKE`)을 실행하는 advisory lock 연결은 `pg_catalog`만 찾으므로 `public`에 심은 함수·연산자는 인자 형이 정확히 맞아도(예: `public.=(oid, regclass)`) 부르지 않습니다(임시 스키마는 함수·연산자를 찾을 때 쓰지 않음). DB·역할에 건 `search_path` 설정(`ALTER DATABASE/ROLE ... SET`)이나 마이그레이션 계정 이름의 스키마(`"$user"`)는 실행기가 쓰지 않습니다.
+- **마이그레이션 목록 (`DB/migrations/`, 04~13):**
+
+  | 파일 | 내용 |
+  |---|---|
+  | `04_users_password_hash.sql` | `users.password_hash`, 시드 계정의 테스트 비밀번호 |
+  | `05_credentials_raw_token.sql` | `credentials.raw_token`(서명 원본)·`last_verified_at` |
+  | `06_holder_keys.sql` | 관리형 지갑의 홀더 키 `holder_keys` |
+  | `07_shares.sql` | 선택 공개 링크 `shares` |
+  | `08_career_curriculum.sql` | 공고·학습자료(버전)·직무 비교·커리큘럼 표 |
+  | `09_users_token_version.sql` | 로그아웃용 `users.token_version` |
+  | `10_mock_issuances.sql` | 모의 발급 기록 `mock_issuances` |
+  | `11_oauth_accounts.sql` | Google OAuth 연동 `oauth_accounts`. 파일 머리 주석은 예전 내용입니다(적용된 파일이라 고치지 않음): "이메일이 같으면 같은 계정에 연동"은 이제 비밀번호 없는 계정에만 해당하고(비밀번호 계정은 409, 아래 "🌐 Google OAuth 2.0 소셜 로그인"), 기존 볼륨에 `psql`로 직접 실행하라는 안내 대신 `python -m app.migrate`가 적용합니다 |
+  | `12_market_statistics.sql` | 시장 통계 `market_postings`·`market_snapshots` |
+  | `13_email_unique_drop_unused_tables.sql` | 아래 |
+
+  13이 하는 일:
+  - `users`에 대소문자를 구분하지 않는 이메일 유일 인덱스 `users_email_lower_key`(`lower(email)`)를 만듭니다. 로그인과 Google 연동이 `lower(email)`로 계정을 찾으므로 "이메일 하나에 계정 하나"를 DB가 보장하고, 그 조회가 이 인덱스를 탑니다.
+  - 대소문자만 다른 이메일의 계정이 이미 있으면 인덱스를 만들지 않고 멈춥니다(13 전체가 롤백, 종료 코드 1). 로그에는 `대소문자만 다른 이메일을 쓰는 계정이 있어 users_email_lower_key 인덱스를 만들 수 없습니다 (겹치는 이메일 N개)`와 찾는 조회가 든 `HINT:` 줄(`SELECT lower(email), count(*) FROM users GROUP BY 1 HAVING count(*) > 1;`)이 남고 이메일 주소는 남지 않습니다. 이메일마다 계정을 하나만 남긴 뒤 다시 실행합니다.
+  - `users_subject_did_key`와 같은 열의 중복 인덱스 `idx_users_did`를 지웁니다.
+  - 어떤 코드도 읽거나 쓰지 않는 표 `student_credential_embeddings`·`user_skills`를 지웁니다(그 표에 직접 넣어 둔 행이 있으면 함께 없어짐). 확장은 지우지 않습니다(`DROP EXTENSION` 없음).
 - **운영 검사(`APP_ENV`):** 앱과 같이 `.env`를 읽은 뒤의 `APP_ENV`를 보고(비우면 `development`), `development`가 아니면 운영으로 검사합니다. 로컬 Compose(`migrate` 서비스에 `APP_ENV=development`를 넣음)·로컬 `.env`·CI는 예전과 같습니다.
   - `--seed`는 DB에 접속하기 전에 거부합니다.
   - 적용을 마친 뒤 `users`에 04 마이그레이션의 시드 테스트 비밀번호 해시를 그대로 쓰는 계정이 있으면 실패합니다(시드·개발 DB 데이터가 운영 DB에 들어간 경우. 해시 값은 로그에 남기지 않습니다). 이미 적용한 마이그레이션은 남고, 그 계정을 지운 뒤 다시 실행하면 통과합니다.
@@ -123,7 +144,7 @@ docker compose up -d --build
   - 역할이 없거나 특권 계정(그 역할이나 그 역할이 속한 역할의 슈퍼유저·`CREATEROLE`·`CREATEDB`·`REPLICATION`·`BYPASSRLS` 속성, 마이그레이션 계정 자신이나 그 소속, `rds_superuser`·`pg_read_all_data`·`pg_write_all_data`·`pg_read_server_files`·`pg_write_server_files`·`pg_execute_server_program` 소속)이면 실패합니다. 특권 속성이 있는 소속 역할은 `마이그레이션 실패:` 줄에 이름이 나옵니다(큰따옴표로 감쌈).
   - 그 역할이나 그 역할이 속한 역할이 `public` 스키마나 DB에 객체를 만들 수 있어도 실패합니다: CREATE 권한(`PUBLIC`에 준 CREATE 포함)이나 DB·`public` 스키마의 소유(소유자는 거둔 CREATE를 스스로 다시 줄 수 있으므로 CREATE를 모두 거둬도 거부. 새로 만든 PostgreSQL 15 이상 DB에서는 DB 소유자가 `pg_database_owner`로 `public` 스키마도 소유하며 DB 소유로 알려 줌). `마이그레이션 실패:` 줄이 걸린 검사(`public 스키마`·`DB "<DB 이름>"`), 그 권한·소유를 가진 소속 역할과 그대로 실행할 수 있는 GRANT·ALTER ... OWNER·REVOKE 문(이름은 큰따옴표로 감쌈)을 실행할 순서대로 알려 주므로, 마이그레이션 계정으로 차례대로 실행한 뒤 다시 실행합니다.
     - 소유가 먼저입니다(소유자에게서 CREATE를 먼저 거두면 새 소유자도 그 CREATE를 받지 못함): DB는 `ALTER DATABASE "<DB 이름>" OWNER TO "<마이그레이션 계정>";`, `public` 스키마는 `ALTER SCHEMA public OWNER TO pg_database_owner;`(PostgreSQL 14 이하는 `OWNER TO "<마이그레이션 계정>"`). 마이그레이션 계정이 슈퍼유저가 아니면(RDS 마스터 사용자) 맨 앞에 지금 소유자의 권한을 받는 `GRANT "<지금 소유자>" TO "<마이그레이션 계정>" WITH INHERIT TRUE;`(PostgreSQL 15 이하는 `WITH INHERIT TRUE` 없이)가 나옵니다(다 고친 뒤 그 소속을 다시 거두는 방법은 루트 README "AWS 배포 체크리스트"의 "DB 마이그레이션").
-    - 지금 소유자 몫의 CREATE를 이미 거뒀으면 ALTER 문 뒤에 새 소유자에게 CREATE를 다시 주는 GRANT 문이 `(지금 소유자 몫의 CREATE를 거둔 상태라 새 소유자에게 다시 줌)`과 함께 붙습니다: `public` 스키마는 `GRANT CREATE ON SCHEMA public TO pg_database_owner;`(PostgreSQL 14 이하는 `TO "<마이그레이션 계정>"`. DB 소유자가 `pg_database_owner`로 `public` 스키마를 소유했으면 ALTER DATABASE 뒤), DB는 아직 없는 확장(`pgcrypto`·`vector`)을 만들어야 하거나 `public` 스키마의 소유자도 바꿀 때만 `GRANT CREATE ON DATABASE "<DB 이름>" TO "<마이그레이션 계정>";`.
+    - 지금 소유자 몫의 CREATE를 이미 거뒀으면 ALTER 문 뒤에 새 소유자에게 CREATE를 다시 주는 GRANT 문이 `(지금 소유자 몫의 CREATE를 거둔 상태라 새 소유자에게 다시 줌)`과 함께 붙습니다: `public` 스키마는 `GRANT CREATE ON SCHEMA public TO pg_database_owner;`(PostgreSQL 14 이하는 `TO "<마이그레이션 계정>"`. DB 소유자가 `pg_database_owner`로 `public` 스키마를 소유했으면 ALTER DATABASE 뒤), DB는 `public` 스키마의 소유자도 함께 바꿀 때만 `GRANT CREATE ON DATABASE "<DB 이름>" TO "<마이그레이션 계정>";`(기본 스키마가 확장을 만들지 않으므로 그 밖에는 DB CREATE가 필요 없음).
     - 그다음 CREATE 회수: `public` 스키마는 `REVOKE CREATE ON SCHEMA public FROM PUBLIC;`(PostgreSQL 14 이하에서 만들었거나 그 버전에서 업그레이드·복원한 DB는 기본으로 모든 역할(`PUBLIC`)이 `public` 스키마에 CREATE 권한을 가짐)과 그 역할에 따로 준 CREATE 회수, DB는 `REVOKE CREATE ON DATABASE "<DB 이름>" FROM PUBLIC;`과 그 역할에 준 CREATE 회수. CREATE를 받은 소속 역할은 이름과 `REVOKE CREATE ON SCHEMA public FROM "<그 역할>";`·`REVOKE CREATE ON DATABASE "<DB 이름>" FROM "<그 역할>";`이 나옵니다.
     - 소속을 거두는 문(`REVOKE "<소속 역할>" FROM "<DB_APP_ROLE>"`)은 알려 주지 않습니다. 위 문들은 소속을 그대로 두므로 `DB_APP_ROLE`이 그 소속 역할로 `public`에 만들어 둔 객체를 다음 실행에서 아래 소유 객체 검사가 알려 줍니다. 소속도 거두려면 마이그레이션이 성공한 뒤에 거둡니다(먼저 거두면 `public`에 CREATE 권한도 소유도 없는 그 역할의 객체는 이 검사가 보지 못함. 루트 README "AWS 배포 체크리스트"의 조회 ①은 보여 줌).
   - 그 역할이나 그 역할이 속한 역할, 기본 제공 역할(OID 16384 미만, 부트스트랩 슈퍼유저 제외. 예: `pg_database_owner`·`pg_monitor`), `public` 스키마에 CREATE 권한이 있거나 DB·`public` 스키마를 소유한 다른 역할(부트스트랩 슈퍼유저(OID 10)·마이그레이션 계정 제외. 예: 소속을 거둔 예전 소속 역할)이 `public` 스키마에 객체(함수·연산자·타입·테이블·뷰·시퀀스·연산자 클래스·텍스트 검색 설정·확장 등)를 소유해도 실패합니다. CREATE를 거두기 전에 만든 객체도 남아, 마이그레이션 계정·앱이 이름으로 찾아 부르면 부른 계정의 권한으로 실행되기 때문입니다. 소유자는 카탈로그마다 소유자 열로 봅니다(기본 제공 역할의 소유는 `pg_shdepend`에 남지 않음). 그 역할이 DB 소유자일 때 `pg_database_owner`에게 넘긴 객체도 위 `ALTER DATABASE` 문으로 DB 소유자를 바꾼 다음 실행에서 이 검사에 걸립니다. `마이그레이션 실패:` 줄(`DB_APP_ROLE이나 그 역할이 속한 역할, 기본 제공 역할(pg_database_owner·pg_monitor 등), public 스키마에 CREATE 권한이 있거나 DB·public 스키마를 소유한 다른 역할이 public 스키마에 객체를 소유합니다: …`)이 객체를 `['function public.lower(character varying)', …]`처럼 10개까지 알려 주므로(더 있으면 `외 N개`) 마이그레이션 계정으로 하나씩 확인해, 예상하지 못한 객체는 `DROP`하고 앱에 필요한 객체는 `ALTER <종류> <이름> OWNER TO "<마이그레이션 계정>"`으로 소유자를 바꾼 뒤 다시 실행합니다. 그래서 `DB_APP_ROLE`을 줄 때는 DB와 `public`의 테이블을 소유한 계정(운영은 마스터 사용자)으로 마이그레이션합니다. 다른 관리 계정(예: 전용 역할이 소유한 DB에 슈퍼유저)으로 실행하면 그 소유 역할의 테이블 등이 이 검사에 걸립니다.
@@ -136,7 +157,7 @@ docker compose up -d --build
 - **Compose:** `migrate` 서비스(`vc-migrate`)가 `docker compose up` 때마다 `python -m app.migrate --seed`를 한 번 실행하고, `backend`는 이것이 성공한 뒤에 뜹니다. 실패하면 `docker compose up`이 "migrate ... didn't complete successfully" 오류로 멈추므로 `docker compose logs migrate`를 봅니다. 직접 실행은 `docker compose run --rm migrate`.
   새 볼륨은 지금처럼 postgres initdb가 같은 파일(스키마·시드·04~)을 먼저 실행하고, `migrate`가 그 DB를 넘겨받아 기록합니다.
 - **마이그레이션을 추가할 때:**
-  - 적용된 파일의 SQL은 고치지 않고 다음 번호 파일(예: `09_add_example_table.sql`, 파일 이름은 영문·숫자·`_`만)로 추가합니다.
+  - 적용된 파일의 SQL은 고치지 않고 다음 번호 파일(예: `14_add_example_table.sql`, 파일 이름은 영문·숫자·`_`만)로 추가합니다.
   - 줄 전체가 `--` 주석인 줄·빈 줄·줄 끝 공백·CRLF·BOM 차이는 체크섬에 영향이 없습니다. SQL 줄 끝의 `--` 주석이나 `/* */` 주석은 SQL로 계산되므로 적용된 파일에서는 고치지 않습니다.
   - 파일 하나가 한 트랜잭션으로 실행되므로 `BEGIN`/`COMMIT`이나 `CREATE INDEX CONCURRENTLY`는 쓰지 않습니다.
   - 여러 번 실행해도 안전하게 씁니다(`IF NOT EXISTS` 등). 새 Compose 볼륨에서는 initdb와 `migrate`가 같은 파일을 차례로 실행합니다.
@@ -145,22 +166,75 @@ docker compose up -d --build
 
 ### 🐳 운영 이미지 · 실행 환경(`APP_ENV`) · 의존성
 - **`Dockerfile`은 운영 이미지입니다:** `python:3.11.15-slim-bookworm` 기반, 비루트(uid/gid 10001), 리로더 없는 uvicorn 한 프로세스(`uvicorn main:app --host 0.0.0.0 --port 3000`), `/health` HEALTHCHECK, `APP_ENV=production`. 이미지에는 `main.py`, `app/`, `DB/schema`, `DB/migrations`, `requirements.txt`만 들어갑니다(`.env`·`.venv`·tests·시드·csv 제외).
-- **로컬 Compose는 같은 이미지를 개발용으로 덮어씁니다:** `command`로 `--reload`, `user: root`, 소스 바인드 마운트(`./:/app`), `APP_ENV=development`. 그래서 핫 리로드와 `docker compose exec backend python generate_test_data.py`는 예전처럼 동작합니다. 포트(DB·BE·AI)는 이 PC(`127.0.0.1`)에서만 엽니다. Postgres는 `pgvector/pgvector:0.8.7-pg16-bookworm`(예전 `pg16` 태그와 같은 이미지)입니다. `docker-compose.yml`은 개발 전용이니 운영 배포에 쓰지 않고, 공개된 비밀번호의 시드 계정과 기본 비밀번호 DB가 함께 뜨므로 공개 호스트(EC2·데모 서버 등)에서도 띄우지 않습니다.
+- **로컬 Compose는 같은 이미지를 개발용으로 덮어씁니다:** `command`로 `--reload`, `user: root`, 소스 바인드 마운트(`./:/app`), `APP_ENV=development`. 그래서 핫 리로드와 `docker compose exec backend python generate_test_data.py`는 예전처럼 동작합니다. 포트(DB·BE·AI)는 이 PC(`127.0.0.1`)에서만 엽니다. Postgres는 `pgvector/pgvector:0.8.7-pg16-bookworm`(예전 `pg16` 태그와 같은 이미지)입니다. 이미지 태그는 그대로 두지만 앱과 마이그레이션은 `vector`·`pgcrypto` 확장을 쓰지 않습니다(일부 마이그레이션 테스트만 예전 DB를 재현하려고 두 확장을 만듦). `docker-compose.yml`은 개발 전용이니 운영 배포에 쓰지 않고, 공개된 비밀번호의 시드 계정과 기본 비밀번호 DB가 함께 뜨므로 공개 호스트(EC2·데모 서버 등)에서도 띄우지 않습니다.
 - **`APP_ENV`:** `development`(비우면 이 값) | `production`, 그 밖의 값이면 서버가 시작하지 않습니다.
   - `production`: 아래 중 하나라도 해당하면 시작을 거부합니다(오류에는 변수 이름만 나오고 값은 나오지 않습니다).
     - `JWT_SECRET`이 없거나 32바이트 미만이거나, 이 저장소에 공개된 테스트 값(`tests/`)이거나, 서로 다른 바이트가 8개 미만인 자리표시 값(`x` 반복 등)
     - `HOLDER_KEY_ENCRYPTION_KEY`가 없거나, 공개된 테스트 키이거나 서로 다른 바이트가 8개 미만인 키(`0x01` 반복, 모두 0 등. base64 표기가 달라도 같은 키로 봄)
     - `SERVICE_API_KEY`를 넣었는데 32바이트 미만이거나 위와 같은 테스트·자리표시 값 (비우면 그대로 허용)
-    - `JWT_SECRET`·`HOLDER_KEY_ENCRYPTION_KEY`·`SERVICE_API_KEY`·`AI_SERVICE_TOKEN`·`DXWORKS_API_KEY` 중 넣은 두 값이 서로 같음 (협력사로 보내는 `DXWORKS_API_KEY`나 AI 서비스도 가진 `AI_SERVICE_TOKEN`으로 사용자 토큰을 만들거나 홀더 키를 복호화하거나 모든 DID를 읽지 못하게. 앞뒤 공백은 빼고 비교하고 마스터 키는 base64를 풀지 않고 적은 그대로 비교하며, 빈 값은 비교하지 않음. 오류에는 같은 쌍마다 `JWT_SECRET (not the same value as HOLDER_KEY_ENCRYPTION_KEY)`처럼 두 이름만 나오고, 앞의 이름이 바꿀 값)
+    - `JWT_SECRET`·`HOLDER_KEY_ENCRYPTION_KEY`·`SERVICE_API_KEY`·`AI_SERVICE_TOKEN`·`DXWORKS_API_KEY`·`GOOGLE_CLIENT_SECRET` 중 넣은 두 값이 서로 같음 (협력사로 보내는 `DXWORKS_API_KEY`, Google로 보내는 `GOOGLE_CLIENT_SECRET`, AI 서비스도 가진 `AI_SERVICE_TOKEN`으로 사용자 토큰을 만들거나 홀더 키를 복호화하거나 모든 DID를 읽지 못하게. 앞뒤 공백은 빼고 비교하고 마스터 키는 base64를 풀지 않고 적은 그대로 비교하며, 빈 값은 비교하지 않음. 오류에는 같은 쌍마다 `JWT_SECRET (not the same value as HOLDER_KEY_ENCRYPTION_KEY)`처럼 두 이름만 나오고, 앞의 이름이 바꿀 값)
     - `DB_HOST`·`DB_NAME`·`DB_USER`가 비었거나, `DB_PASSWORD`가 비었거나 로컬 기본값 `password` (운영에서는 DB 접속값을 개발용 기본값으로 대신하지 않음)
+    - `GOOGLE_CLIENT_ID`·`GOOGLE_CLIENT_SECRET` 중 하나만 넣었거나, 둘을 넣었는데 `GOOGLE_REDIRECT_URI`가 비었거나, 허용하는 콜백 주소(`GOOGLE_REDIRECT_URI`·`GOOGLE_ALLOWED_REDIRECT_URIS`) 중에 `https://`가 아닌 것이 있음 (주소로 읽어서 봄: 스킴은 대소문자를 가리지 않고, `https://`뿐이거나 `https:///path`처럼 호스트가 없는 값도 거부. 둘 다 비우면 Google 로그인 없이 시작)
+    - `CORS_ORIGINS`에 `scheme://host[:port]` 꼴이 아닌 항목이 있음 (`*`, `null`, 경로·끝의 `/`·쿼리·사용자 정보가 붙은 값 등)
+  - `production`에서 달라지는 동작: API 문서(`/docs`·`/redoc`·`/openapi.json`)를 만들지 않고(404), BE 단독 테스트용 `GET /api/v1/users/oauth/google/callback`은 404이며, `CORS_ORIGINS`·`GOOGLE_REDIRECT_URI`가 없을 때 로컬 주소 기본값을 대신 쓰지 않고(다른 출처 허용 없음·콜백 주소 없음), `MOCK_ISSUER_ENABLED`를 비우면 모의 발급이 꺼지고, 모든 응답에 HSTS 헤더가 붙습니다.
   - `development`: 예전처럼 경고만 남기고 임시 JWT 키·임시 DID로 대신합니다.
-  - 공통: `JWT_EXPIRES_MINUTES`는 1~1440 정수(비우면 1440), `MOCK_ISSUER_DAILY_LIMIT`은 1 이상 정수(비우면 10)가 아니면 시작하지 않습니다. `MOCK_ISSUER_ENABLED`는 비우면 `development`에서 켜지고 `production`에서 꺼집니다(`production`에서 켜면 시작 로그에 경고 한 줄). 예전 `AUTH_REQUIRED=false`가 남아 있으면 경고만 남기고 무시합니다.
-- **요청 본문 상한:** 2 MiB(`main.py`의 `MAX_REQUEST_BODY_BYTES`)입니다. `Content-Length`가 이보다 크면 경로·인증과 관계없이 본문을 읽지 않고 413 텍스트 `Content Too Large`로 답합니다(본문을 받지 않는 API는 처리한 뒤 응답만 413으로 바뀜). `Content-Length` 없는 chunked 전송은 읽은 양이 2 MiB를 넘는 순간 413 `{"detail": "Content Too Large"}`로 끊고, 본문을 받지 않는 API(로그아웃·조회 등)는 본문을 읽지 않으므로 413 없이 그대로 처리합니다. 어느 쪽이든 요청 하나가 읽는 본문은 2 MiB 남짓까지입니다. 가장 큰 정상 요청인 연구자 공고 반입(원문 10만 자 + 인용 50개)도 약 1.8 MiB이고, VC-JWT(`/api/v1/verify`의 `token`)는 256 KiB까지 받습니다.
-- **보안 응답 헤더:** 모든 응답(오류·`/health`·`/docs` 포함)에 `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, `Content-Security-Policy: frame-ancestors 'none'`을 붙이고, `APP_ENV=production`에서는 `Strict-Transport-Security: max-age=31536000`도 붙입니다(`main.py`의 `SecurityHeadersMiddleware`. 엔드포인트가 직접 넣은 같은 헤더는 그대로 두고, CORS 사전 요청(OPTIONS) 응답에는 붙지 않음). 브라우저는 HTTPS 응답의 HSTS만 따르므로 로컬 HTTP 개발에는 영향이 없습니다. CSP는 `/docs`(Swagger UI)가 CDN 스크립트를 쓰므로 프레임 금지만 둡니다. FE 쪽 헤더·CSP는 루트 README "AWS 배포 체크리스트".
+  - 공통(`APP_ENV`와 관계없음. 비우면 기본값이고, 숫자·주소 설정은 값이 틀리면 변수 이름을 알리고 시작하지 않음):
+
+    | 변수 | 기본값 | 받는 값 · 뜻 |
+    |---|---|---|
+    | `JWT_EXPIRES_MINUTES` | 1440 | 1~1440 정수. 액세스 토큰 수명(분) |
+    | `MOCK_ISSUER_DAILY_LIMIT` | 10 | 1 이상 정수. 모의 발급의 사용자별 24시간 한도 |
+    | `MOCK_ISSUER_GLOBAL_DAILY_LIMIT` | 200 | 1 이상 정수. 모의 발급의 모든 사용자를 합친 24시간 한도 |
+    | `IDENTITY_VERIFICATION_ENABLED` | `false` | `true`(`1`·`yes`·`on`도 같음)일 때만 `POST /api/v1/verify`의 `type: identity`(신원 VP 검증)를 받음. 꺼져 있으면 400 `Identity verification is disabled` |
+    | `DB_MAX_CONNECTIONS` | 20 | 2 이상 정수. 프로세스 하나가 동시에 여는 앱 DB 연결 수의 상한 (아래 "DB 연결 상한") |
+    | `AI_MAX_CONCURRENCY` | 4 | 1 이상 정수. 프로세스 하나가 AI 서비스로 동시에 보내는 공고·학습자료 묶음 요청 수의 상한 (아래 "🧭 직무 비교 · 커리큘럼") |
+    | `DXWORKS_TIMEOUT_SECONDS` | 15 | 1~120(초). DXWorks 호출의 연결·읽기 한 번마다의 제한. 교환(연결·전송·본문 수신. 연결 재시도까지 포함)은 이 값의 2배까지이고, 그 전에 동시 호출 자리를 기다리는 시간도 2배까지라 호출 한 번은 최악의 경우 4배까지 걸림 (아래 "DXWorks 응답 한도") |
+    | `GOOGLE_OAUTH_TIMEOUT_SECONDS` | 10 | 1~120(초). Google 호출 제한 시간 |
+    | `AI_TIMEOUT_SECONDS`, `AI_GENERATION_TIMEOUT_SECONDS` | 30, 90 | 1~600(초). AI 일반 호출, 생성 호출(LLM 커리큘럼·시장 통계 계산) 제한 시간 |
+    | `DXWORKS_API_HOST` | (없음) | 넣었으면 `https://` 주소(`http://`는 루프백만)이고 사용자 정보(`user:pw@`)·쿼리·프래그먼트·공백이 없어야 하며, 포트를 적었다면 1~65535여야 함. 비우면 DXWorks를 쓰는 기능만 503 |
+    | `DXWORKS_API_KEY` | (없음) | ASCII 문자만. 비우면 발급·신원 검증만 503(배지 검증에는 키를 보내지 않음) |
+    | `LOG_LEVEL` | `INFO` | 빈 값도 `INFO`. `verbose` 같은 없는 수준 이름이면 서버와 마이그레이션 실행기는 시작할 때 traceback으로 실패하고, 시장 통계 배치는 traceback 없이 오류 한 줄(`error: LOG_LEVEL은 DEBUG, INFO, WARNING, ERROR, CRITICAL 중 하나여야 합니다 (비우면 INFO)`)을 남기고 종료 코드 2로 끝남. 서버·마이그레이션 실행기·시장 통계 배치가 같은 값을 따름. `WARNING` 이상이면 감사 로그(`vc-be.audit`)가 남지 않음 |
+    | `DB_PORT` | 5432 | 빈 값도 5432(숫자가 아닌 값은 접속할 때마다 실패) |
+
+    `MOCK_ISSUER_ENABLED`는 비우면 `development`에서 켜지고 `production`에서 꺼집니다(`production`에서 켜면 시작 로그에 경고 한 줄). 예전 `AUTH_REQUIRED=false`가 남아 있으면 경고만 남기고 무시합니다. 숫자 설정의 오류 문구는 `DB_MAX_CONNECTIONS must be an integer >= 2`, `DXWORKS_TIMEOUT_SECONDS must be a number between 1 and 120` 같은 꼴입니다.
+- **요청 본문 상한:** 경로에 따라 네 가지입니다(`main.py`의 `body_limit`). FastAPI는 인증·권한 확인(의존성)보다 먼저 본문을 끝까지 읽어 JSON으로 풀고 그 확인을 통과한 요청의 본문 형식을 검사하므로, 기본 상한을 작게 두고 큰 본문이 필요한 경로만 올립니다.
+
+  | 상한 | 대상 | 가장 큰 정상 본문 |
+  |---|---|---|
+  | 16 KiB (`MAX_PUBLIC_AUTH_BODY_BYTES`) | 토큰 없이 부르는 `POST /api/v1/users/login`·`/api/v1/users/register`·`/api/v1/users/oauth/google/callback` | 약 6.3 KB (Google 콜백) |
+  | 64 KiB (`MAX_DEFAULT_BODY_BYTES`) | 아래 두 줄에 없는 모든 경로·메서드 (기본값) | 약 35 KB (커리큘럼 요청, 대안 선택 200개) |
+  | 320 KiB (`MAX_VERIFY_BODY_BYTES`) | `POST /api/v1/verify` | 약 262 KB (`token` 256 KiB) |
+  | 2 MiB (`MAX_REQUEST_BODY_BYTES`) | `POST /api/v1/research/job-postings/preview`·`/api/v1/research/job-postings`·`/api/v1/research/learning-resources` | 약 1.75 MiB (공고 반입: 원문 10만 자 + 인용 50개, 한글을 `\u`로 이스케이프한 경우) |
+
+  - `Content-Length`가 그 경로의 상한보다 크면 인증과 관계없이 본문을 읽지 않고 413 텍스트 `Content Too Large`로 답합니다(본문을 받지 않는 API는 처리한 뒤 응답만 413으로 바뀜). `Content-Length` 없는 chunked 전송은 읽은 양이 상한을 넘는 순간 413 `{"detail": "Content Too Large"}`로 끊고, 본문을 받지 않는 API(로그아웃·조회 등)는 본문을 읽지 않으므로 413 없이 그대로 처리합니다. 응답 형식은 네 상한 모두 같습니다.
+  - 기본 상한을 둔 이유: 모르는 키를 금지한 모델(공유 링크·포트폴리오·직무 비교·커리큘럼)에 모르는 키 13만 개(1.8 MB)를 보내면 요청마다 이벤트 루프를 0.2초씩 잡고 프로세스 메모리가 1.2 GiB까지 늘었습니다. 지금은 그 본문이 검사 전에 413이고 메모리가 늘지 않습니다.
+  - 경로는 라우터와 같은 규칙으로 봅니다(uvicorn을 `--root-path`로 띄워도 같은 상한). 줄바꿈으로 끝나는 경로(`/api/v1/users/login%0A` 등)는 라우터에 넘기지 않고 404 `{"detail": "Not Found"}`로 답합니다: 라우터의 경로 식은 끝의 줄바꿈 하나를 무시해 같은 API에 닿는데, 위 목록과는 글자 그대로 비교하므로 그대로 두면 기본 상한을 받습니다(로그인 16 KiB 대신 64 KiB). 그 밖의 제어 문자가 든 경로는 지금처럼 라우터가 정합니다(DID 경로의 NUL은 422).
+  - 본문을 받는 라우트를 새로 만들면 `tests/test_app_security.py`의 본문 라우트 목록 테스트가 알려 주므로, 가장 큰 정상 본문을 재서 64 KiB를 넘을 때만 큰 목록에 넣습니다.
+  - 연구자 반입 세 경로는 본문 형식 검사보다 먼저 연구자인지 확인합니다(`app/api/career.py`의 `researcher` 의존성). 연구자가 아닌 로그인 계정이 이 세 경로에 보낸 본문은 형식 검사 없이 403 `Researcher permission required`로 끝나므로, 2 MiB 가까운 본문으로도 위와 같은 부하를 줄 수 없습니다(모르는 키 13만 개짜리 1.8 MB 본문 100번: 모두 403, 요청마다 약 0.02초, 프로세스 메모리 78 MiB → 약 110~120 MiB. 예전에는 모두 422에 약 1.27 GiB). 연구자가 아닌 계정은 본문이 틀려도 422가 아니라 403을 받고, 연구자의 요청은 그대로입니다.
+- **요청 검증 실패(422):** 본문은 `{"detail": [{"type", "loc", "msg"}, …]}`입니다. FastAPI 기본 형식에서 받은 값(`input`)과 `ctx`를 뺀 것으로, 보낸 값을 되돌려 주지 않습니다. 오류는 앞에서부터 20개까지만 싣고, `loc`에 들어가는 키 이름이 64자를 넘으면 `<long key>`로 바꾸며, 본문은 항상 ASCII입니다(한글 등은 `\uXXXX`). FE는 `loc`·`msg`만 읽습니다.
+- **API 문서·경로:** `/docs`·`/redoc`·`/openapi.json`은 `APP_ENV=development`에서만 제공하고 `production`에서는 404입니다. 끝에 `/`가 붙은 경로(예: `/api/v1/portfolios/`, `/health/`)는 리디렉션하지 않고 404입니다(리디렉션 `Location`은 요청의 `Host` 헤더로 만들어져 CloudFront 뒤에서는 ALB 주소가 `http://`로 드러나기 때문. FE는 끝에 `/`가 붙은 경로를 부르지 않음).
+- **CORS:** `CORS_ORIGINS`(쉼표 구분)에 넣은 출처만 허용하고 쿠키 자격증명은 쓰지 않습니다. 변수가 없으면 `development`는 FE 개발 서버 주소(`http://localhost:5173`, `http://127.0.0.1:5173`)를 쓰고, `production`은 없거나 비어 있으면 다른 출처를 하나도 허용하지 않습니다(FE와 API가 같은 출처인 구성). `production`에서 `scheme://host[:port]` 꼴이 아닌 항목(`*`, `null`, 경로·끝의 `/`가 붙은 값 등)이 있으면 시작하지 않습니다.
+- **DB 연결 상한·시간 제한 (앱 요청):** 앱은 DB를 `app/services/database.py`의 `app_db_connection()`으로만 씁니다. 연결 풀은 아니고 호출마다 새 연결을 열고 닫되, 프로세스가 동시에 여는 수를 `DB_MAX_CONNECTIONS`개(기본 20)로 묶습니다.
+  - 자리가 없으면 5초 기다린 뒤 연결을 열지 않고 503 `{"detail": "Service is busy. Try again later."}` + `Retry-After: 5`로 답합니다.
+  - 앱 세션에는 접속할 때 `statement_timeout=15s`, `lock_timeout=5s`(advisory lock 대기 포함), `idle_in_transaction_session_timeout=30s`가 걸립니다(`PGOPTIONS` 환경변수가 있으면 그 뒤에 이어 붙이므로 이 세 값이 우선). 문장·잠금 제한에 걸린 요청도 같은 503입니다.
+  - 세 경우 모두 로그(`vc-be`)에 `Database busy: method=… path=… reason=DatabaseBusy|QueryCanceled|LockNotAvailable` 경고가 한 줄 남고 traceback은 남지 않습니다.
+  - DB 접속 자체가 실패한 요청(DB 중단, DB 쪽 연결 수 초과 `too many connections`)과 `idle_in_transaction_session_timeout`으로 끊긴 세션의 요청은 503이 아니라 500(`Unhandled error`)입니다. 그래서 DB의 `max_connections`는 프로세스 수 × `DB_MAX_CONNECTIONS`보다 넉넉해야 합니다(루트 README "AWS 배포 체크리스트").
+  - 마이그레이션 실행기(`python -m app.migrate`)와 `generate_test_data.py`는 이 상한과 시간 제한을 받지 않습니다. 시장 통계 배치(`python -m app.jobs.market`)는 앱과 같은 접근자를 써서 받습니다.
+  - `/health`는 DB를 쓰지 않고 이벤트 루프에서 바로 답합니다(`async` 엔드포인트라 워커 스레드를 쓰지 않음). DB 자리·잠금을 기다리는 요청이 워커 스레드를 모두 잡고 있어도(각 최대 5초) 상태 확인은 함께 밀리지 않습니다.
+- **보안 응답 헤더:** 모든 응답(오류·`/health` 포함)에 `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, `Content-Security-Policy: frame-ancestors 'none'`을 붙이고, `APP_ENV=production`에서는 `Strict-Transport-Security: max-age=31536000`도 붙입니다(`main.py`의 `SecurityHeadersMiddleware`. 엔드포인트가 직접 넣은 같은 헤더는 그대로 두고, CORS 사전 요청(OPTIONS) 응답에는 붙지 않음). 브라우저는 HTTPS 응답의 HSTS만 따르므로 로컬 HTTP 개발에는 영향이 없습니다. CSP는 `development`에서 제공하는 `/docs`(Swagger UI)가 CDN 스크립트를 쓰므로 프레임 금지만 둡니다. FE 쪽 헤더·CSP는 루트 README "AWS 배포 체크리스트".
 - **로그:**
-  - uvicorn 접근 로그에서는 공유 링크 토큰과 DID를 가립니다(`/api/v1/public/shares/[redacted]`, `/api/v1/subjects/[did]/careers`, 쿼리 문자열은 그대로).
+  - uvicorn 접근 로그에서는 공유 링크 토큰과 DID를 가리고(`/api/v1/public/shares/[redacted]`, `/api/v1/subjects/[did]/careers`), Google 콜백 경로의 쿼리(인가 코드·`state`·`code_verifier`)를 통째로 가립니다(`…/google/callback?[redacted]`). 그 밖의 쿼리 문자열은 그대로입니다.
   - 외부 호출마다 전체 URL을 남기는 httpx 로그(INFO)와 접속 호스트·응답 헤더를 남기는 httpcore 로그(DEBUG)는 `LOG_LEVEL=DEBUG`일 때만 나옵니다(그 밖의 값에서는 `NOTSET`을 포함해 둘 다 WARNING 이상만 남김. DXWorks 호스트는 비공개. 운영에서는 `DEBUG`를 쓰지 않음).
-  - 경고 줄: `Provider error: …`(협력사 오류·빠진 설정, 한 줄·300자까지), `Public share view rejected: …`(기업용 조회의 검증기 호출 한도 초과, 링크 토큰 대신 공유 ID), `Rejected unstorable text: …`(입력의 NUL·짝 없는 서로게이트를 422로 거절, 예외 클래스 이름만), `Mock issuance token hash not recorded: issuance=<id> error=<예외 클래스>`(협력사가 모의 배지를 발급한 뒤 해시 기록이 DB 오류로 실패, 배지는 돌려줌), `Mock issuance cancel failed; the reservation stays counted: issuance=<id> error=<예외 클래스>`(협력사 오류 뒤 발급 기록을 지우지 못함, 원래 502/503으로 답함). 모의 발급 두 줄에는 발급 기록 ID(`mock_issuances.id`)와 그 DB 작업이 낸 예외의 클래스 이름(예: `OperationalError`)만 남습니다(토큰·DID·예외 메시지 없음. 발급 기록을 지우지 못한 경우의 원래 협력사 오류는 `Provider error` 줄).
+  - 경고 줄: `Provider error: …`(협력사 오류·빠진 설정, 한 줄·300자까지), `Public share view rejected: …`(기업용 조회의 검증기 호출 한도 초과, 링크 토큰 대신 공유 ID), `Rejected unstorable text: …`(입력의 NUL·짝 없는 서로게이트를 422로 거절, 예외 클래스 이름만), `Mock issuance token hash not recorded: issuance=<id> error=<예외 클래스>`(협력사가 모의 배지를 발급한 뒤 해시 기록이 DB 오류로 실패, 배지는 돌려줌), `Mock issuance cancel failed; the reservation stays counted: issuance=<id> error=<예외 클래스>`(협력사 오류 뒤 발급 기록을 지우지 못함, 원래 502/503으로 답함), `Mock issuance outcome unknown; the reservation stays counted: issuance=<id>`(요청이 협력사에 닿았을 수 있는데 결과를 모르는 실패라 발급 기록을 한도에 남김, 502로 답함). 모의 발급 줄에는 발급 기록 ID(`mock_issuances.id`)와 그 DB 작업이 낸 예외의 클래스 이름(예: `OperationalError`)만 남습니다(토큰·DID·예외 메시지 없음. 원래 협력사 오류는 `Provider error` 줄).
+  - 그 밖의 경고 줄: `Database busy: method=… path=… reason=…`(위 "DB 연결 상한"), `Credential re-verification failed: record=… upstream=… unavailable=…: …`(재검증 중 실제로 부른 검증기 호출이 실패), `AI service error: …`(AI 연동 오류), `Market snapshot integrity check failed: role=<직무> row=<행 ID>`(저장된 시장 통계가 해시·형식 검사에 실패해 409로 답함), `Google OAuth token request rejected: error=<redirect_uri_mismatch|invalid_request>`(Google이 토큰 요청을 설정 문제로 거절. 응답은 400이므로 Google Cloud Console의 리디렉션 URI와 `GOOGLE_REDIRECT_URI`를 확인).
+  - **감사 로그 (`vc-be.audit`, INFO, 한 줄. 이메일·DID·토큰·이름 없음):** 기본 형식에서는 `INFO:vc-be.audit:event=…`로 나오고, `LOG_LEVEL`이 `WARNING` 이상이면 남지 않습니다.
+    - `event=verifier_calls user=<사용자 UUID|service|anonymous> route=<경로 이름> calls=<n> failed=<m>`: 검증기(DXWorks)를 실제로 부른 요청마다 한 줄(`calls`는 부른 수, `failed`는 그중 실패한 수). `route`는 `verify_badge`·`verify_identity`·`reverify`·`evidence`·`portfolio_create`·`career_analysis`·`share_view`이고, `user`는 로그인 사용자의 UUID, 서비스 키는 `service`, 기업용 조회는 `anonymous`입니다.
+    - `event=verifier_budget_denied user=<사용자 UUID|service> route=<경로 이름> retry_after=<초>`: 검증기 호출 한도로 429를 돌려준 요청마다. 배지 검증의 거절 창(토큰이 거절된 검증 10분에 10번, 아래 "DXWorks 호출 양 제한")이 막은 요청은 `route=verify_rejected`입니다.
+    - `event=verify_shape_refused user=<사용자 UUID>`: `POST /api/v1/verify`의 배지 `token`이 모양 검사에 걸려 검증기로 보내지 않은 요청마다(토큰·길이 없음. 검증기를 부르지 않았으므로 `event=verifier_calls` 줄은 없음).
+    - `event=login_locked key=<12자리 hex> retry_after=<초>`: 로그인 실패 제한으로 잠긴 이메일에 온 시도마다(`key`는 접은 이메일의 SHA-256 앞 12자리라 같은 이메일은 같은 값).
+    - `event=oauth_login outcome=<created|linked|login|refused_password_account> user=<사용자 UUID>`: Google 로그인 결과마다. `created`는 새 가입, `linked`는 비밀번호 없는 기존 계정에 연동, `login`은 이미 연동된 계정으로 로그인, `refused_password_account`는 비밀번호 계정이라 연동을 거절(409)한 경우이고 이때 `user`는 그 기존 계정입니다.
+    - `event=oauth_exchange_denied retry_after=<초>`: Google 토큰 교환 한도(프로세스마다 분당 300번)로 429를 돌려준 콜백마다(사용자 정보 없음. 누가 몰아 보내는 동안에는 다른 사용자의 Google 로그인도 함께 429가 되므로 지표 필터로 알 수 있게 남김).
+    - CloudWatch Logs 지표 필터 예는 루트 README "AWS 배포 체크리스트"의 "상태 확인·로그".
 - **의존성:** `requirements.in`(사람이 고치는 허용 범위) → `requirements.txt`(테스트한 버전을 `==`로 고정한 생성 파일, 다시 만드는 방법은 파일 머리 주석) → `requirements-dev.txt`(+테스트 도구). AI(`../ai/requirements*.txt`)와 함께 쓰는 패키지는 같은 버전을 유지합니다(공고·자료 내용 해시가 양쪽에서 같아야 합니다).
 
 ### 🔑 관리형 지갑 (홀더 키)
@@ -171,20 +245,47 @@ docker compose up -d --build
 - **공유 기준:** 각자 로컬 DB는 각자 키를 새로 만듭니다. 같은 DB(공용 개발 서버·운영 서버)를 쓰는 사람끼리만 같은 키가 필요하고, 운영 키는 최소 인원만 보관합니다. 메신저에 평문으로 보내지 마세요.
 - **시드 덤프 주의:** 운영 DB·공용 개발 서버처럼 실제 사람이 쓴 DB는 `pg_dump`로 떠서 커밋하지 않습니다. 덤프에는 이메일·이름·DID, bcrypt 비밀번호 해시, 서명된 VC-JWT(`credentials.raw_token`), 직무 비교·포트폴리오·모의 발급 기록이 그대로 들어가 공개 저장소 기록에 남습니다.
   - 시드(`DB/seeds/03_seed_data.sql`)를 다시 만들어야 하면 가상 데이터만 든 임시 DB에서 뜹니다. 시드는 마이그레이션(04~)보다 먼저 기본 스키마에 들어가므로 기본 스키마만 적용한 DB여야 합니다(`migrate --seed`처럼 마이그레이션까지 적용한 DB의 덤프는 `users.token_version`(09) 같은 컬럼 때문에 불러와지지 않음).
-  - 순서: 빈 임시 DB에 `DB/schema`의 두 파일(`schema_PostgreSQL.sql` → `schema_pgvector.sql`)만 `psql`로 적용 → `DB_NAME=<임시 DB> python generate_test_data.py`로 채움 → 비밀번호 해시·서명된 VC가 덤프에 들어가지 않게 `UPDATE users SET password_hash = NULL; UPDATE credentials SET raw_token = NULL;`(불러올 때 04가 시드 계정에 공개된 시드 비밀번호를 다시 넣으므로 운영 마이그레이션의 시드 계정 검사도 그대로 걸림) → `pg_dump --data-only --inserts --exclude-table=holder_keys --exclude-table=shares --exclude-table=mock_issuances --exclude-table=schema_migrations <임시 DB> > DB/seeds/03_seed_data.sql`. 새 시드는 빈 DB에 `python -m app.migrate --seed`로 불러와 확인하고, 임시 DB는 지웁니다.
+  - 순서: 빈 임시 DB에 `DB/schema/schema_PostgreSQL.sql`만 `psql`로 적용 → `DB_NAME=<임시 DB> python generate_test_data.py`로 채움 → 비밀번호 해시·서명된 VC가 덤프에 들어가지 않게 `UPDATE users SET password_hash = NULL; UPDATE credentials SET raw_token = NULL;`(불러올 때 04가 시드 계정에 공개된 시드 비밀번호를 다시 넣으므로 운영 마이그레이션의 시드 계정 검사도 그대로 걸림) → `pg_dump --data-only --inserts --exclude-table=holder_keys --exclude-table=shares --exclude-table=mock_issuances --exclude-table=schema_migrations <임시 DB> > DB/seeds/03_seed_data.sql`. 새 시드는 빈 DB에 `python -m app.migrate --seed`로 불러와 확인하고, 임시 DB는 지웁니다.
 
 ### ✅ 실행 시점 재검증 · 포트폴리오 · 선택 공개 (v0.6.0)
-- **재검증:** `POST /api/v1/credentials/{record_id}/reverify` — 저장된 서명 원본을 지금 다시 검증해 상태(폐기·만료)를 갱신합니다.
+- **재검증:** `POST /api/v1/credentials/{record_id}/reverify` — 저장된 서명 원본을 지금 다시 검증해 상태(폐기·만료)를 갱신합니다. 검증기가 이 서명 원본 하나만 확인하지 못한 경우(400·404·422 같은 거절, 형식이 틀린 2xx)는 근거 조회·포트폴리오와 같은 분류로 200 `success: false`, `message: "Re-verification failed: verifier_error"`, `data.status: "unverifiable"`로 답하고 저장된 상태는 바꾸지 않습니다(예전에는 502여서 FE의 일괄 재검증이 그 항목에서 멈췄음). 502/503은 아래 "검증기(DXWorks) 장애"일 때만입니다.
 - **근거 조회:** `GET /api/v1/subjects/{did}/evidence?mode=strict|labeled` — DB 상태를 믿지 않고 요청 시점에 다시 검증한 뒤 **서명 원본 안의 본문**으로 근거를 줍니다 (논문 RAG-VC). 서명 원본이 없는 시드 데이터는 `no_signed_original`로 제외됩니다.
 - **포트폴리오 (VC_ONLY):** `POST /api/v1/portfolios` — 자격증명 ID와 `source: "VC_ONLY"`만 받고, 자유 텍스트 필드가 있으면 422. 다시 검증을 통과한 자격증명만 본문에 들어갑니다. 지금은 템플릿 작성기이고, AI 연동 시 작성기만 바꿉니다. 제목·희망 직무는 본문 머리말에 한 줄로 들어가므로 앞뒤 공백·줄바꿈은 잘라 내고, 안쪽에 줄바꿈·탭 같은 제어 문자나 U+2028·U+2029가 있으면 422(`must be a single line without control characters`)입니다(생성·`PATCH` 모두). 이 검사가 생기기 전에 만든 포트폴리오 중 제목·희망 직무나 사용자 이름에 줄바꿈 같은 제어 문자가 있던 것은 `PATCH`로 제목·희망 직무를 바꿔도 예전 본문(끼어든 줄 포함)이 남으므로 지우고 다시 만듭니다(새로 만든 DB에는 해당 없음).
+  - 포트폴리오는 사용자마다 100개까지입니다. 이미 100개면 검증기를 부르지 않고 409 `Portfolio limit reached.`로 답합니다(동시 요청도 사용자별 advisory lock으로 넘지 못함. 지우면 다시 만들 수 있음). 목록(`GET /api/v1/portfolios`)은 최근에 고친 것부터 200개까지 요약만 돌려줍니다.
 - **선택 공개:** `POST /api/v1/shares`로 고른 자격증명만 공유 링크를 만들고(토큰은 한 번만 표시, DB에는 해시만), 기업은 `GET /api/v1/public/shares/{token}`으로 로그인 없이 봅니다. 열 때 다시 검증하고, 기업이 직접 검증할 수 있게 서명 원본도 함께 줍니다.
+  - 유효한(철회·만료되지 않은) 링크는 사용자마다 100개까지입니다. 이미 100개면 409 `Share link limit reached. Revoke unused links first.`이고, 철회하거나 만료되면 다시 만들 수 있습니다. 목록(`GET /api/v1/shares`)은 최근에 만든 것부터 200개까지이며, 200개를 넘으면 유효한 링크를 먼저 골라 아직 열리는 링크가 목록에서 빠지지 않게 합니다. 철회·만료된 링크의 행은 지우지 않습니다.
   - 로그인 없는 조회라 검증기 호출 양을 묶습니다: 같은 서명 원본은 BE 프로세스(태스크)마다 60초 동안 검증기에 다시 묻지 않고 그때 응답을 다시 씁니다(`credentials[].verified_at`이 실제로 검증한 시각이라 최대 60초 전일 수 있고, 폐기가 링크에 최대 60초 늦게 보임. 만료는 매번 지금 시각으로 판단). 검증기 오류는 담지 않아 다음 조회에서 다시 묻습니다.
+  - 다른 조회가 같은 서명 원본을 지금 검증기에 묻고 있으면(응답 전) 다시 부르지 않고 그 응답을 함께 기다립니다. 같은 링크를 동시에 여러 번 열어도 검증기 호출은 원본마다 한 번이고, 먼저 묻던 조회가 실패하거나 끊기면 기다리던 조회도 그 자격증명을 `unverifiable`로 보여 줍니다. 기다리는 시간은 `DXWORKS_TIMEOUT_SECONDS`의 4배(어댑터의 호출 한 번 상한: 자리 대기 2배 + 교환 2배)까지이고, 넘으면 같은 `unverifiable`입니다.
   - 새로 부르는 검증기 호출은 태스크마다 분당 300번까지입니다(토큰 버킷, `app/services/public_view_gate.py`의 상수라 환경변수는 없음). 모자라면 검증기를 부르지 않고 503 `Share verification is busy. Try again later.` + `Retry-After`(초)로 답하고, BE 로그에 `Public share view rejected` 경고를 남깁니다. 자격증명 50개짜리 링크도 한 번에 50번이라 보통 사용에서는 닿지 않습니다.
   - 조회 결과는 학생 지갑(DB 사본)의 `status`·`raw_data`·검증 기록에 저장하지 않습니다(열람 수 `view_count`·`last_viewed_at`만 올라감). 지갑 상태는 학생 본인의 재검증·근거 조회·포트폴리오 생성·직무 비교·`/verify` 때 갱신됩니다.
   - 링크 토큰은 아직 URL 경로(`/api/v1/public/shares/<token>`)에 들어갑니다. BE 접근 로그에서는 가리지만 CloudFront·ALB 접근 로그(켰다면)와 브라우저 기록에는 남습니다(토큰을 경로에서 빼는 변경은 하지 않음).
 - **발급·검증 오류 응답:** DXWorks 오류는 502 `{"detail": "Credential service error", "code": "PROVIDER_ERROR"}`, 설정 누락·사용 불가(`DXWORKS_API_HOST`·`DXWORKS_API_KEY`·`DXWORKS_BADGE_TEMPLATE_ID`)는 503 `{"detail": "Credential service is not configured", "code": "PROVIDER_NOT_CONFIGURED"}`만 돌려줍니다. 협력사 오류 코드·메시지와 빠진 설정 이름은 BE 로그 `Provider error: … (upstream=…)` 한 줄에만 남습니다(줄바꿈 등 제어 문자는 공백, 300자까지).
-- **DXWorks 접속:** `DXWORKS_API_HOST`는 `https://` 주소여야 합니다. `http://`는 `localhost`·`127.0.0.1`·`[::1]`(로컬 테스트 서버)만 허용하고, 그 밖(스킴 없음 포함)이면 아무것도 보내지 않고 503 `PROVIDER_NOT_CONFIGURED`입니다(근거 조회·공유 링크 보기에서는 그 자격증명이 `unverifiable`). DXWorks 호출은 `HTTP_PROXY`·`HTTPS_PROXY`·`ALL_PROXY`·`NO_PROXY`·macOS 시스템 프록시와 `SSL_CERT_FILE`·`SSL_CERT_DIR`을 쓰지 않고, 리디렉션을 따라가지 않습니다. 2xx 응답만 결과로 읽습니다. 3xx(본문과 관계없이)와, 2xx인데 본문을 해석할 수 없는 응답(JSON이 아니거나 JSON 객체가 아니거나 너무 깊게 중첩됨)은 오류입니다: 배지·신원 검증(`POST /api/v1/verify`), 재검증, 모의 발급은 502이고, 근거 조회·공유 링크 보기·포트폴리오 생성·직무 비교에서는 장애로 보지 않고 그 자격증명만 `verifier_error`(`unverifiable`)로 처리합니다. 5xx·408·429는 본문과 관계없이 아래 "검증기(DXWorks) 장애"입니다.
-- **검증기(DXWorks) 장애:** 결과를 저장하는 포트폴리오 생성과 직무 비교(`POST /api/v1/career-analyses`)는 재검증 중 검증기 장애가 하나라도 나면 아무것도 저장하지 않고 503(설정 누락)·502(연결 실패·시간 초과·5xx·408·429 등)로 답합니다. 특정 자격증명만 거절(그 밖의 4xx)되면 그 자격증명만 빼고 진행합니다. 근거 조회와 공개 링크 보기는 예전처럼 그 자격증명을 `unverifiable`(`verifier_error`)로 표시합니다.
+- **DXWorks 접속:** `DXWORKS_API_HOST`는 `https://` 주소여야 합니다. `http://`는 `localhost`·`127.0.0.1`·`[::1]`(로컬 테스트 서버)만 허용합니다. 넣은 값이 이 규칙에 맞지 않거나(스킴 없음 포함) 사용자 정보·쿼리·프래그먼트·공백이 있거나 포트가 1~65535 밖이면 서버가 시작하지 않고, 비워 두면 아무것도 보내지 않고 503 `PROVIDER_NOT_CONFIGURED`입니다(근거 조회·공유 링크 보기에서는 그 자격증명이 `unverifiable`). DXWorks 호출은 `HTTP_PROXY`·`HTTPS_PROXY`·`ALL_PROXY`·`NO_PROXY`·macOS 시스템 프록시와 `SSL_CERT_FILE`·`SSL_CERT_DIR`을 쓰지 않고, 리디렉션을 따라가지 않습니다. 2xx 응답만 결과로 읽습니다. 3xx(본문과 관계없이)와, 2xx인데 결과로 쓸 수 없는 응답(JSON이 아니거나 JSON 객체가 아니거나 너무 깊게 중첩됨, NaN·Infinity·범위를 넘는 숫자, 배지 검증 응답의 `valid`가 참·거짓이 아님)은 오류입니다: 배지·신원 검증(`POST /api/v1/verify`)과 모의 발급은 502입니다. 판정이 아닌 응답을 거절(`invalid`)로 읽어 저장된 `verified`를 덮어쓰지 않으려는 것입니다. 재검증(하나)·근거 조회·공유 링크 보기·포트폴리오 생성·직무 비교에서는 형식이 틀린 2xx와 특정 서명 원본에 대한 거절(400·404·422 등)을 그 자격증명만의 문제로 보고 `verifier_error`(`unverifiable`)로 처리하고(재검증은 200 `success: false`), 3xx를 포함한 그 밖의 실패는 아래 "검증기(DXWorks) 장애"입니다.
+- **DXWorks 응답 한도:**
+  - 압축: `Accept-Encoding: identity`로 압축하지 않은 응답을 요청합니다. 그래도 `Content-Encoding`이 `gzip`·`x-gzip`·`deflate` 하나인 응답은 BE가 직접 풀되, 전송된 바이트와 풀어낸 바이트를 각각 1 MiB까지만 받습니다(`app/integrations/capped_body.py`. 작은 압축 본문이 수백 MiB로 풀리지 않게 남은 상한만큼만 풂). 풀 수 없거나 중간에 끊긴 압축 본문은 JSON이 아닌 응답으로 처리합니다. 그 밖의 값(`br`·`zstd`, `gzip, gzip`처럼 겹친 압축, 모르는 이름)은 본문을 읽지 않고 오류로 끝냅니다(로그 `DXWorks가 요청하지 않은 압축 응답을 반환했습니다`).
+  - 크기·시간: 본문은 1 MiB까지만 읽습니다(선언된 `Content-Length`가 넘으면 읽지 않음). 교환(연결·전송·본문 수신)은 `DXWORKS_TIMEOUT_SECONDS`의 2배를 넘지 못합니다. 연결 자체가 안 된 경우에만 한 번 다시 시도하는데, 두 시도가 이 상한 하나를 함께 쓰므로 남은 시간에 시도 한 번(`DXWORKS_TIMEOUT_SECONDS`)이 온전히 들어갈 때만 다시 합니다(바로 거절된 연결·DNS 실패는 다시 하고, 연결 시간 초과까지 간 실패는 다시 하지 않음). 그 전에 동시 호출 자리(아래 16개)를 기다리는 시간도 2배까지이므로, 호출 한 번은 최악의 경우 자리 대기 2배 + 교환 2배만큼 걸립니다(기본 15초면 60초).
+  - 이 한도에 걸린 호출은 검증기 오류입니다: 배지 검증(`/verify`)과 모의 발급은 502이고, 재검증·근거 조회 등에서는 시간 초과·연결 실패면 검증기 장애로, 2xx 응답의 압축·크기 문제면 그 자격증명의 `verifier_error`로 처리합니다. 로그는 `Provider error: DXWorks가 요청하지 않은 압축 응답을 반환했습니다`·`DXWorks 응답 본문이 너무 큽니다`·`DXWorks 연결 실패: 전체 제한 시간 초과`입니다. 주소를 만들거나 연결을 시작하는 단계에서 httpx 오류가 아닌 예외가 나도 500이 아니라 다른 연결 실패와 같은 502입니다(그런 예외를 내던 범위 밖의 포트는 서버가 시작할 때 먼저 거부).
+  - 실제 협력사 서버의 응답(압축 여부, 발급 토큰의 형식)은 아직 확인하지 못했으므로 첫 스테이징 연결에서 확인합니다(루트 README "배포 후 확인").
+  - 로그에 남기기 전에 가리는 것: 협력사 오류 문구에 우리가 보낸 API 키·서명 원본·VP·홀더 DID가 되돌아와 있으면 `[redacted]`로 바꿉니다(앞 16자 이상이 같은 잘린 값 포함). 보낸 값과 글자가 같지 않은 것도 모양으로 한 번 더 가립니다: `did:<method>:<id>`(대소문자 무시), `eyJ`로 시작하는 JWT 모양 문자열, 32자 이상 이어진 base64url 문자열 가운데 숫자가 하나라도 든 것(토큰에서 꺼낸 DID나 페이로드 조각을 되돌려 준 경우. 키·서명·해시가 여기에 걸림). 협력사가 문구에 넣은 UUID·추적 ID·요청 ID도 이 모양(숫자가 섞인 32자 이상)이면 함께 가려지므로, 그런 ID는 로그에 남지 않습니다(`[redacted]`로 보임). 글자와 `_`·`-`로만 된 값은 길어도 그대로 둡니다: 오류 코드·슬러그(`CREDENTIAL_STATUS_LIST_VERIFICATION_FAILED`, `issuer_did_document_resolution_timeout_exceeded` 등)를 운영자가 읽을 수 있게 하기 위해서입니다. 그래서 협력사가 되돌려 준 조각이 보낸 값과 글자가 다르고(가운데만 자른 것, 대소문자를 바꾼 것 등) 숫자가 하나도 없으면 가려지지 않고 로그에 남을 수 있습니다(보낸 값 그대로이거나 앞 16자 이상이 같은 값은 숫자와 관계없이 항상 가림). 협력사의 오류 코드와 문구에 같은 규칙을 씁니다.
+- **DXWorks 호출 양 제한 (로그인 사용자·서비스 키, `app/services/verifier_budget.py`):** 가입은 누구나 할 수 있으므로, 계정 하나가 회사 이름(IP·API 키)으로 협력사에 대량 호출을 보내지 못하게 부르기 전에 묶습니다.
+  - 대상: `POST /api/v1/verify`(1번), 재검증(1번), 근거 조회·포트폴리오 생성·직무 비교(대상 자격증명 중 서명 원본이 있는 수만큼). 필요한 몫을 호출 전에 한꺼번에 가져가고, 모자라면 검증기를 한 번도 부르지 않고 429 `{"detail": "Too many verification requests. Try again later."}` + `Retry-After`(초)로 답합니다(아무것도 저장하지 않음).
+  - 한도(토큰 버킷, 코드의 상수라 환경변수 없음): 호출자마다 분당 120번과 시간당 1,200번(사용자 id별. 서비스 키는 `service` 하나를 함께 씀), 프로세스 전체로 분당 600번. 세 몫이 모두 있어야 받고, 하나라도 모자라면 아무것도 가져가지 않습니다. `Retry-After`는 모자란 몫들이 다시 찰 때까지의 시간 가운데 가장 긴 값입니다(그동안 다른 요청이 몫을 쓰지 않았다면 그만큼 기다린 뒤 같은 요청이 받아들여짐). 한 요청이 버킷 크기보다 많이 필요해도(자격증명이 아주 많은 사용자) 몫이 가득 차 있으면 받아 주고 잔액을 음수로 두어 다음 요청이 그만큼 늦어집니다.
+  - 시간당 한도는 계정 하나가 분당 한도를 끝없이 채워 쓰지 못하게 하려는 것입니다. 가득 찬 시간 몫(1,200번)을 분당 120번씩 쓰면 12분쯤에 바닥나고, 그 뒤로는 분당 20번(1,200 ÷ 60)만 부를 수 있습니다. 그래서 프로세스 몫(분당 600번)을 계속 비워 두려면 계정이 6개가 아니라 30개쯤 필요합니다(처음 10여 분은 6개로도 가능). 시간당 1,200번은 몫이 다시 차는 속도이므로, 가득 찬 몫으로 시작하는 계정(새로 가입했거나 한 시간쯤 쉰 계정)의 첫 한 시간은 1,200 + 1,200번까지입니다. 새로 가입한 계정도 저마다 가득 찬 몫을 가져오고 BE는 가입 수를 제한하지 않으므로, 가입 경로의 IP별 WAF 규칙(루트 README "AWS 배포 체크리스트")도 이 보호의 일부입니다. 자격증명 50개인 사용자가 포트폴리오 생성·직무 비교·근거 조회·일괄 재검증을 한 번씩 해도 200번이라 보통 사용에는 닿지 않습니다.
+  - 배지 검증(`POST /api/v1/verify`의 `type: badge`)에는 한도가 하나 더 있습니다(거절 창): 검증기까지 가서 그 토큰이 거절된 요청은 호출자마다 10분에 10번까지입니다(코드의 상수). 모양만 맞춘 쓰레기 토큰을 분당 한도만큼 협력사로 흘려보내지 못하게 하려는 것입니다.
+    - 창이 차면 호출 몫을 쓰지 않고 검증기도 부르지 않은 채 같은 429 + `Retry-After`(가장 오래된 기록이 창을 벗어날 때까지의 초)로 답하고, 감사 로그에는 `event=verifier_budget_denied … route=verify_rejected`로 남습니다.
+    - 창에 남는 요청(그 토큰이 거절된 것): 저장하지 않는 `success: false`(해석할 수 없는 원본, 수신자를 알 수 없는 배지, 검증기가 발급자 서명·신뢰를 확인하지 못한 토큰), 그 토큰 하나에 대한 검증기 오류(502), 다른 DID에 발급된 배지(403), 다른 사용자가 등록한 배지(409). 검증기에 묻는 동안 끊기거나 검증기 오류가 아닌 예외로 끝난 요청도 남습니다(답을 모르는 요청: 요청을 끊는 것으로 창을 피하지 못하게).
+    - 남지 않는 요청: 통과한 검증, 저장된 배지(폐기·만료 상태로 저장돼 `success: false`여도 이 사용자의 진짜 배지), 검증기 장애(502/503), 호출 몫 부족(429), 검증기를 부르기 전에 끝난 요청(모양 검사에 걸린 토큰 포함), 검증기가 답한 뒤 BE 쪽 문제로 끝난 요청(DB가 바빠 503, 그 밖의 서버 오류 500, 저장 단계에서 끊긴 요청). 예: DB가 바쁜 동안 유효한 배지 검증이 503으로 12번 끝나도 그다음 검증은 받습니다.
+    - 부르기 전에 자리를 잡고 요청이 끝날 때 위 규칙대로 돌려주므로 동시에 몰아 보내도 넘지 못합니다(한 계정이 거절될 토큰 100개를 동시에 보내면 검증기에는 10번만 감). 같은 이유로 한 계정의 배지 검증이 동시에 10개 넘게 진행 중이면 11번째부터는 통과할 토큰이어도 429입니다(FE는 한 번에 하나씩 보냄). 통과하는 검증은 연달아 몇 번을 해도 창에 남지 않습니다.
+  - 검증기로 보내기 전에 `token`의 모양을 봅니다(`/verify`만. 저장된 서명 원본의 재검증에는 적용하지 않음). 서명·내용은 보지 않습니다(검증기가 맡음).
+    - compact JWS: ASCII뿐이고, 점으로 나뉜 비어 있지 않은 base64url 조각이 정확히 셋이어야 합니다. 조각 끝의 base64 패딩 `=`는 조각마다 둘까지 받습니다.
+    - 머리말(첫 조각): UTF-8 JSON 객체이고 같은 키가 두 번 나오지 않아야 하며, `alg`가 `[A-Za-z0-9_-]` 1~32자의 문자열이고 `none`(대소문자 무시)이 아니어야 합니다.
+    - SD-JWT(`<jws>~<disclosure>~…~[<kb-jwt>]`)도 받습니다: 첫 부분이 위 규칙을 지키고, 공개 항목(disclosure)은 비어 있지 않은 base64url 문자열(패딩 없음)이며, 마지막 `~` 뒤는 비어 있거나 조각 셋의 키 바인딩 JWT여야 합니다.
+    - 받지 않는 예: ASCII가 아닌 문자, 안쪽의 공백·줄바꿈, `+`·`/`가 든 조각, 조각이 셋이 아닌 값, `=`가 셋 이상이거나 조각 가운데 있는 값, 마지막 `~`가 없는 SD-JWT, 빈 공개 항목(`~~`), UTF-16·UTF-32로 쓴 머리말, `alg`가 없거나 문자열이 아니거나 공백 등 다른 문자가 섞인 값.
+    - 걸리면 검증기를 부르지 않고(호출 몫도 쓰지 않음) 배지는 200 `success: false`·`Badge verification failed.`, 신원은 422 `Invalid token format`입니다. 배지는 감사 로그에 `event=verify_shape_refused user=<사용자 UUID>` 한 줄이 남습니다(토큰·길이 없음). 실제 DXWorks가 발급한 토큰이 이 검사를 통과하는지는 실제 서버로 확인하지 못했으므로 서비스를 열기 전에 한 번 확인합니다(루트 README "배포 후 확인").
+  - 동시에 협력사로 나가는 요청은 프로세스마다 16개까지입니다(배지 검증·VP 검증·발급 공통). 자리를 `DXWORKS_TIMEOUT_SECONDS`의 2배까지 기다리고, 그래도 없으면 보내지 않고 502입니다(로그 `DXWorks 호출 대기 시간 초과 (동시 호출 상한)`). 요청 하나 안에서는 자격증명을 5개씩 동시에 재검증합니다.
+  - 기업용 조회(공유 링크)는 이 한도가 아니라 위의 자기 한도(분당 300번, 503)를 쓰고 두 번 세지 않습니다. 모의 발급은 아래 Step 1의 발급 한도를 씁니다.
+  - 이 한도들은 모두 프로세스(ECS 태스크) 메모리에 있어 태스크마다 따로 세고 재시작하면 지워지며, 클라이언트 IP로는 나누지 않습니다. IP별 제한은 AWS WAF 속도 기반 규칙이 맡습니다(루트 README "AWS 배포 체크리스트"). 검증기를 부른 요청과 한도로 거절한 요청은 감사 로그(`vc-be.audit`)에 남습니다.
+- **검증기(DXWorks) 장애:** 설정 누락, 응답 없는 실패(연결 실패·시간 초과 등), 5xx, 408, 429, 401, 403, 모든 3xx를 장애로 봅니다(401·403·3xx는 서명 원본 하나에 대한 답이 아니라 API 키·IP 차단, 옮겨진 주소처럼 우리 호출 전체가 거절된 상태). 결과를 저장하는 포트폴리오 생성과 직무 비교(`POST /api/v1/career-analyses`)는 재검증 중 검증기 장애가 하나라도 나면 아무것도 저장하지 않고 503(설정 누락)·502(그 밖)로 답합니다. 서명 원본이 둘 이상인데 하나도 빠짐없이 검증기 오류로 끝난 경우도 장애로 보고 502입니다(협력사가 호출을 통째로 거절하는 상태를 "검증된 자격증명 없음"으로 저장하지 않음). 특정 자격증명만 거절(400·404·422 등)되면 그 자격증명만 빼고 진행합니다. 근거 조회와 공개 링크 보기는 예전처럼 그 자격증명을 `unverifiable`(`verifier_error`)로 표시합니다. 어느 API든 장애가 한 번 확인되면 그 요청에서 아직 시작하지 않은 자격증명은 검증기를 부르지 않고 같은 사유(`verifier_error`)로 처리합니다.
 - 자세한 요청·응답은 `openapi.yaml` 참고.
 
 ### 🧭 직무 비교 · 커리큘럼 (v0.7.0, AI 서비스 연동)
@@ -209,7 +310,7 @@ sequenceDiagram
 ```
 
 - **AI는 VC 서명 원본을 받지 않습니다.** 검증 판단은 기존 DXWorks 어댑터(`app/integrations/dxworks.py`)와 `app/domain/credential.py`가 그대로 하고, 통과한 자격증명의 본문만 AI로 보냅니다.
-- **공고·학습자료 반입 (연구자):** `.env`의 `RESEARCHER_USER_IDS`에 사용자 UUID를 넣은 계정만 `POST /api/v1/research/job-postings`, `POST /api/v1/research/learning-resources`를 쓸 수 있습니다.
+- **공고·학습자료 반입 (연구자):** `.env`의 `RESEARCHER_USER_IDS`에 사용자 UUID를 넣은 계정만 `POST /api/v1/research/job-postings`, `POST /api/v1/research/learning-resources`를 쓸 수 있습니다(미리보기 `POST /api/v1/research/job-postings/preview`도 같음). 연구자인지는 본문 형식 검사보다 먼저 확인하므로, 연구자가 아닌 계정은 본문이 틀려도 422가 아니라 403 `Researcher permission required`입니다.
   반입 응답에는 저장한 버전 전체가 나가지만, 사용자 조회 응답(`GET /api/v1/job-postings/{posting_id}`, `GET /api/v1/learning-resources`, 커리큘럼 `steps[].resource`)에서는 반입한 연구자 ID(`reviewed_by`)와 `review_note`·`rights_basis`·`raw_text`를 뺍니다(저장된 버전·내용 해시·AI 계약은 그대로).
   요구사항마다 원문 인용과 위치(start/end)가 필요하고, AI가 "또는" 조건 보존 등 주석 규칙을 검사합니다. `dataset_kind=real`이고 수집 7일 이내인 공고만 비교에 쓰입니다(이용 허가된 공고만 반입하세요).
   원문·인용이 NFKC 정규화로 원래 길이의 2배 + 64자를 넘게 늘어나면(예: U+FDFA 같은 호환 문자) 미리보기·반입이 422 `TEXT_EXPANDS_TOO_MUCH_WHEN_NORMALIZED`이고 저장하지 않습니다. 이미 저장된 버전이 이 규칙에 걸리면 그 공고·자료를 쓰는 비교·검색·커리큘럼이 409(`Job source integrity check failed`·`Learning source integrity check failed`)이므로 고쳐서 다시 반입합니다.
@@ -218,6 +319,8 @@ sequenceDiagram
 - **AI 연결 설정:** `.env`의 `AI_SERVICE_TOKEN`(32바이트 이상, `JWT_SECRET`·`HOLDER_KEY_ENCRYPTION_KEY`·`SERVICE_API_KEY`·`DXWORKS_API_KEY`와 다른 값)을 정하면 `docker compose up --build`가 BE·AI 컨테이너에 같은 값을 넣고 BE는 `http://ai:8100`으로 접속합니다.
   BE를 로컬에서 실행하면 기본 `AI_SERVICE_URL=http://127.0.0.1:8100`입니다. AI가 꺼져 있으면 이 API들만 503이고 나머지 기능은 그대로 동작합니다.
   AI 연동 오류 응답에는 `detail`(그대로) 외에 기계용 `code`가 붙고(예: `AI_SERVICE_UNAVAILABLE`, `AI_CONTRACT_MISMATCH`, 목록은 `openapi.yaml`의 `ErrorResponse`), BE 로그(`vc-be`)에는 오류마다 `AI service error: method=… path=… status=… code=… upstream=…` 경고가 한 줄 남습니다(본문·토큰 제외).
+  직무 비교는 AI 설정이 없거나 없는 공고를 가리키는 요청을 DXWorks 호출 전에 끝냅니다. 자격증명을 재검증하기 전에 차례로 확인하고 걸리면 거기서 끝납니다(DXWorks 호출 0번): AI 설정(`AI_SERVICE_URL`·`AI_SERVICE_TOKEN`)이 없으면 503 `AI_SERVICE_NOT_CONFIGURED`, `target_posting_id`의 공고가 없으면 404 `Job posting not found`. AI 묶음 요청 자리(아래)는 재검증을 마친 뒤, 공고 묶음을 읽기 전에 잡아 AI의 비교 호출이 끝날 때까지 쥡니다. 자리를 쥔 채 DXWorks를 기다리면 협력사가 느리거나 멈춘 동안 직무 비교 몇 건이 자리를 모두 잡아 공고 목록·학습자료 검색·커리큘럼까지 503이 되기 때문입니다. 그 대신 자리를 얻지 못해 503 `AI_SERVICE_BUSY`로 끝난 직무 비교는 그 요청의 DXWorks 호출을 이미 쓴 뒤입니다(그 양은 호출자별 검증기 호출 몫에 묶임).
+- **AI 동시 호출 상한 (`AI_MAX_CONCURRENCY`, 기본 4):** 검토된 공고·학습자료 전체를 실어 보내는 요청(공고 목록 `GET /api/v1/job-postings`, 직무 비교 `POST /api/v1/career-analyses`, 학습자료 검색 `GET /api/v1/learning-resources`, 커리큘럼의 계획 컨텍스트 단계 `POST /api/v1/curricula`)은 BE 프로세스마다 동시에 이 수까지만 AI로 보냅니다. 자리가 10초 안에 나지 않으면 AI를 부르지 않고 503 `{"detail": "AI service is busy. Try again later.", "code": "AI_SERVICE_BUSY"}` + `Retry-After: 5`로 답합니다. 네 API 모두 공고·학습자료 묶음을 DB에서 읽기 전에 자리를 먼저 잡으므로, 자리를 기다리는 요청은 묶음을 메모리에 올려 두지 않습니다. 자리를 쥔 채로는 DXWorks를 부르지 않습니다(직무 비교는 재검증을 마친 뒤에 자리를 잡음). 커리큘럼 생성 단계(LLM은 최대 90초)와 기술 카탈로그·반입 검사·미리보기 호출, 시장 통계 배치는 이 상한에 들어가지 않습니다. 상한은 프로세스 전체에 하나라 사용자별로 나누지 않습니다.
 - **공유 형식:** `app/ai_contract/`는 `ai/src/career/contracts/`의 바이트 단위 사본입니다. 직접 고치지 말고 `ai/`에서 `python scripts/sync_contract_to_be.py`로 갱신합니다(CI가 차이를 검사). 계약이 바뀌면 BE와 AI를 함께 배포합니다(계약 ID가 다르면 이 API들이 502).
 - **저장:** 08 마이그레이션의 `job_postings`·`job_posting_versions`·`learning_resources`·`learning_resource_versions`·`career_analyses`·`curricula`. 공고·자료는 버전을 덮어쓰지 않고, 분석에는 사용한 재검증 스냅샷을 함께 저장합니다. 모델 원문 출력은 저장하지 않습니다.
 - **학습자료 선수 조건 점검 (이번 업데이트 1회, 연구자가 학습자료를 반입한 DB만):** AI가 선수 조건 인용에 "either"·"중 한 가지"가 있어도 '하나만 고르는 조건'으로 보고 거절합니다. 이런 인용이 든 최신 학습자료 버전이 이미 저장돼 있으면 새 AI에서 커리큘럼 생성 등이 409 `LEARNING_SOURCE_INVALID`로 실패하므로, 새 AI를 배포하기 전에 아래 읽기 전용 조회로 확인합니다. 결과가 있으면 그 자료를 선수 조건 주석 없이(`prerequisite_annotations: []`, `prerequisites_reviewed: true`) 같은 `source`·`external_id`로 다시 반입합니다("neither"는 잘못 걸린 것이니 무시). 새로 만든 DB·시드만 있는 DB는 해당 없습니다.
@@ -228,6 +331,22 @@ sequenceDiagram
   CROSS JOIN LATERAL jsonb_array_elements(v.payload->'resource'->'prerequisite_annotations') a
   WHERE lower(normalize(a->>'quote', NFKC)) ~ '(either|중[[:space:]]*한[[:space:]]*가지)';
   ```
+- **결합 문자 점검 (이번 업데이트 1회, 연구자가 공고·학습자료를 반입한 DB만):** 새 AI는 텍스트를 정규화하기 전에 결합 문자(악센트처럼 앞 글자에 붙는 문자)가 30개 넘게 이어진 구간을 30개에서 자릅니다. 실제 문장에는 없는 형태지만, 그런 구간이 든 원문·인용이 이미 저장돼 있으면 잘린 뒤의 기술 판정이 반입 때와 달라질 수 있고, 그러면 그 버전이 재검사에 걸려 그 공고가 들어가는 공고 목록·직무 비교가 통째로 409 `Job source integrity check failed`(학습자료는 `Learning source integrity check failed`)가 됩니다. 새 AI를 배포하기 전에 저장소를 받은 PC에서 아래를 한 번 실행합니다(`BE/`에서. `DB_*` 환경변수나 `BE/.env`의 DB에 접속해 읽기만 함). 아무것도 나오지 않으면 할 일이 없고, 나온 버전(표 이름과 버전 ID)이 그 공고·자료의 최신 버전이면 원문을 고쳐 같은 `source`·`external_id`로 다시 반입합니다.
+  ```bash
+  PYTHONPATH=../ai python - <<'EOF'
+  import json
+  from dotenv import load_dotenv
+  load_dotenv(".env")
+  from app.services.database import get_db_connection
+  from src.career.skill_catalog import _LONG_COMBINING_RUN
+  with get_db_connection() as conn, conn.cursor() as cur:
+      for table in ("job_posting_versions", "learning_resource_versions"):
+          cur.execute(f"SELECT id, payload FROM {table}")
+          for row in cur:
+              if _LONG_COMBINING_RUN.search(json.dumps(row["payload"], ensure_ascii=False)):
+                  print(table, row["id"])
+  EOF
+  ```
 
 ### 📊 직무별 채용 시장 통계 (공고 수집 → AI 집계)
 
@@ -236,47 +355,68 @@ sequenceDiagram
 프런트엔드 개발자(`frontend_developer`), 인프라 개발자(`infra_engineer`) 5개입니다.
 
 * **흐름:** 배치가 공개 공고 상세 페이지를 읽어 `market_postings`에 저장 → 직무별 공고 묶음을 AI 서비스(`POST /v1/market/snapshots`)에 보내 통계 계산 → BE가 직무·건수·해시를 다시 확인하고 `market_snapshots`에 저장 → `GET /api/v1/market/snapshots`·`/api/v1/market/snapshots/{role_id}`(로그인 필요)로 조회. FE는 직무 비교 화면 위쪽에 "직무별 요구 역량 통계" 카드로 보여 줍니다.
-* **배치 명령** (`BE/`에서, DB_*·AI_SERVICE_URL·AI_SERVICE_TOKEN 필요):
+* **배치 명령** (`BE/`에서 실행):
   ```bash
   python -m app.jobs.market collect --role backend_developer --ids-file ids.txt   # 공고 번호(쉼표·줄바꿈 구분) 수집
   python -m app.jobs.market snapshot                # 공고가 있는 모든 직무의 통계 계산·저장
   python -m app.jobs.market export --out ../ai/data/market_snapshots   # 직무별 최신 통계를 JSON으로 (원문 없음)
   python -m app.jobs.market import --dir ../ai/data/market_snapshots   # 수집 없이 통계만 넣기 (다른 DB·팀원 환경)
   ```
-* **수집 원칙** (`app/integrations/job_sources.py`): 지금 출처는 점핏 공개 공고 상세 페이지 하나입니다. robots.txt가 막지 않는 페이지만, 정해 둔 호스트의 HTTPS 주소로, 1.5초 간격으로 읽고 403·429를 받으면 멈춥니다. 목록·검색 API는 부르지 않으므로 **공고 번호는 사람이 공개 목록 화면에서 모아 넘깁니다.** 24시간 안에 수집한 공고는 다시 요청하지 않습니다. 저장하는 것은 통계에 필요한 구간(기술스택·주요업무·자격요건·우대사항)과 회사·제목·경력·마감일뿐이고, 이메일·전화번호는 가립니다.
+  - **환경변수:** 모든 명령이 앱과 같은 `DB_*`로 접속하고 `BE/.env`가 있으면 읽습니다(이미 있는 환경변수가 우선). `collect`·`export`·`import`는 `DB_*`만 있으면 됩니다. `snapshot`은 AI 서비스 클라이언트가 앱 설정을 거치므로 `AI_SERVICE_URL`·`AI_SERVICE_TOKEN`도 필요하고, `APP_ENV=production`이면 서버와 같은 운영 비밀값(`JWT_SECRET`·`HOLDER_KEY_ENCRYPTION_KEY` 등)이 있어야 시작합니다. 로그 수준은 서버처럼 `LOG_LEVEL`을 따릅니다(비우면 INFO. `WARNING` 이상이면 결과 줄 `가져온 통계: …`·`수집 결과 …`가 나오지 않음). DB는 앱과 같은 접근자를 쓰므로 문장 15초·잠금 5초 제한을 받습니다.
+  - **종료 코드:** 0은 성공입니다. 1은 아무 일도 하지 못한 경우로 `실패: <이유>` 한 줄이 남습니다(traceback 없음, 500자까지): `import`할 폴더가 없거나 `*.json`이 없음, `collect`가 출처에 막혔거나(403·429) 한 건도 읽지 못함, `snapshot`으로 통계를 만든 직무가 없음, DB 접속·쿼리 실패, AI 서비스 오류, 설정 오류. 2는 명령 인자나 `LOG_LEVEL` 값이 틀린 경우입니다(argparse의 사용법과 오류 한 줄만 남기고 아무것도 하지 않음. 예: `LOG_LEVEL=verbose`).
+  - **`import`가 받지 않는 파일:** 형식이 틀리거나 해시를 다시 계산한 값이 파일의 `content_hash`와 다른 파일, 기준 시각(`as_of`)이 지금보다 5분 넘게 미래인 파일(최신 통계는 `as_of`가 가장 늦은 행이라, 먼 미래 값이 들어가면 그 뒤의 통계가 보이지 않음), 직무·기술 이름·버전·출처 이름이 80자를 넘거나 경고가 20개 또는 각 200자를 넘는 파일, 건수(표본 수·중복 수·회사 수, 기술·기술 쌍마다의 공고 수)가 음수이거나 DB 정수 범위(2,147,483,647)를 넘는 파일. 폴더의 파일을 모두 검사한 뒤 넣으므로 이 검사에서 하나라도 걸리면 아무것도 넣지 않습니다. "모두 아니면 전무"는 이 검사까지입니다: 검사를 통과한 뒤의 저장은 파일마다 따로 커밋하므로, 저장하는 중에 DB 오류(접속 끊김 등)가 나면 그 앞의 파일은 이미 들어가 있습니다(다시 실행하면 이미 들어간 같은 내용은 건너뜀). 해시는 열쇠 없는 SHA-256이라 실수로 깨진 파일만 걸러 냅니다(파일을 고친 사람은 해시도 다시 계산할 수 있음). 로그의 `가져온 통계: {'backend_developer': True, …}`에서 `False`는 같은 내용이 이미 있어 넣지 않은 직무입니다.
+  - **조회:** 저장된 통계가 형식·해시 검사를 통과하지 못하면 조회 API가 409 `Market snapshot integrity check failed`이고 로그에 직무와 행 ID가 남습니다. 목록은 이 빌드가 아는 5개 직무의 행만 읽습니다.
+* **수집 원칙** (`app/integrations/job_sources.py`): 지금 출처는 점핏 공개 공고 상세 페이지(`/position/<번호>`) 하나입니다. **이 코드는 robots.txt를 읽거나 따져 보지 않습니다.** 이 주소 형태 하나를 어댑터를 만들 때 사람이 출처의 robots.txt와 대조해 확인했을 뿐이므로, 수집을 돌리기 전마다 사람이 다시 확인해야 합니다. 요청은 정해 둔 호스트의 HTTPS 주소로만 보내고(주소는 숫자 공고 번호로만 만들고 리디렉션은 따라가지 않음), 1.5초 간격(최소 1초)으로 읽으며, 403·429를 받으면 바로 멈춥니다. 압축하지 않은 응답을 청하고, 한 건을 읽는 전체 시간(30초, 데이터를 받을 때마다 확인)과 크기(1.5MB)에 상한을 둡니다(넘으면 그 공고만 건너뜀). 그래도 `gzip`·`x-gzip`·`deflate`로 온 응답은 전송된 크기와 풀어낸 크기를 각각 1.5MB까지만 받으며 직접 풀고(DXWorks 어댑터와 같은 `capped_body.py`), 그 밖의 압축 방식(`br`·`zstd`, 겹친 압축 등)이나 풀 수 없는 본문은 그 공고만 건너뜁니다. 30초 상한은 본문 데이터가 올 때만 재므로, 응답 머리말을 아주 천천히 보내는 서버에는 이 상한이 걸리지 않습니다(읽기 한 번마다의 15초 제한만 걸림). 목록·검색 API는 부르지 않으므로 **공고 번호는 사람이 공개 목록 화면에서 모아 넘깁니다.** 24시간 안에 수집한 공고는 다시 요청하지 않습니다. 저장하는 것은 통계에 필요한 구간(기술스택·주요업무·자격요건·우대사항)과 회사·제목·경력·마감일뿐이고, 이메일·전화번호는 구간뿐 아니라 제목·회사·기술스택 항목에서도 가립니다.
+  - 가리기 전에 글을 고릅니다(저장되는 글도 그렇게 고른 글): NFKC로 바꿔 전각 숫자·`＠` 표기를 잡고, 줄표(U+2010~U+2015, U+2212. 예: `010–1234–5678`)는 `-`로 바꾸고, 보이지 않는 서식 문자(유니코드 Cf: 폭 없는 공백 등)는 뺍니다.
+  - 가리는 전화번호 표기: `0`으로 시작하는 지역·휴대·안심 번호(`02`, `010`, `0507`), `+82`, 괄호 지역번호, 구분자 양옆 공백(`010 - 1234 - 5678`), 구분자 없이 빈칸 한두 칸(`010  1234  5678`). `0`으로 시작하는 국번은 두세 자리(`02`, `031`, `010`, `070`)와 네 자리 안심번호 `050N`(`0507-1234-5678`, `0504-123-4567`)만 받습니다. `0`으로 시작하는 네 자리를 모두 받으면 연락처가 아닌 번호(`과제 0678 2023 2024`, `문서번호 0549-2027-5578`, `교대 0830 0430 1200`)까지 가리기 때문입니다.
+  - 번호는 두 줄에 걸쳐 잡지 않고, 줄 맨 앞의 목록 번호(`03. `, `03) `)는 지역번호로 보지 않습니다. 날짜·목록 표기(`04.2025 - 2021`, `03. 2025 2025 수상`)를 번호로 가리지 않기 위해서입니다.
+  - 가리지 않는 것: 대표번호(`1588-…`), `(at)`로 풀어 쓴 주소, `/`·`_`·`~`로 나눈 번호, 빈칸 세 칸 이상으로 띄운 번호, `@` 앞이 한글인 주소. 위 규칙 때문에 다음 연락처 표기도 가리지 않습니다: 점 뒤에 빈칸을 두면서 다른 구분자와 섞어 쓴 번호(`010. 1234 5678`, `02. 123 4567`, `010. 1234-5678`, `010- 1234.5678`, `010 - 1234 . 5678`), 줄 맨 앞에서 `02)`·`02.`와 빈칸으로 시작하는 번호(`02) 2263 7017`, `02) 22637017`, `02. 2263. 7017`. 목록 번호로 봄. 줄 맨 앞이어도 `02) 2263-7017`처럼 하이픈으로 이은 번호는 가림), 두 줄에 걸친 번호(`010-1234-`에서 줄이 바뀐 것).
 * **권리:** 수집 원문은 `rights_basis=research_authorization`(연구 목적)으로 DB에만 두고 API·저장소에 내보내지 않습니다. 저장소에는 집계 결과(`ai/data/market_snapshots/*.json`)만 둡니다. 서비스로 공개하기 전에는 출처 약관을 확인하거나 공식 API(고용24 등)로 바꿔야 합니다.
 * **통계 식** (`ai/src/market/statistics.py`): 공고 하나에서 한 기술은 한 번만 세고 가장 강한 자리를 그 공고의 수준으로 삼습니다(자격요건 1.0 > 기술스택 0.7 > 우대사항 0.5 > 업무 언급 0.3). 중요도는 이 가중치를 회사당 공고 가중 합 3 이하로 줄여 평균한 값입니다. 언급률에는 Wilson 95% 구간이 붙고, 표본이 30건 미만이면 `SMALL_SAMPLE_STATISTICS_ARE_INDICATIVE_ONLY` 경고가 붙습니다.
 * **개인정보보호 전문가**는 출처에 딱 맞는 분류가 없어 정보보안 분류·"개인정보" 검색 결과 가운데 제목이 개인정보·컴플라이언스 직무이거나 업무·자격요건이 개인정보를 두 번 이상 다루는 공고만 남깁니다(`app/jobs/market.py`의 `ROLE_FILTERS`).
 
 ### 🔐 인증 (JWT)
 - 회원가입/로그인 응답의 `access_token`을 이후 요청에 `Authorization: Bearer <access_token>` 헤더로 보냅니다.
-- **인증은 항상 켜져 있습니다(전환 기간 없음):** 토큰도 서비스 키도 없는 요청은 `APP_ENV`와 관계없이 `401 Authentication required`(`WWW-Authenticate: Bearer`)입니다. `Bearer`가 아닌 `Authorization`(예: Basic)도 토큰 없음으로 봅니다. 토큰 없이 부를 수 있는 것은 회원가입·로그인·`/health`·기업용 공유 링크 조회(`GET /api/v1/public/shares/{token}`)와 API 문서(`/docs`·`/redoc`·`/openapi.json`)뿐입니다. 예전 `AUTH_REQUIRED` 설정은 없어졌고, `.env`에 `AUTH_REQUIRED=false`가 남아 있어도 인증은 꺼지지 않습니다(시작 로그에 경고만 남김).
+- **인증은 항상 켜져 있습니다(전환 기간 없음):** 토큰도 서비스 키도 없는 요청은 `APP_ENV`와 관계없이 `401 Authentication required`(`WWW-Authenticate: Bearer`)입니다. `Bearer`가 아닌 `Authorization`(예: Basic)도 토큰 없음으로 봅니다. 토큰 없이 부를 수 있는 것은 회원가입·로그인·Google 로그인(`/api/v1/users/oauth/google/*`)·`/health`·기업용 공유 링크 조회(`GET /api/v1/public/shares/{token}`)와, `APP_ENV=development`에서만 제공하는 API 문서(`/docs`·`/redoc`·`/openapi.json`)뿐입니다. 예전 `AUTH_REQUIRED` 설정은 없어졌고, `.env`에 `AUTH_REQUIRED=false`가 남아 있어도 인증은 꺼지지 않습니다(시작 로그에 경고만 남김).
 - 로그인 사용자는 **본인 DID의 데이터만** 조회·검증·발급할 수 있습니다 (남의 DID면 403).
 - (선택·현재 미사용) `SERVICE_API_KEY`를 정하면 `X-Service-Key: <SERVICE_API_KEY>` 헤더로 **모든 DID**의 `careers`·`evidence`를 읽을 수 있습니다(`POST /api/v1/verify`는 403, 그 밖의 API는 401). 저장소의 AI 서비스는 BE를 호출하지 않으므로(BE→AI 단방향) 지금은 쓰는 곳이 없습니다. 필요한 내부 서비스가 생기기 전에는 비워 두세요(비우면 이 헤더는 401). `APP_ENV=production`에서 넣으면 32바이트 이상의 새 임의 값이어야 하고 `JWT_SECRET`·`HOLDER_KEY_ENCRYPTION_KEY`·`AI_SERVICE_TOKEN`·`DXWORKS_API_KEY`와도 달라야 합니다(같으면 시작하지 않음).
 - **로그아웃:** `POST /api/v1/users/logout`(사용자 토큰 필요, 204, 본문 없음)은 그 계정에 발급한 토큰을 **모두** 무효로 만듭니다(다른 탭·브라우저·기기 포함, 이후 `401 Invalid token`). 다시 쓰려면 새로 로그인합니다. 토큰의 `ver` 클레임을 `users.token_version`(마이그레이션 09)과 비교하므로 사용자 토큰 요청마다 DB 조회가 한 번 더 있습니다. `ver`가 없는 예전 토큰은 0으로 봐서 배포 때 로그인 상태가 유지됩니다. 계정이 없어진 토큰(DB 초기화 등)도 `401 Invalid token`입니다(예전에는 `/users/me`·`careers`가 404).
-- **로그인 실패 제한:** 같은 이메일(앞뒤 공백·대소문자 무시)로 15분 안에 10번 실패하면, 가장 오래된 실패가 15분을 지날 때까지 그 이메일의 로그인은 비밀번호가 맞아도 `429 Too many attempts. Try again later.`(`Retry-After` 헤더, 초, 최대 900)이고 비밀번호를 확인하지 않습니다. 로그인에 성공하면 다시 셉니다. 가입하지 않은 이메일도 똑같이 세므로 429로 가입 여부가 드러나지 않고, 형식 오류(422)는 세지 않습니다. DB 오류로 계정을 조회하지 못한 시도(500 `Internal server error`)는 실패로 셉니다. 기록은 BE 프로세스(ECS 태스크)마다 메모리에만 있어 재시작하면 지워집니다. IP별 제한은 없으므로 운영에서는 AWS WAF 속도 기반 규칙을 둡니다(루트 README "AWS 배포 체크리스트").
+- **로그인 실패 제한:** 같은 이메일(앞뒤 공백·대소문자 무시)로 15분 안에 10번 실패하면, 가장 오래된 실패가 15분을 지날 때까지 그 이메일의 로그인은 비밀번호가 맞아도 `429 Too many attempts. Try again later.`(`Retry-After` 헤더, 초, 최대 900)이고 비밀번호를 확인하지 않습니다. 로그인에 성공하면 다시 셉니다. 가입하지 않은 이메일도 똑같이 세므로 429로 가입 여부가 드러나지 않고, 형식 오류(422)는 세지 않습니다. DB가 바빠 계정을 조회하지 못하고 503 `Service is busy. Try again later.`로 답한 시도(연결 자리를 얻지 못함, 문장·잠금 시간 제한)는 세지 않습니다: 비밀번호를 확인한 적이 없고 응답이 잠시 뒤 다시 하라고 안내하므로, 세면 안내대로 다시 시도한 사용자가 맞는 비밀번호로도 15분 동안 잠깁니다. 시도는 계정을 조회하기 전에 기록하고 답할 때 위 규칙대로 돌려주므로, 처리 중인 시도도 답이 나갈 때까지는 실패로 셉니다: DB가 바빠 응답이 늦는 동안 같은 이메일로 동시에 들어온 11번째부터의 로그인은 잠긴 것이 없어도 429입니다(먼저 온 시도들이 503으로 끝나면 풀림). 그 밖의 DB 오류로 조회하지 못한 시도(500 `Internal server error`)는 실패로 셉니다. 기록은 BE 프로세스(ECS 태스크)마다 메모리에만 있어 재시작하면 지워집니다. IP별 제한은 없으므로 운영에서는 AWS WAF 속도 기반 규칙을 둡니다(루트 README "AWS 배포 체크리스트"). 잠긴 이메일에 온 시도마다 감사 로그 `event=login_locked key=<접은 이메일 SHA-256의 앞 12자리> retry_after=<초>`가 한 줄 남습니다(이메일 원문 없음. 아래 예외 동작으로 401을 돌려준 경우 포함). Google로만 가입한 계정(비밀번호 없음)의 이메일도 똑같이 세고, 비밀번호 로그인은 늘 같은 401입니다.
   - 이메일은 DB 조회(`lower(email)`)처럼 앞뒤 공백을 떼고 글자마다 소문자로 접어서 셉니다(PostgreSQL 기본(libc) 정렬의 `lower()`와 같게 `İ`(U+0130) → `i`, 어말을 포함한 모든 `Σ` → `σ`). 그래서 DB가 같은 이메일로 보는 표기(예: `kİm@…`와 `kim@…`. 이런 글자는 API를 직접 부를 때만 쓸 수 있고 FE 입력 검사는 받지 않음)는 같은 기록을 씁니다: 표기를 섞어 실패해도 함께 세고, 잠기면 가입 여부와 관계없이 어느 표기든 429(`Retry-After`)이며, 그 표기로 로그인에 성공하면 기록이 지워집니다.
   - Compose·CI의 DB 이미지(`pgvector/pgvector:0.8.7-pg16-bookworm`, glibc 2.36)의 `lower()`는 모든 글자를 이 기록의 키와 똑같이 접는 것을 확인했습니다.
   - 예외(DB 정렬이 이와 다르게 접을 때만, 예: ICU 정렬, 또는 BE 파이썬(3.11, 유니코드 14)보다 새 유니코드 대소문자 표를 쓰는 libc): DB가 다른 기록을 쓰는 표기로 계정을 찾으면 그 표기대로 따로 세고(로그인에 성공해도 그 표기의 기록은 지우지 않음) 찾은 계정의 이메일로도 셉니다. 그 계정이 잠겼으면 429 대신 같은 `401 Invalid email or password`입니다(비밀번호는 확인하지 않고 `Retry-After`도 없음). 이런 표기로 실패하면 가입된 이메일일 때만 계정 이메일에도 세므로, 섞어 보내면 429로 가입 여부가 드러날 수 있습니다(가입 API의 400으로도 알 수 있는 정보).
-- **bcrypt:** 가입·로그인의 bcrypt는 BE 프로세스마다 최대 4개까지만 동시에 돌아(전용 제한기) 로그인·가입이 몰려도 다른 API와 `/health`가 밀리지 않습니다. 없는 이메일·비밀번호 없는 사용자와 72바이트를 넘는 비밀번호도 같은 비용의 bcrypt 비교를 한 번 하므로, 응답 시간으로 가입 여부를 구분할 수 없습니다. DB 오류로 계정 조회가 실패한 로그인도 같은 bcrypt 비교를 한 번 한 뒤 500으로 답합니다(비용 없는 요청을 몰아 보내 잠긴 실패 기록을 밀어내지 못하게).
+- **bcrypt:** 가입·로그인의 bcrypt는 BE 프로세스마다 최대 4개까지만 동시에 돌아(전용 제한기) 로그인·가입이 몰려도 다른 API와 `/health`가 밀리지 않습니다. 없는 이메일·비밀번호 없는 사용자와 72바이트를 넘는 비밀번호도 같은 비용의 bcrypt 비교를 한 번 하므로, 응답 시간으로 가입 여부를 구분할 수 없습니다. DB 오류로 계정 조회가 실패한 로그인도 같은 bcrypt 비교를 한 번 한 뒤 그 오류대로(500, DB가 바쁜 경우는 503) 답합니다(비용 없는 요청을 몰아 보내 잠긴 실패 기록을 밀어내지 못하게).
 - `JWT_SECRET`은 32바이트 이상의 임의 문자열로 설정하세요. 비우면(`APP_ENV=development`에서만) 프로세스마다 임시 키를 만들어 서버가 재시작될 때마다 기존 토큰이 무효가 되고, `APP_ENV=production`(Docker 이미지 기본값)에서는 서버가 시작하지 않습니다(`tests/`의 테스트 값·자리표시 값도 거부). 서버가 여러 개(ECS 태스크·uvicorn 워커)면 모두 같은 값을 써야 서로의 토큰을 받아들입니다.
 - `JWT_EXPIRES_MINUTES`(토큰 수명, 분, 기본 1440)는 1~1440 정수만 받습니다(그 밖이면 서버가 시작하지 않음).
 
 ### 🌐 Google OAuth 2.0 소셜 로그인
 - **키 설정 (`BE/.env`, 비공개):** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`은 공개 저장소(Git, 이슈, PR)에 올리지 말고 팀 내부 비공개 채널로 전달받아 `BE/.env`에만 입력하세요. 설정 변경 후에는 `docker compose up -d`로 `backend` 컨테이너를 다시 올려야 반영됩니다.
-  - 미설정 시 OAuth 엔드포인트는 `503`을 반환합니다.
-  - 기본 콜백 URI는 `GOOGLE_REDIRECT_URI=http://localhost:5173/auth/google/callback`이며, 추가 콜백 URI를 허용하려면 `GOOGLE_ALLOWED_REDIRECT_URIS`에 콤마로 구분해 넣습니다.
+  - `GOOGLE_CLIENT_ID`·`GOOGLE_CLIENT_SECRET` 중 하나라도 비어 있으면 OAuth 엔드포인트는 503 `{"detail": "Google OAuth is not configured", "code": "PROVIDER_NOT_CONFIGURED"}`입니다(다른 기능은 그대로).
+  - 기본 콜백 URI는 `GOOGLE_REDIRECT_URI=http://localhost:5173/auth/google/callback`이며(변수가 없을 때 이 값을 대신 쓰는 것은 `development`뿐), 추가 콜백 URI를 허용하려면 `GOOGLE_ALLOWED_REDIRECT_URIS`에 콤마로 구분해 넣습니다. 요청의 `redirect_uri`가 이 목록에 없으면 400 `Invalid redirect_uri`입니다.
+  - `GOOGLE_OAUTH_TIMEOUT_SECONDS`(기본 10)는 1~120만 받습니다.
+- **운영(`APP_ENV=production`):** Google 로그인을 켜려면 ID·시크릿을 함께 넣고 `GOOGLE_REDIRECT_URI`에 FE의 `https://` 콜백 주소(`https://<FE 도메인>/auth/google/callback`)를 명시합니다(쓰지 않으면 둘 다 비움). 하나만 넣었거나, 콜백 주소가 비었거나, 허용 목록에 `https://`가 아닌 주소가 있거나, `GOOGLE_CLIENT_SECRET`이 다른 비밀값과 같으면 시작하지 않습니다(위 "`APP_ENV`"). 운영용 Google 클라이언트 설정은 루트 README "AWS 배포 체크리스트".
 - **Google Cloud Console 설정:**
   - 승인된 JavaScript 원본: `http://localhost:5173`
-  - 승인된 리디렉션 URI: `http://localhost:5173/auth/google/callback` (BE 단독 테스트 시 `http://localhost:3000/api/v1/users/oauth/google/callback` 추가)
+  - 승인된 리디렉션 URI: `http://localhost:5173/auth/google/callback` (BE 단독 테스트 시 `http://localhost:3000/api/v1/users/oauth/google/callback`을 추가하고 `GOOGLE_ALLOWED_REDIRECT_URIS`에도 넣음)
   - OAuth 동의 화면이 `테스트(Testing)` 상태일 때는 로그인 테스트할 팀원 Gmail 계정을 **테스트 사용자(Test users)** 에 등록해야 합니다.
+- **계정 규칙** (Google이 인증한 이메일(`email_verified=true`)만 받습니다. 아니면 400 `OAuth email is not verified`):
+  - 이 Google 계정(`sub`)이 이미 연동된 계정이 있으면 그 계정으로 로그인합니다(Google 쪽 이메일이 바뀌어도 같은 계정이고 `users.email`은 바꾸지 않음).
+  - 같은 이메일의 계정이 없으면 비밀번호 없는 계정으로 가입시키고 관리형 `did:key`(마스터 키가 없으면 임시 DID)를 발급합니다.
+  - 같은 이메일(대소문자 무시)의 기존 계정에 **비밀번호가 있으면 Google 로그인을 그 계정에 붙이지 않고** 409 `{"detail": "This email is registered with a password. Log in with your email and password."}`로 답합니다. 가입은 이메일 소유를 확인하지 않으므로, 남의 주소로 먼저 가입해 둔 계정에 그 주소의 주인이 Google로 들어가는 것(그 계정의 비밀번호와 세션은 먼저 가입한 사람 것)을 막기 위해서입니다. 이 계정은 이메일과 비밀번호로 로그인하며, 비밀번호 계정에 Google 로그인을 나중에 붙이는 기능은 없습니다(이 규칙 이전에 연동된 계정은 그대로 두 방법 모두 로그인됨).
+  - 비밀번호 없는 기존 계정에는 연동합니다. 그 계정에 이미 다른 Google 계정이 연동되어 있으면 409 `User is already linked to another account for this provider`입니다. 같은 Google 계정의 로그인이 동시에 들어와(예: 두 탭) 한쪽이 먼저 연동을 마친 경우는 다른 계정이 아니므로 409가 아니라 그 계정의 로그인으로 처리합니다.
+- **입력 한도와 호출 제한:**
+  - `code`·`state`·`redirect_uri`는 2,048자까지이고 `code_verifier`는 RFC 7636 형식(`[A-Za-z0-9._~-]` 43~128자. 비어 있으면 없는 것으로 봄)이어야 합니다. 아니면 Google로 보내지 않고 422입니다. `authorize`의 `code_challenge`는 S256 값(base64url 43자)이 아니면 400 `Invalid code_challenge`입니다. 콜백 `POST` 본문은 16 KiB까지입니다.
+  - `state`(BE가 서명한 토큰, 10분 유효)의 서명·만료와 `redirect_uri` 일치를 확인한 요청만 Google 토큰 엔드포인트로 갑니다. 그 호출은 BE 프로세스(태스크)마다 분당 300번까지이고(모든 사용자가 함께 쓰는 한도, 코드의 상수) 넘으면 Google을 부르지 않고 429 `Too many attempts. Try again later.` + `Retry-After`이며, 거절한 콜백마다 감사 로그 `event=oauth_exchange_denied retry_after=<초>`가 한 줄 남습니다. IP별 제한은 AWS WAF가 맡습니다.
+  - Google 호출은 프록시 환경변수·`SSL_CERT_FILE`을 쓰지 않고 리디렉션을 따라가지 않으며 2xx만 결과로 읽습니다. Google 쪽 실패(연결 실패·시간 초과, 2xx가 아닌 응답, 해석할 수 없는 본문, `sub`·`email`이 문자열이 아니거나 255자를 넘거나 한 줄이 아님)는 502 `{"detail": "Google OAuth error", "code": "PROVIDER_ERROR"}`이고 원인은 로그 `Provider error` 줄에만 남습니다. 만료됐거나 이미 쓴 인가 코드는 400 `Invalid or expired OAuth authorization code`입니다. Google 프로필 이름은 한 줄로 정리해 저장합니다(제어 문자·줄 구분자는 공백으로, 100자까지. 쓸 이름이 없으면 이메일의 `@` 앞부분).
+  - `GET /api/v1/users/oauth/google/callback`은 BE 단독 테스트용이라 `APP_ENV=production`에서는 404입니다(`code`·`state`가 URL에 실려 접근 로그에 남는 경로. BE 접근 로그는 이 쿼리를 `[redacted]`로 가림).
+  - 로그인 결과마다 감사 로그 `event=oauth_login outcome=created|linked|login|refused_password_account user=<사용자 UUID>`가 남습니다(위 "로그").
 - **FE 연동 흐름** (자세한 스펙은 `openapi.yaml` 참고, FE에는 Google 키를 넣지 않음):
-  1. 로그인 버튼 클릭 시 `GET /api/v1/users/oauth/google/authorize` 호출 → 응답의 `state`를 보관하고 `authorization_url`로 이동
-  2. Google 로그인 후 `/auth/google/callback?code=...&state=...`로 돌아오면 `state` 일치 확인 후 `POST /api/v1/users/oauth/google/callback`에 `{ code, state }` 전송
-  3. 응답은 기존 `POST /api/v1/users/login`과 동일한 `AuthResponse` (`data`, `access_token`) 형식이며, 신규 가입자는 관리형 `did:key`를 발급받고 기존 `email_verified=true` 이메일 계정은 자동 연동됩니다.
+  1. 로그인 버튼 클릭 시 `GET /api/v1/users/oauth/google/authorize` 호출(FE는 자기 콜백 주소 `redirect_uri`와 PKCE `code_challenge`(S256)를 함께 보냄) → 응답의 `state`를 보관하고 `authorization_url`로 이동
+  2. Google 로그인 후 `/auth/google/callback?code=...&state=...`로 돌아오면 `state` 일치 확인 후 `POST /api/v1/users/oauth/google/callback`에 `{ code, state, redirect_uri, code_verifier }` 전송
+  3. 응답은 기존 `POST /api/v1/users/login`과 동일한 `AuthResponse` (`data`, `access_token`) 형식입니다. `message`는 가입이면 `Google OAuth 회원가입 및 로그인 완료`, 연동이면 `기존 계정에 Google 계정 연동 및 로그인 성공`, 그 밖에는 `Google OAuth 로그인 성공`이며 FE가 `회원가입`·`연동` 포함 여부로 환영 안내를 고릅니다.
 
 ### 🧪 테스트
-DXWorks는 가짜 응답으로 대체하고, 실제 PostgreSQL(pgvector)에 테스트 전용 DB를 만들어 배포와 같은 마이그레이션 실행기(`app.migrate`, 시드 포함)로 스키마 → 시드 → 마이그레이션을 적용한 뒤 검증합니다. 개발 DB(`vc-postgres`)는 건드리지 않습니다.
+DXWorks·Google은 가짜 응답으로 대체하고(외부로 나가는 요청 없음), 실제 PostgreSQL에 테스트 전용 DB를 만들어 배포와 같은 마이그레이션 실행기(`app.migrate`, 시드 포함)로 스키마 → 시드 → 마이그레이션을 적용한 뒤 검증합니다. 개발 DB(`vc-postgres`)는 건드리지 않습니다. 앱은 DB 확장을 쓰지 않지만, 예전 버전이 `pgcrypto`·`vector`를 만들어 둔 DB의 업그레이드를 재현하는 마이그레이션 테스트가 두 확장을 만들므로 테스트 DB는 Compose와 같은 pgvector 이미지를 씁니다.
 ```bash
 # 테스트용 DB 컨테이너 (최초 1회, 포트 55432. 기본 비밀번호이므로 이 PC(127.0.0.1)에서만 연다)
 docker run -d --name vc-be-test -e POSTGRES_PASSWORD=password -p 127.0.0.1:55432:5432 pgvector/pgvector:0.8.7-pg16-bookworm
@@ -285,7 +425,7 @@ pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 `tests/test_career.py`는 같은 저장소의 AI 앱(`../ai`)을 프로세스 안에 띄워 실제 HTTP 형식으로 BE↔AI 연동(검증 → 비교 → 커리큘럼, 장애·잘못된 AI 응답 차단)을 검사합니다. AI 서버를 따로 띄울 필요는 없습니다.
-GitHub Actions(`tests.yml`의 `BE (pytest)`)에서도 PR마다 같은 테스트가 돕니다. `tests/test_ci_workflows.py`는 저장소의 `.github/` 워크플로 보안 규칙(읽기 전용 토큰, 커밋 SHA로 고정한 액션, `persist-credentials: false`, Strix 비밀값 범위, FE `dist` 검사 단계, Dependabot 설정)을 검사합니다(`.github/`가 없으면 건너뜀).
+GitHub Actions(`tests.yml`의 `BE (pytest)`)에서도 PR마다 같은 테스트가 돕니다. `tests.yml`의 job은 모두 `timeout-minutes: 20`이라, 테스트가 멈추면(예: DB 잠금을 끝없이 기다리는 회귀) GitHub 기본 제한(6시간)까지 도는 대신 20분에 실패로 끝납니다. `tests/test_ci_workflows.py`는 저장소의 `.github/` 워크플로 보안 규칙(읽기 전용 토큰, 커밋 SHA로 고정한 액션, `persist-credentials: false`, Strix 비밀값 범위, FE `dist` 검사 단계, Dependabot 설정)을 검사합니다(`.github/`가 없으면 건너뜀).
 
 
 ## 4. API 시나리오 및 Postman 연동 테스트
@@ -346,8 +486,19 @@ GitHub Actions(`tests.yml`의 `BE (pytest)`)에서도 PR마다 같은 테스트�
   ```bash
   curl -s -X POST http://localhost:3000/api/mock-issuer/issue -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"holderDid":"<Step 0의 DID>"}'
   ```
-- **결과:** DXWorks 발급 API를 찔러서 생성된 서명된 JWT 문자열이 리턴됩니다. (이 값을 변수로 저장하세요.) BE는 발급 기록(사용자·템플릿 ID·JWT의 SHA-256)만 `mock_issuances` 테이블에 남깁니다. 협력사가 발급한 뒤 해시 기록이 DB 오류로 실패해도 배지는 그대로 돌려주며, 그 기록은 해시 없이(`token_sha256` NULL) 한도에 남고 흔적은 BE 로그의 `Mock issuance token hash not recorded: issuance=<id> error=<예외 클래스>` 경고뿐입니다.
-- **제한:** 회사 API 키로 발급하므로 `holderDid`는 **로그인한 본인 DID**여야 하고(아니면 403 `Forbidden: can only issue to your own DID`), 사용자별 최근 24시간 `MOCK_ISSUER_DAILY_LIMIT`건(기본 10)까지 발급합니다(넘으면 협력사 API를 부르지 않고 429 `Mock issuance limit reached; try again later`, 실패한 발급은 세지 않음. 그 기록을 지우는 DB 작업까지 실패하면 502/503은 그대로 돌려주되 그 자리는 한도에 남음). `MOCK_ISSUER_ENABLED`를 비우면 `APP_ENV=development`에서만 켜지고, 꺼져 있으면 404 `Mock issuer is disabled`입니다. `templateId`를 비웠는데 `DXWORKS_BADGE_TEMPLATE_ID`도 없으면 503 `PROVIDER_NOT_CONFIGURED`입니다.
+- **결과:** DXWorks 발급 API를 찔러서 생성된 서명된 JWT 문자열이 리턴됩니다. (이 값을 변수로 저장하세요.) BE는 발급 기록(사용자·템플릿 ID·JWT의 SHA-256)만 `mock_issuances` 테이블에 남깁니다. 협력사가 발급한 뒤 해시 기록이 DB 오류로 실패해도 배지는 그대로 돌려주며, 그 기록은 해시 없이(`token_sha256` NULL) 남아 사용자별 한도에는 24시간, 전체 한도에는 진행 중 창(아래, 10분) 동안만 세고 흔적은 BE 로그의 `Mock issuance token hash not recorded: issuance=<id> error=<예외 클래스>` 경고뿐입니다.
+- **제한:** 회사 API 키로 발급하므로 `holderDid`는 **로그인한 본인 DID**여야 하고(아니면 403 `Forbidden: can only issue to your own DID`), 사용자별 최근 24시간 `MOCK_ISSUER_DAILY_LIMIT`건(기본 10), 모든 사용자를 합쳐 최근 24시간 `MOCK_ISSUER_GLOBAL_DAILY_LIMIT`건(기본 200)까지 발급합니다(넘으면 협력사 API를 부르지 않고 429. 발급 전에 DB에 자리를 잡으므로 동시 요청·여러 태스크에서도 넘지 않음).
+  - 429의 `detail`은 세 가지입니다. 사용자 자신의 한도(사용자별 발급 한도, 아래 사용자별 시도 한도)는 `Mock issuance limit reached; try again later`, 전체 한도(모든 사용자를 합친 발급 한도(DB), 그리고 아래 실패 차단기의 창이 진행 중인 요청만으로 찼을 때)는 `Mock issuance service limit reached; try again later.`(`Retry-After` 없음), 협력사 실패가 이어져 발급을 잠시 멈춘 동안(아래 실패 차단기. 창에 실패로 끝난 발급이 하나라도 있을 때만)은 `Mock issuance is paused after repeated failures. Try again shortly.` + `Retry-After`입니다. FE는 둘째 문구를 "전체 모의 발급 한도(24시간)에 도달했습니다…"로 보여 주어 발급을 적게 한 사용자가 자기 한도를 넘은 것으로 읽지 않게 하고, 셋째 문구는 "발급 서버 오류가 이어져 모의 발급을 잠시 멈췄습니다. 1분쯤 뒤에 다시 시도해주세요."로 보여 줍니다. 사용자별·전체 발급 한도가 함께 찼으면 첫째 문구입니다.
+  - 협력사가 거절·실패로 답했거나 요청이 닿지 않은 발급(5xx·4xx·3xx 응답, 연결 실패, 설정 누락)은 이 두 한도에 세지 않습니다(그 기록을 지우는 DB 작업까지 실패하면 502/503은 그대로 돌려주되 그 자리는 해시 없는 기록으로 남아 아래 결과를 모르는 실패와 같이 셈).
+  - 요청이 협력사에 닿았을 수 있는데 결과를 모르는 실패(응답 대기 중 시간 초과·끊김, `jwt`가 없거나 읽을 수 없는 2xx)는 배지가 이미 발급됐을 수 있으므로 자리를 지우지 않고 한도에 셉니다(502로 답하고 로그에 `Mock issuance outcome unknown; the reservation stays counted: issuance=<id>`). 해시가 없는 이 기록은 그 사용자의 한도에는 24시간 동안 세고(그 사용자의 하루 발급 하나를 씀), 전체 한도에는 아래 진행 중 창 동안만 셉니다.
+  - 전체 한도가 세는 것(`DatabaseService.reserve_mock_issuance`): 최근 24시간의 성공한 발급(해시가 기록된 것)과, 상태와 관계없이 최근 10분(진행 중 창, `app/services/database.py`의 `MOCK_ISSUANCE_PENDING_SECONDS`) 안에 만든 기록(아직 협력사를 부르는 중인 요청, 결과를 모르는 실패, 해시를 기록하지 못한 발급, 지우지 못한 실패 기록)입니다. 진행 중 창은 발급 요청 하나가 걸릴 수 있는 가장 긴 시간(동시 호출 자리 대기와 교환 각각 `DXWORKS_TIMEOUT_SECONDS`의 2배, 설정 상한 120초에서도 8분)보다 깁니다. 그래서 응답 대기 시간 초과로 이어진 장애가 전체 한도를 채워도 협력사가 돌아온 뒤 24시간을 기다리지 않고, 길어야 진행 중 창(10분)에 탐침 간격(1분)을 더한 만큼 지나면 다시 발급됩니다. 받아들인 결과: 해시를 기록하지 못한 배지와 결과를 모르는 실패는 진행 중 창이 지나면 전체 한도에 세지 않습니다. 결과를 모르는 실패의 양은 아래 실패 차단기와 사용자별 시도 한도가 묶고, 해시를 기록하지 못한 배지(협력사 발급 뒤 DB 기록 실패, 로그 `Mock issuance token hash not recorded`)는 차단기가 성공으로 보므로 사용자별 하루 발급 한도(`MOCK_ISSUER_DAILY_LIMIT`) × 계정 수만 묶습니다.
+  - 이와 별도로 협력사 호출을 시도한 요청은 실패해도 사용자별 24시간 `max(30, 3 × MOCK_ISSUER_DAILY_LIMIT)`번까지만 받습니다(기본 설정이면 30번. BE 프로세스마다 메모리에서 세고 재시작하면 지워짐. 넘으면 사용자 한도 문구의 429). 협력사가 실패하거나 우리를 제한하는 동안 한 계정이 회사 API 키로 끝없이 다시 부르지 못하게 하려는 것입니다. 성공한 발급도 시도로 세므로 한도를 발급 한도의 3배 이상으로 두어, `MOCK_ISSUER_DAILY_LIMIT`을 30보다 크게 올린 설정을 이 한도가 가리지 않습니다. DB 한도로 거절된 요청·DB 오류·설정 누락(503)은 이 시도 수에 세지 않습니다.
+  - 태스크 전체의 실패 차단기(`app/services/verifier_budget.py`의 `FailureBreaker`, BE 프로세스마다 메모리에 하나): 협력사 호출을 시도했는데 성공하지 못한 발급(협력사의 거절·5xx, 연결 실패, 결과를 모르는 실패)을 모든 사용자를 합쳐 24시간 동안 셉니다. 사용자별 시도 한도는 계정 수만큼 곱해지므로, 협력사가 실패하는 동안 여러 계정이 회사 API 키로 부르는 양을 합쳐서 묶습니다. 부르기 전에 자리를 잡고, 발급에 성공했거나 아무것도 보내지 않은 요청(DB 한도 거절, DB 오류, 설정 누락)만 자리를 돌려줍니다.
+    - 실패(와 진행 중인 요청의 자리)가 `MOCK_ISSUER_GLOBAL_DAILY_LIMIT`번(기본 200) 쌓이고 그 가운데 실패로 끝난 발급이 하나라도 있으면 발급을 멈춥니다. 멈춘 동안에는 60초에 한 건만 협력사로 보내 보고(탐침. 코드의 상수), 그 밖의 요청은 협력사를 부르지 않고 429 `Mock issuance is paused after repeated failures. Try again shortly.` + `Retry-After`(다음 탐침을 보낼 수 있을 때까지의 초, 1~60)로 답합니다(사용자별 시도로도 세지 않음).
+    - 자리는 협력사를 부르기 전에 잡으므로 창에는 진행 중인 요청도 듭니다. 창이 찼는데 실패로 끝난 발급이 하나도 없으면(한도만큼의 요청이 한꺼번에 진행 중: 한도를 작게 둔 시연에 몰린 요청 등) 멈춘 것이 아니므로 탐침도 보내지 않고 전체 한도 문구 `Mock issuance service limit reached; try again later.`(`Retry-After` 없음)로 답합니다(남은 몫을 진행 중인 요청들이 잡고 있음. 사용자별 시도로 세지 않음).
+    - 탐침이 성공하면 실패 기록을 모두 지워 바로 다시 엽니다: 협력사가 돌아오면 재시작이나 24시간을 기다리지 않고 모두가 다시 발급합니다(응답 대기 시간 초과로 이어진 장애였다면 결과를 모르는 실패가 전체 한도를 채우고 있어, 위 진행 중 창이 지날 때까지는 탐침도 DB 전체 한도에 막힘: 협력사가 돌아온 뒤 길어야 10분에 탐침 간격 1분쯤). 탐침이 실패하면 다음 탐침은 60초 뒤이고, DB 한도 거절·설정 누락처럼 협력사에 가지 못하고 끝난 탐침은 기회를 쓰지 않습니다(다음 요청이 탐침이 됨). 실패 기록은 24시간이 지나면 저절로 빠집니다.
+    - 그래서 협력사가 계속 실패하는 동안 프로세스 하나가 회사 API 키로 보내는 실패한 발급 요청은 한도만큼, 그 뒤로는 분당 한 번입니다(예: 협력사가 503으로 답하는 한 시간 동안 40개 계정이 계속 다시 시도해도 협력사로는 200 + 60번쯤만 나감). 탐침이 성공하면 실패 기록을 모두 지우므로, 분당 한 건쯤만 통과시키는 협력사(우리를 제한하는 경우)나 허용 템플릿 가운데 발급되는 것과 협력사가 거절하는 것을 번갈아 보내는 계정들 앞에서는 성공할 때마다 다시 한도만큼 실패를 받습니다. 그때 실패한 발급 요청의 양은 차단기가 아니라 사용자별 시도 한도(기본 하루 30번) × 계정 수가 묶고, 해시까지 기록된 성공한 발급은 DB 발급 한도가 그대로 묶습니다(루트 README "하지 않은 것").
+  - `MOCK_ISSUER_ENABLED`를 비우면 `APP_ENV=development`에서만 켜지고, 꺼져 있으면 404 `Mock issuer is disabled`입니다. `templateId`를 비웠는데 `DXWORKS_BADGE_TEMPLATE_ID`도 없으면 503 `PROVIDER_NOT_CONFIGURED`입니다.
 
 ### [Step 2] 발급받은 배지를 검증하고 DB에 저장하기
 - **Method:** `POST`
@@ -368,8 +519,9 @@ GitHub Actions(`tests.yml`의 `BE (pytest)`)에서도 PR마다 같은 테스트�
   - 폐기·만료된 배지는 서명과 발급자 신뢰가 확인된 경우에만 `status`(revoked/expired)와 함께 저장되며, 이때 응답은 `success: false`입니다.
   - 서명이나 발급자 신뢰를 확인하지 못한 배지(`invalid` 등)와 해석할 수 없는 토큰은 저장하지 않습니다(`success: false`, 메시지 `Badge verification failed.`, `record_id: null`). 위조 토큰이 남의 자격증명을 덮어쓰거나 자격증명 ID를 선점하지 못하게 하려는 것이라, 이때는 DB를 보지 않고 이미 저장된 레코드도 바꾸지 않습니다.
   - 저장할 배지의 수신자 DID(`credentialSubject.id`)가 토큰의 본인 DID여야 합니다(아니면 403 `Forbidden: credential was issued to a different DID`, 가입하지 않은 DID도 403). 예전처럼 임시 사용자를 자동으로 만들지 않습니다. 같은 자격증명이 이미 다른 사용자에게 있으면 409입니다.
-  - `token`은 256 KiB까지 받고, NUL이 있으면 검증기를 부르지 않고 422입니다.
-  - `type: "identity"`(FE는 쓰지 않음)는 결과만 돌려주며, 검증기가 알려 준 VP 홀더 DID가 토큰의 본인 DID와 같아야 합니다. 다르거나 홀더 DID가 없으면 403 `Forbidden: presentation holder is not you`이고 클레임을 돌려주지 않습니다.
+  - `token`은 256 KiB까지 받고, NUL이 있으면 검증기를 부르지 않고 422입니다. JWT(compact JWS) 모양이 아닌 값(점으로 나뉜 base64url 조각 셋이 아니거나 `alg`가 `none`인 값 등. 조각 끝의 `=` 패딩과 SD-JWT 형식은 받음)도 검증기를 부르지 않고 같은 `success: false`·`Badge verification failed.`·`record_id: null`로 답하고, 감사 로그에 `event=verify_shape_refused` 한 줄을 남깁니다(받는 모양은 위 "DXWorks 호출 양 제한").
+  - 검증기를 부르는 요청은 호출 몫 1을 씁니다. 몫이 모자라면(계정마다 분당 120번·시간당 1,200번, 프로세스 전체로 분당 600번) 검증기를 부르지 않고 429 `Too many verification requests. Try again later.` + `Retry-After`입니다. 검증기까지 가서 토큰이 거절된 배지 검증이 그 계정에서 10분에 10번을 넘어도 같은 429입니다(폐기·만료 상태로 저장된 배지는 세지 않음. 위 "DXWorks 호출 양 제한").
+  - `type: "identity"`(신원 VP 검증. FE는 쓰지 않음)는 **기본으로 꺼져 있습니다**: `IDENTITY_VERIFICATION_ENABLED=true`가 아니면 검증기를 부르지 않고 400 `Identity verification is disabled`입니다(사용자가 보낸 값에 회사 API 키를 붙여 DXWorks로 보내는 호출이라 쓰는 화면이 생기기 전에는 끔). 켜면 결과만 돌려주며, `token`이 JWT 모양이 아니면 422 `Invalid token format`, 검증기가 알려 준 VP 홀더 DID가 토큰의 본인 DID와 같아야 합니다. 다르거나 홀더 DID가 없으면 403 `Forbidden: presentation holder is not you`이고 클레임을 돌려주지 않습니다.
 
 ### [Step 3] 저장된 자격증명 목록 조회하기 (FE 대시보드·포트폴리오 빌더가 쓰는 API)
 - **Method:** `GET`

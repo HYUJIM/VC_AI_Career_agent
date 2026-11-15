@@ -56,6 +56,64 @@ def test_reverify_provider_error_is_502(client, register, fake_dx):
     assert client.post(f"/api/v1/credentials/{record_id}/reverify", headers=user["headers"]).status_code == 502
 
 
+@pytest.mark.parametrize("error,status,body", [
+    (ProviderError("DXWORKS_API_HOST가 설정되지 않았습니다", unavailable=True), 503,
+     {"detail": "Credential service is not configured", "code": "PROVIDER_NOT_CONFIGURED"}),
+    (ProviderError("DXWorks 연결 실패: ReadTimeout"), 502, None),
+    (ProviderError("DXWorks 오류 (500): boom", upstream_status=500), 502, None),
+    (ProviderError("DXWorks 오류 (429): slow down", upstream_status=429), 502, None),
+    (ProviderError("DXWorks 오류 (401): bad credentials", upstream_status=401), 502, None),
+    (ProviderError("DXWorks 오류 (302): Found", upstream_status=302), 502, None),
+], ids=["not-configured", "no-response", "500", "429", "401", "302"])
+def test_reverify_during_a_verifier_outage_stays_5xx(client, register, fake_dx, db, error, status, body):
+    # 검증기 장애는 지금처럼 502/503이다 (FE의 모아서 재검증은 여기서 멈춘다). 저장된 상태는 바뀌지 않는다.
+    user = register()
+    record_id, _ = store_badge(client, user)
+    fake_dx.error = error
+    res = client.post(f"/api/v1/credentials/{record_id}/reverify", headers=user["headers"])
+    assert res.status_code == status
+    assert res.json() == (body or {"detail": "Credential service error", "code": "PROVIDER_ERROR"})
+    row = db.execute("SELECT status FROM credentials WHERE record_id = %s", (record_id,)).fetchone()
+    assert row["status"] == "verified"
+
+
+@pytest.mark.parametrize("error", [
+    ProviderError("DXWorks 오류 (400): invalid", upstream_status=400),
+    ProviderError("DXWorks 오류 (404): not found", upstream_status=404),
+    ProviderError("DXWorks 오류 (422): bad token", upstream_status=422),
+    ProviderError("DXWorks 응답 형식이 올바르지 않습니다", upstream_status=200),
+], ids=["400", "404", "422", "2xx-format-error"])
+def test_reverify_of_a_credential_the_verifier_rejects_individually_is_a_result(client, register, fake_dx, db, caplog,
+                                                                                 error):
+    # 회귀: 검증기가 이 서명 원본 하나를 거절(400·404·422)하거나 형식이 틀린 2xx로 답하면 한 건 재검증만 502였다
+    # (근거 조회·포트폴리오는 그 자격증명만 제외). FE의 모아서 재검증은 5xx에서 멈추므로 그런 자격증명 하나가 매번 나머지를
+    # '실행 안 됨'으로 남겼다. 이제 같은 분류(unverifiable / verifier_error)의 정상 응답 본문으로 200이다.
+    user = register()
+    record_id, _ = store_badge(client, user)
+    stored = db.execute("SELECT status, last_verified_at FROM credentials WHERE record_id = %s",
+                        (record_id,)).fetchone()
+    fake_dx.error = error
+    res = client.post(f"/api/v1/credentials/{record_id}/reverify", headers=user["headers"])
+    assert res.status_code == 200
+    body = res.json()
+    assert set(body) == {"success", "message", "data"}
+    assert (body["success"], body["message"]) == (False, "Re-verification failed: verifier_error")
+    data = body["data"]
+    assert (data["record_id"], data["status"], data["verified"], data["verified_at"]) == (
+        record_id, "unverifiable", False, None)
+    assert data["checks"] == [{"name": "signature", "result": "skip", "detail": "검증기 호출 실패"}]
+    assert data["achievement_name"] == "테스트 수료 배지" and data["issuer_name"] == "예시대학교"
+    # 저장된 상태·검증 시각은 그대로다 ('검증 불가'는 저장하지 않는다). 실패는 운영 로그에 남는다.
+    assert db.execute("SELECT status, last_verified_at FROM credentials WHERE record_id = %s",
+                      (record_id,)).fetchone() == stored
+    assert any("Credential re-verification failed: record=" in r.getMessage() for r in caplog.records)
+    # 근거 조회와 같은 분류다.
+    assert evidence(client, user)["excluded"] == [
+        {"record_id": record_id, "status": "unverifiable", "reason": "verifier_error"}]
+    fake_dx.error = None
+    assert client.post(f"/api/v1/credentials/{record_id}/reverify", headers=user["headers"]).json()["success"] is True
+
+
 @pytest.mark.parametrize("error,outage", [
     (ProviderError("DXWORKS_API_HOST가 설정되지 않았습니다", unavailable=True), True),
     (ProviderError("DXWorks 연결 실패: ReadTimeout"), True),
@@ -63,14 +121,82 @@ def test_reverify_provider_error_is_502(client, register, fake_dx):
     (ProviderError("DXWorks 오류 (503): busy", upstream_status=503), True),
     (ProviderError("DXWorks 오류 (408): timeout", upstream_status=408), True),
     (ProviderError("DXWorks 오류 (429): slow down", upstream_status=429), True),
+    # 401·403·3xx는 서명 원본 하나에 대한 답이 아니다 (API 키·IP 차단, 차단 페이지, 옮겨진 주소).
+    (ProviderError("DXWorks 오류 (401): bad credentials", upstream_status=401), True),
+    (ProviderError("DXWorks 오류 (403): Forbidden", upstream_status=403), True),
+    (ProviderError("DXWorks 오류 (301): Moved Permanently", upstream_status=301), True),
+    (ProviderError("DXWorks 오류 (302): Found", upstream_status=302), True),
+    (ProviderError("DXWorks 오류 (399): ?", upstream_status=399), True),
     (ProviderError("DXWorks 오류 (400): invalid", upstream_status=400), False),
     (ProviderError("DXWorks 오류 (404): not found", upstream_status=404), False),
     (ProviderError("DXWorks 오류 (422): bad token", upstream_status=422), False),
+    (ProviderError("DXWorks 응답 형식이 올바르지 않습니다", upstream_status=200), False),
+    (ProviderError("DXWorks가 JSON이 아닌 응답을 반환했습니다", upstream_status=201), False),
 ])
 def test_verifier_outage_classification(error, outage):
     from app.services.reverify import is_verifier_outage
 
     assert is_verifier_outage(error) is outage
+
+
+@pytest.fixture
+def verifier_calls(fake_dx, monkeypatch):
+    """가짜 검증기에 들어온 배지 검증 호출을 세고, failing에 넣은 서명 원본에는 그 오류를 던진다."""
+    calls, failing = [], {}
+    original = fake_dx.verify_badge
+
+    async def verify(vc_jwt):
+        calls.append(vc_jwt)
+        if vc_jwt in failing:
+            raise failing[vc_jwt]
+        return await original(vc_jwt)
+
+    monkeypatch.setattr(fake_dx, "verify_badge", verify)
+    return calls, failing
+
+
+@pytest.mark.parametrize("status", [None, 500, 503, 429, 401, 403, 302])
+def test_fan_out_stops_calling_the_verifier_after_the_first_outage(client, register, fake_dx, verifier_calls, caplog,
+                                                                    status):
+    # 회귀: 검증기가 이미 장애·제한 중이어도 자격증명 수만큼 끝까지 불렀다 (협력사 부하를 N배로 키움).
+    # 이제 장애가 한 번 확인되면 아직 시작하지 않은 자격증명은 부르지 않고 같은 오류로 '검증 불가'가 된다.
+    calls, _ = verifier_calls
+    user = register()
+    record_ids = [store_badge(client, user)[0] for _ in range(8)]
+    calls.clear()
+    fake_dx.error = ProviderError("DXWorks 오류: outage", upstream_status=status)
+
+    body = evidence(client, user)
+    assert body["evidence"] == [] and len(body["excluded"]) == 8
+    assert {(e["status"], e["reason"]) for e in body["excluded"]} == {("unverifiable", "verifier_error")}
+    assert len(calls) == 1  # 가짜 검증기는 바로 실패하므로 첫 호출에서 장애가 확인된다
+    # 실제로 부른 자격증명만 실패 로그를 남긴다.
+    logs = [r.getMessage() for r in caplog.records if r.name == "app.services.reverify"]
+    assert len(logs) == 1 and "Credential re-verification failed: record=" in logs[0]
+
+    # 저장하는 API는 지금처럼 502로 끝나고 아무것도 만들지 않는다.
+    calls.clear()
+    assert create_portfolio(client, user, record_ids).status_code == 502 and len(calls) == 1
+    assert client.get("/api/v1/portfolios", headers=user["headers"]).json()["data"] == []
+    # 저장된 상태는 바뀌지 않는다 (검증 불가는 저장하지 않는다).
+    fake_dx.error = None
+    assert len(evidence(client, user)["evidence"]) == 8
+
+
+@pytest.mark.parametrize("status", [400, 404, 422])
+def test_per_credential_rejections_do_not_stop_the_fan_out(client, register, verifier_calls, status):
+    # 특정 서명 원본에 대한 400·404·422 거절은 장애가 아니다: 나머지는 지금처럼 모두 다시 검증한다.
+    calls, failing = verifier_calls
+    user = register()
+    stored = [store_badge(client, user) for _ in range(6)]
+    for _, token in stored[:2]:
+        failing[token] = ProviderError(f"DXWorks 오류 ({status}): rejected", upstream_status=status)
+    calls.clear()
+    body = evidence(client, user)
+    assert len(calls) == 6 and len(body["evidence"]) == 4
+    assert sorted(e["record_id"] for e in body["excluded"]) == sorted(record_id for record_id, _ in stored[:2])
+    created = create_portfolio(client, user, [record_id for record_id, _ in stored])
+    assert created.status_code == 201 and created.json()["data"]["credential_count"] == 4
 
 
 def test_evidence_and_share_stay_labeled_on_verifier_outage_and_log(client, register, fake_dx, caplog):
@@ -225,6 +351,41 @@ def test_portfolio_verifier_outage_is_5xx_not_422_and_saves_nothing(client, regi
     # 응답은 main.py의 일반 오류 본문이다 (내부 메시지·환경 변수 이름은 로그에만 남는다).
     assert res.status_code == status and res.json() == body and error.message not in res.text
     assert db.execute("SELECT count(*) AS n FROM portfolios WHERE user_id = %s", (user["id"],)).fetchone()["n"] == 0
+
+
+@pytest.mark.parametrize("status", [400, 404, 422, 200])
+def test_portfolio_when_every_selected_credential_fails_at_the_verifier(client, register, verifier_calls, db, status):
+    # 회귀: 협력사가 우리 호출을 통째로 거절하는 상태(차단·점검)가 4xx로 보이면 자격증명마다의 거절로 읽어
+    # 사용자 탓인 422(No verified credentials selected)로 답했다. 서명 원본이 둘 이상인데 하나도 빠짐없이 검증기 오류면
+    # 장애로 보고 502로 끝낸다. 하나뿐이면 지금처럼 그 자격증명의 거절이다.
+    calls, failing = verifier_calls
+    user = register()
+    stored = [store_badge(client, user) for _ in range(3)]
+    for _, token in stored:
+        failing[token] = ProviderError(f"DXWorks 오류 ({status}): rejected", upstream_status=status)
+
+    res = create_portfolio(client, user, [record_id for record_id, _ in stored])
+    assert res.status_code == 502 and res.json() == {"detail": "Credential service error", "code": "PROVIDER_ERROR"}
+    assert db.execute("SELECT count(*) AS n FROM portfolios WHERE user_id = %s", (user["id"],)).fetchone()["n"] == 0
+
+    one = create_portfolio(client, user, [stored[0][0]])
+    assert one.status_code == 422 and one.json() == {"detail": "No verified credentials selected"}
+    # 하나라도 검증기가 답했으면(통과든 폐기든) 장애가 아니다.
+    del failing[stored[2][1]]
+    mixed = create_portfolio(client, user, [record_id for record_id, _ in stored])
+    assert mixed.status_code == 201 and mixed.json()["data"]["referenced_record_ids"] == [stored[2][0]]
+    assert {e["reason"] for e in mixed.json()["data"]["excluded"]} == {"verifier_error"}
+
+
+def test_unsigned_rows_do_not_count_towards_the_all_failed_rule(client, register, verifier_calls, db):
+    # 서명 원본이 없는 자격증명(시드 데이터 등)은 검증기를 부르지 않으므로 '모두 실패' 판단에 넣지 않는다.
+    calls, failing = verifier_calls
+    user = register()
+    (signed_id, token), (unsigned_id, _) = store_badge(client, user), store_badge(client, user)
+    db.execute("UPDATE credentials SET raw_token = NULL WHERE record_id = %s", (unsigned_id,))
+    failing[token] = ProviderError("DXWorks 오류 (400): rejected", upstream_status=400)
+    res = create_portfolio(client, user, [signed_id, unsigned_id])
+    assert res.status_code == 422 and res.json() == {"detail": "No verified credentials selected"}
 
 
 def test_portfolio_with_someone_elses_credential_is_404(client, register):

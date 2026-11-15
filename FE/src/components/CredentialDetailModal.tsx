@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { reverifyCredential } from '@/api/credentials';
+import { isVerifierErrorResult, reverifyCredential } from '@/api/credentials';
 import { IssuerAvatar } from '@/components/IssuerAvatar';
 import { StatusBadge } from '@/components/StatusBadge';
 import { VerificationChecks } from '@/components/VerificationChecks';
@@ -27,7 +27,15 @@ export function CredentialDetailModal({ credential, onClose }: Props) {
   const queryClient = useQueryClient();
   // BE v0.6.0 실행 시점 재검증: 저장된 서명 원본을 지금 다시 검증하고 DB 상태도 갱신한다.
   const reverify = useMutation({
-    mutationFn: (recordId: string) => reverifyCredential(recordId),
+    mutationFn: async (recordId: string) => {
+      const res = await reverifyCredential(recordId);
+      // 200 이지만 재검증 응답이 아닌 본문(예: /api 요청이 SPA 의 index.html 로 넘어가는 배포 설정, 빈 객체)은 요청 오류로 처리한다
+      // (일괄 재검증과 같은 검사). 그대로 두면 아무 안내도 없이 끝나거나, 결과를 그리다 예외가 나 지갑 화면이 오류 화면으로 바뀐다.
+      if (typeof res?.data?.status !== 'string' || typeof res.data.verified !== 'boolean') {
+        throw new Error('서버 응답이 올바르지 않습니다.');
+      }
+      return res;
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['careers'] }),
   });
 
@@ -35,7 +43,9 @@ export function CredentialDetailModal({ credential, onClose }: Props) {
 
   // 재검증했으면 갱신된 상태를 우선 표시한다.
   const result = reverify.data?.data;
-  const status = result?.status ?? credential.status;
+  // 검증 서버가 이 자격증명만 확인하지 못한 응답(200 + success:false)은 저장된 상태를 바꾸지 않으므로 지금 상태를 그대로 둔다.
+  const verifierError = reverify.data ? isVerifierErrorResult(reverify.data) : false;
+  const status = (verifierError ? null : result?.status) ?? credential.status;
   const group = getStatusGroup(status);
   const rawJson = JSON.stringify(credential.raw_data ?? {}, null, 2);
   const hasRaw = Object.keys(credential.raw_data ?? {}).length > 0;
@@ -96,8 +106,10 @@ export function CredentialDetailModal({ credential, onClose }: Props) {
             >
               {result.verified
                 ? `서명 원본을 ${new Date(result.verified_at!).toLocaleString('ko-KR')}에 다시 검증했습니다.`
-                : reverifyFailText(result.status, result.verified_at)}
-              {result.checks.length > 0 && (
+                : verifierError
+                  ? '검증 서버가 이 자격증명을 확인하지 못했어요. 지갑에 저장된 상태는 바뀌지 않았습니다.'
+                  : reverifyFailText(result.status, result.verified_at)}
+              {(result.checks?.length ?? 0) > 0 && (
                 <div className="mt-2">
                   <VerificationChecks checks={result.checks} />
                 </div>

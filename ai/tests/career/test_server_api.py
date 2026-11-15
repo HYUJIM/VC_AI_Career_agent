@@ -8,7 +8,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.career.contracts import CONTRACT_HEADER, CONTRACT_ID
-from src.server.app import create_app
+from src.career.errors import ConfigurationError
+from src.server.app import (
+    DEFAULT_MAX_BODY_BYTES,
+    MAX_REPORTED_ERRORS,
+    create_app,
+    max_body_bytes,
+)
 
 
 @pytest.fixture
@@ -68,10 +74,74 @@ def test_validation_errors_never_echo_inputs(client, headers):
     assert secret not in response.text
 
 
+def test_validation_errors_are_capped_in_count_and_key_length(client, headers):
+    # 모르는 키 하나마다 오류 하나가 생기고 loc에 그 키 이름이 실린다: 요청보다 몇 배 큰 422가 되지 않게
+    # 앞의 20개만, 64자를 넘는 키 이름은 자리표시로 돌려준다.
+    many = {"raw_text": "SQL", **{f"unknown_{i}": i for i in range(500)}}
+    response = client.post("/v1/job-postings/preview", headers=headers, json=many)
+    assert response.status_code == 422 and response.json()["code"] == "REQUEST_SCHEMA_INVALID"
+    detail = response.json()["detail"]
+    assert len(detail) == MAX_REPORTED_ERRORS == 20
+    assert detail[0] == {
+        "loc": ["body", "unknown_0"],
+        "msg": "Extra inputs are not permitted",
+        "type": "extra_forbidden",
+    }
+
+    marker = "PII-" + "k" * 61  # 65자: 상한을 1자 넘는다
+    body = {"raw_text": "SQL", marker: 1, marker[:64]: 1, "K" * 100000: 1}
+    response = client.post("/v1/job-postings/preview", headers=headers, json=body)
+    assert response.status_code == 422
+    assert sorted(item["loc"][1] for item in response.json()["detail"]) == sorted(
+        ["<long key>", marker[:64], "<long key>"]
+    )
+    assert marker not in response.text and len(response.content) < 1024
+
+    # 필드 이름·목록 위치 같은 정상 loc는 그대로다.
+    response = client.post("/v1/job-postings/preview", headers=headers, json={"raw_text": 1})
+    assert [item["loc"] for item in response.json()["detail"]] == [["body", "raw_text"]]
+
+
 def test_oversized_body_is_rejected(client, headers, monkeypatch):
     monkeypatch.setenv("AI_MAX_BODY_BYTES", "64")
     response = client.post("/v1/job-postings/preview", headers=headers, json={"raw_text": "x" * 200})
     assert response.status_code == 413
+
+
+@pytest.mark.parametrize("value", ["", "   ", " 33554432 ", "0033554432"])
+def test_blank_body_limit_means_the_default(headers, monkeypatch, value):
+    # .env에 이름만 두고 값을 비워도(AI_MAX_BODY_BYTES=) 기본값으로 뜬다. 전에는 모든 경로가 500이었다.
+    # 앞뒤 공백이나 앞의 0이 붙은 숫자는 전처럼 받는다(여기서는 기본값과 같은 수).
+    monkeypatch.setenv("AI_MAX_BODY_BYTES", value)
+    assert max_body_bytes() == DEFAULT_MAX_BODY_BYTES == 32 * 1024 * 1024
+    with TestClient(create_app()) as current:
+        assert current.get("/health").status_code == 200
+        response = current.post(
+            "/v1/job-postings/preview", headers=headers, json={"raw_text": "x" * 200}
+        )
+        assert response.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "value", ["32MiB", "3.3e7", "0", "-1", "+64", "１２３４５", "1_000", "9" * 19, "9" * 5000]
+)
+def test_invalid_body_limit_is_a_configuration_error_not_a_500(client, headers, monkeypatch, value):
+    monkeypatch.setenv("AI_MAX_BODY_BYTES", value)
+    # 시작할 때: 앱을 만들지 못하고(import 실패) 변수 이름이 든 오류가 난다. 값은 싣지 않는다.
+    with pytest.raises(ConfigurationError, match="AI_MAX_BODY_BYTES must be a positive integer") as exc:
+        create_app()
+    assert value not in str(exc.value)
+    # 떠 있는 앱에서 값이 바뀐 경우(테스트만 가능): 처리되지 않은 500이 아니라 503.
+    for response in (
+        client.get("/health"),
+        client.post("/v1/job-postings/preview", headers=headers, json={"raw_text": "SQL"}),
+    ):
+        assert response.status_code == 503
+        assert response.json() == {
+            "detail": "AI service configuration required",
+            "code": "AI_CONFIGURATION_REQUIRED",
+        }
+        assert response.headers[CONTRACT_HEADER] == CONTRACT_ID
 
 
 TOO_LARGE = {"detail": "Request too large for the AI service", "code": "REQUEST_TOO_LARGE"}

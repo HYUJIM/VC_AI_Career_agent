@@ -19,7 +19,7 @@ export function ProfileCard({ user }: { user: UserProfile }) {
   const { copy, isCopied } = useCopy();
   // BE v0.5.0+: 관리형 지갑(홀더 키 보관) 여부 및 연동된 소셜 로그인(oauth_providers). 실패해도 프로필 표시에는 영향 없음.
   const { data: me } = useQuery({ queryKey: ['me', user.did], queryFn: getMe, retry: false });
-  const custody = me?.wallet.custody;
+  const custody = me?.wallet?.custody;
   const googleLinked = Boolean(me?.oauth_providers?.includes('google'));
   return (
     <Card className="flex flex-col gap-4">

@@ -35,7 +35,7 @@ export async function loginUser(payload: LoginPayload): Promise<LoginResponse> {
 
 /** GET /api/v1/users/me (v0.5.0) — 토큰의 사용자 프로필 + 지갑(홀더 키) 상태 + 연동된 소셜 로그인 */
 export async function getMe(): Promise<MeResponse> {
-  if (isPreviewSession()) return previewMe();
+  if (import.meta.env.DEV && isPreviewSession()) return previewMe();
   const { data } = await apiClient.get<MeResponse>('/v1/users/me');
   return data;
 }

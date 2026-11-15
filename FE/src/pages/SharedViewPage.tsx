@@ -15,15 +15,13 @@ const formatDate = (iso: string) => new Date(iso).toLocaleDateString('ko-KR');
  */
 export function SharedViewPage() {
   const { token = '' } = useParams<{ token: string }>();
-  const { data, isLoading, isError, error, refetch } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['publicShare', token],
     queryFn: () => getPublicShare(token),
     enabled: Boolean(token),
-    // 없는·철회·만료 링크(404)나 레이트리밋(429)은 다시 시도해도 같다.
-    retry: (count, err) => {
-      const kind = getApiErrorKind(err);
-      return kind !== 'notFound' && kind !== 'rateLimited' && count < 1;
-    },
+    // 자동 재시도는 앱 기본값(main.tsx)을 따른다: BE의 응답을 전혀 받지 못했을 때만 한 번.
+    // BE가 답한 오류(404·429, 검증 혼잡 503 + Retry-After, 502)는 아래 "다시 시도" 버튼으로 사용자가 직접 다시 부른다.
+    // 버튼은 다시 부르는 중에는 잠근다 (누를 때마다 같은 GET 과 서명 재검증이 또 나가지 않게).
   });
 
   if (isLoading) {
@@ -43,7 +41,7 @@ export function SharedViewPage() {
             variant="warning"
             title="조회 요청이 너무 많습니다."
             actions={
-              <Button variant="outline" size="sm" onClick={() => refetch()}>
+              <Button variant="outline" size="sm" disabled={isFetching} onClick={() => refetch()}>
                 다시 시도
               </Button>
             }
@@ -55,7 +53,7 @@ export function SharedViewPage() {
             variant="error"
             title="자격증명을 불러오지 못했습니다."
             actions={
-              <Button variant="outline" size="sm" onClick={() => refetch()}>
+              <Button variant="outline" size="sm" disabled={isFetching} onClick={() => refetch()}>
                 다시 시도
               </Button>
             }
@@ -72,7 +70,10 @@ export function SharedViewPage() {
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
       <section className="flex flex-col gap-2 px-1">
-        <h1 className="text-[26px] font-bold leading-snug tracking-tight">{data.holder.name} 님의 검증된 자격증명</h1>
+        {/* 이름은 계정 주인이 입력한 값이다. <bdi> 로 감싸 방향 전환 문자(U+202E 등)가 제목의 나머지 글자 순서를 바꾸지 못하게 한다 */}
+        <h1 className="text-[26px] font-bold leading-snug tracking-tight">
+          <bdi>{data.holder.name}</bdi> 님의 검증된 자격증명
+        </h1>
         <p className="text-[15px] leading-relaxed text-[var(--color-text-sub)]">
           {new Date(data.verified_at).toLocaleString('ko-KR')}에 서명 원본을 다시 검증했어요. 총{' '}
           {data.credentials.length}개 중 {verifiedCount}개가 지금 유효합니다.

@@ -11,10 +11,6 @@ import {
 
 // CSS variable references for ring chart theming
 export const ringCssVars = {
-  background: "var(--chart-background)",
-  foreground: "var(--chart-foreground)",
-  foregroundMuted: "var(--chart-foreground-muted)",
-  label: "var(--chart-label)",
   ringBackground: "var(--border)",
   // Default ring colors from chart palette
   ring1: "var(--chart-1)",
@@ -202,9 +198,3 @@ export function useRingHover(): RingHoverContextValue {
   }
   return context;
 }
-
-export function useRing(): RingContextValue {
-  return { ...useRingStable(), ...useRingHover() };
-}
-
-export default RingStableContext;

@@ -24,14 +24,14 @@ import type {
 
 /** GET /api/v1/portfolios (최근 수정순) */
 export async function listPortfolios(): Promise<PortfolioListResponse> {
-  if (isPreviewSession()) return previewListPortfolios();
+  if (import.meta.env.DEV && isPreviewSession()) return previewListPortfolios();
   const { data } = await apiClient.get<PortfolioListResponse>('/v1/portfolios');
   return data;
 }
 
 /** GET /api/v1/portfolios/{id} */
 export async function getPortfolio(id: string): Promise<PortfolioResponse> {
-  if (isPreviewSession()) return previewGetPortfolio(id);
+  if (import.meta.env.DEV && isPreviewSession()) return previewGetPortfolio(id);
   const { data } = await apiClient.get<PortfolioResponse>(`/v1/portfolios/${encodeURIComponent(id)}`);
   return data;
 }
@@ -46,7 +46,7 @@ export async function createPortfolio(
     record_ids: payload.record_ids,
     source: 'VC_ONLY',
   };
-  if (isPreviewSession()) return previewCreatePortfolio(body);
+  if (import.meta.env.DEV && isPreviewSession()) return previewCreatePortfolio(body);
   const { data } = await apiClient.post<PortfolioResponse>('/v1/portfolios', body);
   return data;
 }
@@ -60,14 +60,14 @@ export async function updatePortfolio(id: string, payload: PortfolioUpdateReques
       ? { target_role: payload.target_role ? sanitizeSingleLine(payload.target_role) || null : null }
       : {}),
   };
-  if (isPreviewSession()) return previewUpdatePortfolio(id, body);
+  if (import.meta.env.DEV && isPreviewSession()) return previewUpdatePortfolio(id, body);
   const { data } = await apiClient.patch<PortfolioResponse>(`/v1/portfolios/${encodeURIComponent(id)}`, body);
   return data;
 }
 
 /** DELETE /api/v1/portfolios/{id} */
 export async function deletePortfolio(id: string): Promise<SimpleSuccess> {
-  if (isPreviewSession()) return previewDeletePortfolio(id);
+  if (import.meta.env.DEV && isPreviewSession()) return previewDeletePortfolio(id);
   const { data } = await apiClient.delete<SimpleSuccess>(`/v1/portfolios/${encodeURIComponent(id)}`);
   return data;
 }

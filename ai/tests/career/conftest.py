@@ -4,11 +4,16 @@ BE re-verifies credentials itself and sends a VerificationSnapshot; these fixtur
 that snapshot directly, with the same shape main BE produces.
 """
 
+import os
 import secrets
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
-import pytest
+# 개발자 PC의 ai/.env(실제 LLM 키 등)를 테스트에서 읽지 않는다 (src.server.app을 import하기 전에 정한다).
+os.environ["CAREER_AI_SKIP_DOTENV"] = "true"
+os.environ["PYTHON_DOTENV_DISABLED"] = "1"
+
+import pytest  # noqa: E402
 
 from src.career.canonical import digest_json
 from src.career.contracts.verification import (

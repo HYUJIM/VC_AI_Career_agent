@@ -1,4 +1,5 @@
 import re
+import sys
 import unicodedata
 
 from src.career.contracts.career import SkillCatalog, SkillDefinition
@@ -37,7 +38,62 @@ CATALOG = SkillCatalog(
 )
 
 
+# NFKC는 결합 문자(악센트처럼 앞 글자에 붙는 문자)가 이어진 구간을 삽입 정렬로 다시 늘어놓는다. 그런
+# 문자만 길게 이어 붙인 텍스트는 길이의 제곱만큼 시간이 들고(10만 자에 약 2초) 그동안 GIL을 놓지 않아
+# /health까지 멈춘다. 글자 수는 늘지 않으므로 위의 2배 + 64자 상한에도 걸리지 않는다. 그래서 정규화 전에
+# 연속 구간을 MAX_COMBINING_RUN자에서 자른다(UAX #15 Stream-Safe Text의 상한과 같다). 실제 문장에는
+# 결합 문자가 30개를 넘게 이어지지 않으므로 결과는 그대로다.
+MAX_COMBINING_RUN = 30
+
+
+def _char_class(points) -> str:
+    """정렬된 코드 포인트를 정규식 문자 클래스의 본문으로 바꾼다 (이어진 값은 범위 하나로 묶는다)."""
+    ranges = []
+    for point in points:
+        if ranges and point == ranges[-1][1] + 1:
+            ranges[-1][1] = point
+        else:
+            ranges.append([point, point])
+    return "".join(chr(first) + "-" + chr(last) for first, last in ranges)
+
+
+# NFKD로 풀면 결합 문자만 남는 문자: 결합 문자 자신과, 풀려서 결합 문자가 되는 몇 글자(U+0F73, U+FF9E 등).
+# 뒤쪽을 빼면 그 글자만 이어 붙여 같은 제곱 시간을 만들 수 있다.
+_COMBINING = [
+    point
+    for point in range(sys.maxunicode + 1)
+    if unicodedata.combining(chr(point))
+    or (
+        unicodedata.decomposition(chr(point))
+        and all(map(unicodedata.combining, unicodedata.normalize("NFKD", chr(point))))
+    )
+]
+_COMBINING_CLASS = "[" + _char_class(_COMBINING) + "]"
+# 첫 글자만 값싼 클래스(BMP의 결합 문자 + BMP 밖 전부)로 훑고 뒤돌아보기로 확인한다. 전체 클래스는 BMP 밖
+# 범위가 많아서 글자마다 대조하면 결합 문자가 없는 보통 텍스트의 정규화가 10배쯤 느려진다.
+_COMBINING_CANDIDATE = (
+    "[" + _char_class(point for point in _COMBINING if point <= 0xFFFF) + "\U00010000-\U0010ffff]"
+)
+_LONG_COMBINING_RUN = re.compile(
+    "(%s(?<=%s)%s{%d})%s+"
+    % (
+        _COMBINING_CANDIDATE,
+        _COMBINING_CLASS,
+        _COMBINING_CLASS,
+        MAX_COMBINING_RUN - 1,
+        _COMBINING_CLASS,
+    )
+)
+
+
 def normalized_text(value: str) -> str:
+    # 31번째부터의 결합 문자를 버린다. 그런 구간이 없는 보통 텍스트는 치환(sub)까지 가지 않는다: ASCII에는 결합
+    # 문자가 없고, 그 밖의 텍스트는 search 한 번으로 확인한다. sub는 맞는 곳이 없어도 호출마다 치환 템플릿(\1)을
+    # 처리해서, 별칭·기술스택 항목 같은 짧은 문자열의 정규화가 6~20배 느렸다.
+    match = None if value.isascii() else _LONG_COMBINING_RUN.search(value)
+    if match:
+        # 첫 구간까지는 search가 이미 훑었으므로 그 뒤만 치환한다 (구간마다 앞의 30자, 곧 \1만 남는다).
+        value = value[: match.end(1)] + _LONG_COMBINING_RUN.sub(r"\1", value[match.end() :])
     return " ".join(unicodedata.normalize("NFKC", value).casefold().split())
 
 

@@ -7,8 +7,9 @@ import base64
 import hashlib
 import json
 import math
+import re
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -23,6 +24,12 @@ _MAX_TEXT = 255  # credentials.achievement_name·issuer_name·source_external_id
 # json.loads가 받아들이는 한계(약 950단계) 바로 아래 깊이는 저장은 되지만, 응답 JSON을 만들 때 스택이 조금 더 깊어
 # 재귀 한도에 걸린다 (그 사용자의 GET /careers가 계속 500). 그래서 호출 스택 깊이와 무관한 낮은 고정 상한을 둔다.
 MAX_JSON_DEPTH = 64
+# compact JWS(JWT)의 한 조각: base64url 문자. RFC 7515는 패딩 '='를 빼지만 붙여 내는 구현도 있어 끝의 '='를 둘까지 받는다.
+_JWS_SEGMENT = re.compile(r"[A-Za-z0-9_-]+={0,2}")
+# SD-JWT의 공개 항목(disclosure) 하나: 비어 있지 않은 base64url 문자열 (패딩 없음)
+_SD_DISCLOSURE = re.compile(r"[A-Za-z0-9_-]+")
+# 머리말(header)의 alg 값: 등록된 JWS 알고리즘 이름에 쓰이는 문자만, 32자까지
+_JWS_ALG = re.compile(r"[A-Za-z0-9_-]{1,32}")
 
 # DB check_name_type ENUM 값
 CHECK_SCHEMA = "schema"
@@ -55,7 +62,6 @@ class ProviderBadgeResult:
     issuer_name: Optional[str]
     achievement_name: Optional[str]
     issued_at: Optional[str]
-    raw: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -63,14 +69,11 @@ class PresentationResult:
     verified: bool
     holder_did: Optional[str]  # 비어 있지 않은 DID 문자열, 모르면 None (로그인 사용자 DID와 다르면 API가 403으로 거절)
     claims: dict
-    raw: dict
 
 
 @dataclass(frozen=True)
 class IssuedBadge:
     vc_jwt: str
-    credential_id: Optional[str]
-    raw: dict
 
 
 @dataclass(frozen=True)
@@ -121,6 +124,54 @@ def _too_deep(value: Any) -> bool:
                 return True
             stack.extend((child, depth + 1) for child in (item.values() if isinstance(item, dict) else item))
     return False
+
+
+def _unique_keys(pairs: list[tuple[str, Any]]) -> dict:
+    """json.loads의 object_pairs_hook: 같은 키가 두 번 나온 객체는 거절한다 (파서마다 앞·뒤 값 중 다른 것을 읽는다)."""
+    obj = dict(pairs)
+    if len(obj) != len(pairs):
+        raise ValueError("JSON 객체에 같은 키가 두 번 나옴")
+    return obj
+
+
+def _has_jws_segments(text: str) -> bool:
+    """점으로 나뉜 비어 있지 않은 base64url 조각이 정확히 셋인지 (조각 끝의 패딩 '='는 둘까지)."""
+    parts = text.split(".")
+    return len(parts) == 3 and all(_JWS_SEGMENT.fullmatch(part) for part in parts)
+
+
+def is_compact_jws(token: str) -> bool:
+    """compact JWS(JWT) 모양인지: ASCII뿐이고, 점으로 나뉜 비어 있지 않은 base64url 조각이 정확히 셋이며,
+    머리말(첫 조각)이 UTF-8 JSON 객체이고(같은 키가 두 번 나오지 않음) 그 `alg`가 `[A-Za-z0-9_-]{1,32}` 모양의 문자열이며
+    `none`(대소문자 무시)이 아닌지.
+
+    문서화된 JWT-VC 형식 두 가지도 받는다 (기존 해석기 decode_jwt_payload는 둘 다 지금처럼 페이로드를 읽는다):
+    - 조각 끝에 base64 패딩 '='가 붙은 토큰 (조각마다 둘까지).
+    - SD-JWT: `<jws>~<disclosure>~…~[<kb-jwt>]`. 첫 부분이 위의 JWS 규칙을 지켜야 하고, 공개 항목(disclosure)은 비어 있지
+      않은 base64url 문자열이며, 마지막 '~' 뒤는 비어 있거나 키 바인딩 JWT(조각 셋의 compact JWS 모양)여야 한다.
+    서명·내용은 확인하지 않는다 (검증기가 맡는다). 사용자가 보낸 값을 검증기(DXWorks)로 넘기기 전에 거르는 용도라서,
+    DB에 저장된 서명 원본의 재검증에는 쓰지 않는다 (이미 저장된 레코드가 재검증 불가가 되지 않게).
+    """
+    if not isinstance(token, str) or not token.isascii():
+        return False
+    jws, *sd_parts = token.split("~")
+    if sd_parts:
+        *disclosures, key_binding = sd_parts
+        if not all(_SD_DISCLOSURE.fullmatch(part) for part in disclosures):
+            return False
+        if key_binding and not _has_jws_segments(key_binding):
+            return False
+    if not _has_jws_segments(jws):
+        return False
+    encoded = jws.split(".")[0].rstrip("=")
+    try:
+        # UTF-8로 직접 디코딩한다 (bytes를 json.loads에 주면 UTF-16·32까지 추측해 읽는다).
+        header = json.loads(base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)).decode("utf-8"),
+                            object_pairs_hook=_unique_keys)
+    except (ValueError, RecursionError):  # base64·UTF-8·JSON 오류, 같은 키 두 번, 너무 깊은 중첩
+        return False
+    alg = header.get("alg") if isinstance(header, dict) else None
+    return isinstance(alg, str) and bool(_JWS_ALG.fullmatch(alg)) and alg.lower() != "none"
 
 
 def decode_jwt_payload(token: str) -> Optional[dict]:

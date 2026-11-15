@@ -2,19 +2,23 @@ import logging
 import uuid
 from typing import Optional
 
+import psycopg
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field, field_validator
 from starlette.concurrency import run_in_threadpool
 
 from app.core.auth import Principal, create_access_token, require_user
 from app.core.text import StorableText, ensure_single_line
-from app.services.database import EmailAlreadyRegistered, db_service
+from app.services.database import DatabaseBusy, EmailAlreadyRegistered, db_service
 from app.services.key_custody import KeyCustody, StoredHolderKey, get_key_custody
 from app.services.login_throttle import TOO_MANY_ATTEMPTS, login_throttle
 from app.services.security import MAX_PASSWORD_BYTES, hash_password_async, verify_password_async
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# DB가 바빠서 조회하지 못한 경우 (main.py의 database_busy_handler가 503 + Retry-After로 답하는 세 가지 예외)
+_DB_BUSY_ERRORS = (DatabaseBusy, psycopg.errors.QueryCanceled, psycopg.errors.LockNotAvailable)
 
 
 class RegisterRequest(BaseModel):
@@ -115,6 +119,7 @@ def _reserve_login_attempt(email: str) -> None:
     """이 이메일의 실패 한도를 넘었으면 비밀번호를 확인하지 않고 429 (가입 여부와 관계없이 같음, login_throttle.py)."""
     retry_after = login_throttle.reserve(email)
     if retry_after is not None:
+        login_throttle.log_locked(email, retry_after)
         raise HTTPException(status_code=429, detail=TOO_MANY_ATTEMPTS, headers={"Retry-After": str(retry_after)})
 
 
@@ -124,18 +129,25 @@ async def login_user(req: LoginRequest):
     _reserve_login_attempt(email)
     try:
         user = await run_in_threadpool(db_service.get_user_by_email, email)
-    except Exception:
+    except Exception as exc:
         # 조회가 실패해도(예: DB 연결 수 초과) 이미 실패로 기록한 시도다. 다른 실패처럼 더미 bcrypt 비교를 한 번 하고 같은 오류를
         # 그대로 다시 던진다(응답은 지금처럼 500). 비용 없이 키만 만드는 요청으로 잠긴 키를 밀어내지 못하게 하기 위해서다.
+        if isinstance(exc, _DB_BUSY_ERRORS):
+            # DB가 바빠서 조회하지 못한 시도(503 + Retry-After: 잠시 뒤 다시 하라고 답한다)는 실패로 세지 않고 기록을 돌려준다.
+            # 비밀번호를 확인한 적이 없는데 세면, 안내대로 다시 시도한 사용자가 맞는 비밀번호로도 15분 동안 잠긴다.
+            # 더미 bcrypt 비교는 그대로 한 번 한다.
+            login_throttle.release(email)
         await verify_password_async(req.password, None)
         raise
     if user and not login_throttle.same_key(email, user["email"]):
         # 실패 기록의 키는 PostgreSQL lower()(libc 정렬)처럼 글자마다 접으므로 보통은 찾은 계정의 키와 같다. DB 정렬이 다르게
         # 접으면(예: ICU) 다른 키의 표기로 같은 계정을 찾을 수 있어, 그때는 저장된 이메일로도 세어 표기를 바꿔 가며 한도를 피하지
         # 못하게 한다.
-        if login_throttle.reserve(user["email"]) is not None:
+        retry_after = login_throttle.reserve(user["email"])
+        if retry_after is not None:
             # 저장된 이메일이 잠겼다. 여기서 429를 주면 이 표기로는 가입된 이메일만 429가 되어 가입 여부가 드러나므로,
             # 비밀번호는 확인하지 않고 미가입 이메일과 같은 401·같은 비용(더미 bcrypt 비교 한 번)으로 답한다.
+            login_throttle.log_locked(user["email"], retry_after)
             await verify_password_async(req.password, None)
             raise HTTPException(status_code=401, detail="Invalid email or password")
     # 이메일 존재 여부가 드러나지 않도록 실패 사유를 하나로 통일하고, 응답 시간도 맞춘다:

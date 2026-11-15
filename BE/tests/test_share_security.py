@@ -3,7 +3,9 @@
 - 기업용 조회 제한: 로그인 없는 공유 링크 조회는 학생의 DB 사본을 고쳐 쓰지 않는다. 같은 서명 원본은 60초 동안 검증기에
   다시 묻지 않고, 새 검증기 호출은 태스크마다 분당 300번까지(모자라면 검증기를 부르지 않고 503 + Retry-After).
   시간·한도는 테스트용 게이트(손으로 움직이는 시계, 분당 3번)로 바꿔서 본다. 동시에 연 조회도 몫보다 많이 부르지 않고,
-  학생 본인의 재검증·근거 조회·포트폴리오 생성·직무 비교는 이 제한을 쓰지 않는다.
+  같은 링크를 동시에 여러 번 열면 서명 원본마다 한 번만 묻고 나머지는 그 응답을 기다린다(먼저 묻던 조회가 실패·취소돼도
+  기다리던 조회는 끝난다. 한 조회 안에 같은 원본·같은 레코드가 두 번 있어도 끝나고, 기다리는 시간에는 상한이 있다). 학생 본인의 재검증·근거 조회·포트폴리오 생성·직무 비교는 이 제한을 쓰지 않는다
+  (그쪽 한도는 tests/test_verifier_budget.py).
 - 한 줄 텍스트: 포트폴리오 제목·희망 직무는 안쪽 줄바꿈·제어 문자를 받지 않는다(생성·수정 모두 422).
   작성기는 DB에 이미 있는 여러 줄 값(이름 포함)도 한 줄로 넣는다.
 - 저장할 수 없는 문자: NUL·짝 없는 서로게이트가 든 공유 라벨·포트폴리오 제목·희망 직무·근거 조회 DID는 500이 아니라 422.
@@ -13,6 +15,7 @@
 import asyncio
 import json
 import logging
+import uuid
 from datetime import datetime, timezone
 
 import httpx
@@ -154,46 +157,279 @@ def test_share_view_over_verifier_budget_is_503_without_calls(client, register, 
     assert views["B사"] == 2
 
 
-def test_concurrent_share_views_never_exceed_verifier_budget(client, register, fake_dx, public_gate, badge_calls,
-                                                             monkeypatch):
-    """동시에 연 기업용 조회 20개도 남은 몫(분당 3번)보다 많이 검증기를 부르지 않는다.
-
-    몫은 검증기를 부르기 전에 한꺼번에 가져간다. 20개 조회가 모두 몫을 요청한 뒤에야 검증기가 답하게 해서(그 전에는
-    60초 동안 다시 쓸 응답이 없음) 모든 조회가 같은 몫을 두고 겨루게 한다: 3개만 검증기를 부르고 나머지는 503.
-    """
+def open_concurrently(share_tokens: list[str]) -> list[httpx.Response]:
+    """기업용 조회 여러 개를 한 이벤트 루프에서 동시에 연다 (로그인 없음)."""
     from main import app
 
+    async def open_all():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://testserver") as ac:
+            return await asyncio.gather(*(ac.get(f"/api/v1/public/shares/{token}") for token in share_tokens))
+
+    return asyncio.run(open_all())
+
+
+@pytest.fixture
+def hold_verifier(fake_dx, public_gate, monkeypatch):
+    """views개의 조회가 모두 몫을 요청한 뒤에야 검증기가 답하게 한다 (그 전에는 60초 동안 다시 쓸 응답이 없다).
+
+    모든 조회가 같은 순간의 몫·진행 중인 호출을 두고 겨루게 된다. 몫 요청 기록(호출 수 목록)을 돌려준다.
+    """
     gate, _ = public_gate
+
+    def hold(views: int) -> list[int]:
+        everyone_asked = asyncio.Event()
+        asked, reserve, verify = [], gate.reserve, fake_dx.verify_badge
+
+        def counting_reserve(calls):
+            asked.append(calls)
+            if len(asked) == views:
+                everyone_asked.set()
+            reserve(calls)
+
+        async def slow_verify(vc_jwt):
+            try:
+                await asyncio.wait_for(everyone_asked.wait(), timeout=10)
+            except asyncio.TimeoutError:
+                pass  # 몫을 요청하지 않은 조회가 있으면(코드가 바뀜) 더 기다리지 않고 아래 검사에 맡긴다
+            return await verify(vc_jwt)
+
+        monkeypatch.setattr(gate, "reserve", counting_reserve)
+        monkeypatch.setattr(fake_dx, "verify_badge", slow_verify)
+        return asked
+
+    return hold
+
+
+def test_concurrent_share_views_never_exceed_verifier_budget(client, register, badge_calls, hold_verifier):
+    """동시에 연 서로 다른 링크 20개도 남은 몫(분당 3번)보다 많이 검증기를 부르지 않는다.
+
+    몫은 검증기를 부르기 전에 한꺼번에 가져간다. 20개 조회가 모두 몫을 요청한 뒤에야 검증기가 답하게 해서 모든 조회가
+    같은 몫을 두고 겨루게 한다: 3개만 검증기를 부르고 나머지는 503.
+    """
+    views = 20
+    user = register()
+    share_tokens = [create_share(client, user, [store_badge(client, user)[0]]).json()["data"]["token"]
+                    for _ in range(views)]
+    badge_calls.clear()
+    asked = hold_verifier(views)
+
+    statuses = sorted(res.status_code for res in open_concurrently(share_tokens))
+    assert statuses == [200] * 3 + [503] * (views - 3)
+    assert len(badge_calls) == 3 and asked == [1] * views
+
+
+def test_concurrent_views_of_one_link_ask_the_verifier_once(client, register, badge_calls, hold_verifier):
+    """회귀: 같은 링크를 동시에 열면 조회마다 몫을 가져가 같은 원본을 거듭 물었다 (몫이 바닥나 나머지와 다른 링크는 503).
+
+    이제 먼저 묻는 조회 하나만 몫을 가져가 부르고, 나머지는 그 응답을 기다려 함께 쓴다.
+    """
+    views = 20
+    user = register()
+    record_ids = [store_badge(client, user)[0] for _ in range(2)]
+    other_id, _ = store_badge(client, user)
+    share_token = create_share(client, user, record_ids).json()["data"]["token"]
+    other_token = create_share(client, user, [other_id]).json()["data"]["token"]
+    badge_calls.clear()
+    asked = hold_verifier(views)
+
+    responses = open_concurrently([share_token] * views)
+    assert [res.status_code for res in responses] == [200] * views
+    assert len(badge_calls) == 2 and sorted(asked) == [0] * (views - 1) + [2]  # 원본마다 한 번, 몫도 한 번만
+    first = responses[0].json()["credentials"]
+    assert [c["status"] for c in first] == ["verified", "verified"]
+    assert all(res.json()["credentials"] == first for res in responses)  # 같은 응답(verified_at 포함)을 함께 쓴다
+    # 이 링크가 쓴 몫은 2뿐이라 남은 몫(1)으로 다른 링크도 열린다. 60초 안에 다시 열면 지금처럼 검증기를 부르지 않는다.
+    assert public_view(client, other_token).status_code == 200 and len(badge_calls) == 3
+    assert public_view(client, share_token).json()["credentials"] == first and len(badge_calls) == 3
+
+
+def test_waiting_share_views_end_with_the_first_callers_failure(client, register, fake_dx, badge_calls, hold_verifier):
+    """먼저 묻던 조회가 검증기 오류로 끝나면 기다리던 조회도 같은 실패('검증 불가')로 끝난다 (다시 부르지도, 멈추지도 않는다)."""
+    views = 10
     user = register()
     record_id, _ = store_badge(client, user)
     share_token = create_share(client, user, [record_id]).json()["data"]["token"]
     badge_calls.clear()
-    views, everyone_asked = 20, asyncio.Event()
-    asked, reserve, verify = [], gate.reserve, fake_dx.verify_badge
+    hold_verifier(views)
+    fake_dx.error = ProviderError("DXWorks 오류 (400): bad token", upstream_status=400)
 
-    def counting_reserve(calls):
-        asked.append(calls)
-        if len(asked) == views:
-            everyone_asked.set()
-        reserve(calls)
+    responses = open_concurrently([share_token] * views)
+    assert [res.status_code for res in responses] == [200] * views
+    assert {res.json()["credentials"][0]["status"] for res in responses} == {"unverifiable"}
+    assert len(badge_calls) == 1
+    # 실패는 담아 두지 않는다: 다음 조회는 다시 묻는다.
+    fake_dx.error = None
+    assert public_view(client, share_token).json()["credentials"][0]["status"] == "verified" and len(badge_calls) == 2
 
-    async def slow_verify(vc_jwt):
-        try:
-            await asyncio.wait_for(everyone_asked.wait(), timeout=10)
-        except asyncio.TimeoutError:
-            pass  # 몫을 요청하지 않은 조회가 있으면(코드가 바뀜) 더 기다리지 않고 아래 검사에 맡긴다
-        return await verify(vc_jwt)
 
-    monkeypatch.setattr(gate, "reserve", counting_reserve)
-    monkeypatch.setattr(fake_dx, "verify_badge", slow_verify)
+def _row(vc_jwt: str, record_id: str = "00000000-0000-0000-0000-0000000000aa") -> dict:
+    """reverify_rows에 넘기는 credentials 행 (DB 없이 게이트 동작만 볼 때)."""
+    return {"record_id": record_id, "raw_token": vc_jwt, "raw_data": {}, "issuer_name": "예시대학교",
+            "achievement_name": "테스트 수료 배지", "issued_at": None, "expires_at": None,
+            "subject_did": "did:key:z6MkGateOnly"}
 
-    async def open_all():
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://testserver") as ac:
-            return await asyncio.gather(*(ac.get(f"/api/v1/public/shares/{share_token}") for _ in range(views)))
 
-    statuses = sorted(res.status_code for res in asyncio.run(open_all()))
-    assert statuses == [200] * 3 + [503] * (views - 3)
-    assert len(badge_calls) == 3
+async def test_waiting_view_does_not_hang_when_the_first_caller_is_cancelled(fake_dx):
+    from app.services.public_view_gate import PublicViewGate
+    from app.services.reverify import reverify_rows
+    from tests.conftest import make_vc_jwt
+
+    gate = PublicViewGate()
+    row = _row(make_vc_jwt("did:key:z6MkGateOnly"))
+    started = asyncio.Event()
+
+    class Stuck:
+        async def verify_badge(self, vc_jwt):
+            started.set()
+            await asyncio.sleep(3600)
+
+    def view(verifier):
+        return asyncio.ensure_future(reverify_rows([row], verifier, caller="anonymous", route="share_view",
+                                                   persist=False, gate=gate))
+
+    leader = view(Stuck())
+    await started.wait()
+    waiter, second_waiter = view(fake_dx), view(fake_dx)
+    await asyncio.sleep(0.01)  # 두 조회 모두 먼저 묻는 조회의 응답을 기다린다
+    assert not waiter.done() and gate._tokens == gate.capacity - 1  # 기다리는 조회는 몫을 가져가지 않았다
+    # 기다리던 조회 하나가 취소돼도 함께 기다리는 다른 조회·먼저 묻는 조회는 그대로다.
+    second_waiter.cancel()
+    await asyncio.sleep(0.01)
+    assert not waiter.done() and not leader.done()
+
+    leader.cancel()  # 먼저 묻던 요청이 사라졌다 (연결 종료 등)
+    [outcome] = await asyncio.wait_for(waiter, timeout=2)
+    assert outcome.status == "unverifiable" and outcome.reason == "verifier_error"
+    assert isinstance(outcome.error, ProviderError)
+    assert not gate._flights  # 남은 호출 기록이 없다: 다음 조회는 새로 묻는다
+    [again] = await asyncio.wait_for(view(fake_dx), timeout=2)
+    assert again.status == "invalid" and again.reason == "record_mismatch"  # 검증기 응답으로 판정까지 갔다 (가짜 행이라 ID만 다름)
+
+
+class FailingVerifier:
+    """부른 서명 원본을 세고 항상 같은 오류로 실패하는 검증기 (조금 늦게 답해 동시 호출이 겹치게 한다)."""
+
+    def __init__(self, error: ProviderError, delay: float = 0.01):
+        self.error, self.delay, self.calls = error, delay, []
+
+    async def verify_badge(self, vc_jwt):
+        self.calls.append(vc_jwt)
+        await asyncio.sleep(self.delay)
+        raise self.error
+
+
+async def test_rows_sharing_one_signed_original_finish_during_an_outage(fake_dx):
+    # 회귀: 한 조회 안에 같은 서명 원본이 두 번 있으면 뒤 행은 앞 행의 호출을 기다린다. 장애가 확인돼 앞 행이 검증기를 부르지
+    # 않고 건너뛰면 그 호출은 끝났다고 알려지지 않아, 뒤 행이(그리고 그 원본을 여는 다음 조회도) 끝없이 기다렸다.
+    from app.services.public_view_gate import PublicViewGate
+    from app.services.reverify import MAX_CONCURRENCY, reverify_rows
+    from tests.conftest import make_vc_jwt
+
+    gate = PublicViewGate()
+    shared = make_vc_jwt("did:key:z6MkGateOnly")
+    rows = [_row(make_vc_jwt("did:key:z6MkGateOnly"), str(uuid.uuid4())) for _ in range(6)]
+    rows += [_row(shared, str(uuid.uuid4())), _row(shared, str(uuid.uuid4()))]  # 7·8번째 행이 같은 원본
+    verifier = FailingVerifier(ProviderError("DXWorks 오류 (500): boom", upstream_status=500))
+
+    outcomes = await asyncio.wait_for(
+        reverify_rows(rows, verifier, caller="anonymous", route="share_view", persist=False, gate=gate), timeout=3)
+    assert [(o.status, o.reason) for o in outcomes] == [("unverifiable", "verifier_error")] * 8
+    assert all(isinstance(o.error, ProviderError) for o in outcomes)
+    assert 1 <= len(verifier.calls) <= MAX_CONCURRENCY and shared not in verifier.calls
+    assert not gate._flights  # 남은 호출 기록이 없다
+    # 그 원본을 여는 다음 조회는 새로 묻는다 (앞 조회에 묶여 멈추지 않는다).
+    [again] = await asyncio.wait_for(
+        reverify_rows([_row(shared)], fake_dx, caller="anonymous", route="share_view", persist=False, gate=gate),
+        timeout=3)
+    assert again.status == "invalid" and again.reason == "record_mismatch"  # 검증기 응답으로 판정까지 갔다
+
+
+async def test_same_record_listed_twice_asks_the_verifier_once_and_finishes(badge_calls, fake_dx):
+    # 회귀: 할 일을 record_id로 찾았다. 같은 레코드가 목록에 두 번 있으면 앞 행의 '부른다'가 뒤 행의 '기다린다'로 덮여
+    # 두 행 모두 아무도 하지 않는 호출을 끝없이 기다렸다 (검증기 호출 0번). 이제 행과 같은 자리로 짝짓는다.
+    from app.services.public_view_gate import PublicViewGate
+    from app.services.reverify import reverify_rows
+    from tests.conftest import make_vc_jwt
+
+    gate = PublicViewGate()
+    row = _row(make_vc_jwt("did:key:z6MkGateOnly"))
+    other = _row(make_vc_jwt("did:key:z6MkGateOnly"), "00000000-0000-0000-0000-0000000000bb")
+    outcomes = await asyncio.wait_for(
+        reverify_rows([row, dict(row), other, dict(row)], fake_dx, caller="anonymous", route="share_view",
+                      persist=False, gate=gate), timeout=3)
+    assert len(outcomes) == 4 and len(badge_calls) == 2  # 원본마다 한 번
+    assert [o.record_id for o in outcomes] == [row["record_id"]] * 2 + [other["record_id"], row["record_id"]]
+    assert {o.reason for o in outcomes} == {"record_mismatch"}  # 네 행 모두 검증기 응답으로 판정까지 갔다
+    assert outcomes[0].evidence == outcomes[1].evidence == outcomes[3].evidence
+    assert not gate._flights and gate._tokens == gate.capacity - 2
+
+
+async def test_waiting_for_another_views_call_is_bounded(fake_dx, monkeypatch):
+    # 먼저 묻던 조회가 끝내 결과를 알리지 않아도, 기다리는 조회는 어댑터의 호출 한 번 상한(자리 대기 + 교환)만큼만 기다린다.
+    from app.core.config import get_settings
+    from app.services import reverify
+    from app.services.public_view_gate import PublicViewGate
+    from tests.conftest import make_vc_jwt
+
+    assert reverify._flight_wait_seconds() == 4 * get_settings().dxworks_timeout_seconds
+    monkeypatch.setattr(reverify, "_flight_wait_seconds", lambda: 0.2)
+    gate = PublicViewGate()
+    row = _row(make_vc_jwt("did:key:z6MkGateOnly"))
+    [(kind, flight)] = gate.begin([row["raw_token"]])  # 다른 조회가 묻기로 하고는 알리지 않는다
+    assert kind == "call"
+
+    started = asyncio.get_running_loop().time()
+    [outcome] = await asyncio.wait_for(
+        reverify.reverify_rows([row], fake_dx, caller="anonymous", route="share_view", persist=False, gate=gate),
+        timeout=3)
+    assert 0.15 <= asyncio.get_running_loop().time() - started < 2
+    assert (outcome.status, outcome.reason) == ("unverifiable", "verifier_error")
+    assert isinstance(outcome.error, ProviderError)
+    assert not flight.future.done()  # 함께 기다리던 Future는 취소되지 않았다 (먼저 묻던 쪽이 나중에 알릴 수 있다)
+    gate.settle(flight, ProviderError("late"))
+    assert await gate.wait(flight) is flight.future.result() and await gate.wait(flight, 0.1) is flight.future.result()
+
+
+async def test_public_view_gate_single_flight_plan():
+    from app.services.public_view_gate import BudgetExceeded, PublicViewGate
+
+    clock = {"now": 0.0}
+    gate = PublicViewGate(calls_per_minute=3, clock=lambda: clock["now"])
+    answer, verified_at = _answer(), datetime(2026, 11, 9, tzinfo=timezone.utc)
+    gate.store("cached.x.y", verified_at, answer)
+
+    # 담아 둔 응답 → cached, 처음 보는 원본 → call, 같은 목록에 두 번 나온 원본 → 뒤의 것은 wait. 몫은 call만큼만.
+    steps = gate.begin(["cached.x.y", "a.b.c", "a.b.c", "d.e.f"])
+    assert [kind for kind, _ in steps] == ["cached", "call", "wait", "call"]
+    assert steps[0][1] == (verified_at, answer) and steps[1][1] is steps[2][1] and gate._tokens == 1
+    # 다른 조회가 같은 원본을 물으면 기다린다 (몫을 가져가지 않는다).
+    [(kind, flight)] = gate.begin(["a.b.c"])
+    assert kind == "wait" and flight is steps[1][1] and gate._tokens == 1
+
+    # 몫이 모자라면 아무것도 등록하지 않는다: 다음 조회가 '진행 중'으로 오해해 끝없이 기다리지 않게.
+    with pytest.raises(BudgetExceeded):
+        gate.begin(["g.h.i", "j.k.l"])
+    assert set(gate._flights) == {gate._key("a.b.c"), gate._key("d.e.f")} and gate._tokens == 1
+
+    # 결과를 알리면 기다리던 쪽이 받고 기록은 지워진다. 두 번 알려도 처음 것만 쓴다.
+    gate.settle(steps[1][1], (verified_at, answer))
+    gate.settle(steps[1][1], ProviderError("late"))
+    assert await gate.wait(flight) == (verified_at, answer)
+    failure = ProviderError("DXWorks 연결 실패: ConnectError")
+    gate.settle(steps[3][1], failure)
+    assert await gate.wait(steps[3][1]) is failure and not gate._flights
+    # 실패한 원본은 다음 조회가 새로 묻는다.
+    assert [kind for kind, _ in gate.begin(["d.e.f"])] == ["call"] and gate._tokens == 0
+
+    # 다른 이벤트 루프에서 등록된(기다릴 수 없는) 호출은 없는 것으로 보고 새로 묻는다.
+    gate.clear()
+    stale = gate.begin(["m.n.o"])[0][1]
+    other_loop = asyncio.new_event_loop()
+    try:
+        gate._flights[stale.key] = type(stale)(stale.key, other_loop, other_loop.create_future())
+        assert [kind for kind, _ in gate.begin(["m.n.o"])] == ["call"]
+    finally:
+        other_loop.close()
 
 
 def test_owner_flows_ignore_public_view_budget_and_cache(client, register, fake_dx, badge_calls, monkeypatch):
@@ -255,7 +491,7 @@ def _answer():
                                issued_at=None)
 
 
-def test_public_view_gate_forgets_old_answers():
+async def test_public_view_gate_forgets_old_answers():
     from app.services.public_view_gate import PublicViewGate
 
     clock = {"now": 0.0}
@@ -263,15 +499,16 @@ def test_public_view_gate_forgets_old_answers():
     answer, verified_at = _answer(), datetime(2026, 11, 9, tzinfo=timezone.utc)
     gate.store("a.b.c", verified_at, answer)
     clock["now"] = 59.9
-    assert gate.cached("a.b.c") == (verified_at, answer) and gate.cached("x.y.z") is None
+    assert gate.begin(["a.b.c"]) == [("cached", (verified_at, answer))]
     clock["now"] = 60
-    assert gate.cached("a.b.c") is None
+    assert [kind for kind, _ in gate.begin(["a.b.c"])] == ["call"]  # 오래된 응답은 다시 쓰지 않는다
     gate.store("d.e.f", verified_at, answer)  # 새로 담을 때 만료된 것을 지운다 (메모리가 자라지 않게)
     assert len(gate._results) == 1
     # 서명 원본 자체가 아니라 SHA-256 값을 키로 둔다.
     assert "d.e.f" not in gate._results and all(len(key) == 32 for key in gate._results)
     gate.clear()
-    assert gate.cached("d.e.f") is None
+    assert [kind for kind, _ in gate.begin(["d.e.f"])] == ["call"]
+    assert not hasattr(gate, "cached")  # 앱이 쓰지 않던 조회용 메서드는 없앴다 (다시 쓸 응답은 begin이 정한다)
 
 
 def test_public_view_gate_token_bucket():

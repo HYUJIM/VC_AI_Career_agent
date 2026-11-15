@@ -16,6 +16,7 @@ from app.integrations.ports import CredentialVerifier
 from app.services.database import db_service
 from app.services.public_view_gate import BudgetExceeded, public_view_gate
 from app.services.reverify import reverify_rows
+from app.services.verifier_budget import ANONYMOUS_CALLER
 
 router = APIRouter()
 public_router = APIRouter()
@@ -23,6 +24,8 @@ logger = logging.getLogger(__name__)
 
 NOT_FOUND = "Share link not found or expired"
 VERIFIER_BUSY = "Share verification is busy. Try again later."
+# FE가 이 문구로 안내를 고른다 (FE/src/lib/apiClient.ts). 바꾸면 FE도 함께 바꾼다.
+SHARE_LIMIT_REACHED = "Share link limit reached. Revoke unused links first."
 
 
 def _hash(token: str) -> str:
@@ -64,6 +67,9 @@ def create_share(req: ShareCreateRequest, principal: Principal = Depends(require
         user_id=principal.user_id, token_hash=_hash(token), record_ids=ids, label=label,
         expires_at=datetime.now(timezone.utc) + timedelta(days=req.expires_in_days),
     )
+    if row is None:
+        # 유효한(철회·만료되지 않은) 링크가 사용자별 상한(database.MAX_ACTIVE_SHARES_PER_USER)에 닿았다.
+        raise HTTPException(status_code=409, detail=SHARE_LIMIT_REACHED)
     return {
         "success": True,
         "message": "Share link created. The token is shown only once.",
@@ -87,9 +93,10 @@ def revoke_share(share_id: UUID, principal: Principal = Depends(require_user)):
 async def view_share(token: str, verifier: CredentialVerifier = Depends(get_verifier)):
     """기업용 조회. 로그인 없이 링크로 열고, 열 때 서명 원본을 다시 검증한다.
 
-    로그인 없는 요청이라 검증기 호출 양을 묶고(public_view_gate.py: 같은 원본은 60초 동안 다시 묻지 않음, 태스크마다
-    분당 300번까지, 모자라면 503 + Retry-After), 결과를 학생의 DB 사본에 저장하지 않는다(익명 요청이 남의 레코드를
-    고쳐 쓰지 않게). 학생 지갑의 상태는 본인의 재검증·근거 조회·포트폴리오 생성·직무 비교 때 갱신된다.
+    로그인 없는 요청이라 검증기 호출 양을 묶고(public_view_gate.py: 같은 원본은 60초 동안 다시 묻지 않음, 다른 조회가
+    묻고 있는 원본은 그 응답을 기다림, 태스크마다 분당 300번까지, 모자라면 503 + Retry-After), 결과를 학생의 DB 사본에
+    저장하지 않는다(익명 요청이 남의 레코드를 고쳐 쓰지 않게). 학생 지갑의 상태는 본인의 재검증·근거 조회·포트폴리오
+    생성·직무 비교 때 갱신된다.
     """
     if len(token) > 128:
         raise HTTPException(status_code=404, detail=NOT_FOUND)
@@ -101,7 +108,9 @@ async def view_share(token: str, verifier: CredentialVerifier = Depends(get_veri
     user = await run_in_threadpool(db_service.get_user_by_id, user_id)
     rows = await run_in_threadpool(db_service.get_credential_rows, user_id, [str(r) for r in share["record_ids"]])
     try:
-        outcomes = await reverify_rows(rows, verifier, persist=False, gate=public_view_gate)
+        # 호출 양은 public_view_gate가 묶는다 (로그인 사용자용 verifier_budget과 따로, 두 번 세지 않는다).
+        outcomes = await reverify_rows(rows, verifier, caller=ANONYMOUS_CALLER, route="share_view", persist=False,
+                                       gate=public_view_gate)
     except BudgetExceeded as exc:
         # 링크 토큰은 로그에 남기지 않는다 (공유 ID만).
         logger.warning("Public share view rejected: verifier call budget exceeded (share=%s retry_after=%s)",

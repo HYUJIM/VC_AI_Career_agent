@@ -238,8 +238,9 @@ _SKILLS = [
 ]
 
 
-def _alias_pattern(alias: str) -> re.Pattern:
-    return re.compile(r"(?<![a-z0-9_])" + re.escape(normalized_text(alias)) + r"(?![a-z0-9_])")
+def _alias_pattern(alias: str) -> tuple[str, re.Pattern]:
+    literal = normalized_text(alias)
+    return literal, re.compile(r"(?<![a-z0-9_])" + re.escape(literal) + r"(?![a-z0-9_])")
 
 
 SKILL_IDS = [skill.skill_id for skill in _SKILLS]
@@ -248,8 +249,11 @@ if len(SKILL_IDS) != len(set(SKILL_IDS)):
 
 SKILL_BY_ID = {skill.skill_id: skill for skill in _SKILLS}
 # 정규화된 문장에서 찾는 패턴 (긴 표기 먼저 볼 필요는 없다: 공고당 기술별로 '있다/없다'만 센다)
+# (표기, 패턴) 쌍이다. 패턴이 맞으면 표기가 반드시 문장에 들어 있으므로, 쓰는 쪽(statistics._text_skills)은
+# 표기가 있을 때만 패턴을 돌린다. 손으로 쓴 정규식(regex)은 표기를 ""로 두어 항상 돌린다.
 TEXT_PATTERNS = {
-    skill.skill_id: [_alias_pattern(alias) for alias in skill.aliases] + [re.compile(p) for p in skill.regex]
+    skill.skill_id: [_alias_pattern(alias) for alias in skill.aliases]
+    + [("", re.compile(p)) for p in skill.regex]
     for skill in _SKILLS
 }
 # 기술스택 항목 하나가 통째로 이 표기와 같으면 그 기술이다 (Go, R, C 같은 짧은 이름)

@@ -55,6 +55,8 @@ class LLMConfig:
             or parsed.fragment
             or not re.fullmatch(r"[a-zA-Z0-9/_.:@-]{1,200}", model)
             or not key
+            # The key goes into the Authorization header: non-ASCII would fail on every request.
+            or not (key.isascii() and key.isprintable())
             or any(character.isspace() for character in key)
             or parameter not in {"max_completion_tokens", "max_tokens"}
         ):
@@ -208,7 +210,8 @@ class CompatibleLLMClient:
                     and value >= 0
                 },
             )
-        except (ValueError, KeyError, TypeError, IndexError) as exc:
+        # RecursionError: a deeply nested JSON body is a malformed response like any other.
+        except (ValueError, KeyError, TypeError, IndexError, RecursionError) as exc:
             raise ProviderFailure("LLM_MALFORMED_RESPONSE") from exc
 
 

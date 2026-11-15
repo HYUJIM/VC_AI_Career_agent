@@ -23,7 +23,6 @@ import {
   RingProvider,
   ringCssVars,
 } from "./ring-context";
-import { RING_GRID_PADDING } from "./ring-grid";
 
 export interface RingChartProps {
   /** Data array - each item represents a ring */
@@ -38,7 +37,7 @@ export interface RingChartProps {
   baseInnerRadius?: number;
   /**
    * Space kept clear between the outermost ring and the chart edge, px.
-   * Default: 8, or 32 when a `RingGrid` child is present (room for its labels)
+   * Default: 8
    */
   padding?: number;
   /** Animation duration in milliseconds. Default: 1100 */
@@ -92,24 +91,6 @@ function isRing(child: ReactNode): boolean {
     ((child.type as { displayName?: string }).displayName === "Ring" ||
       (child.type as { name?: string }).name === "Ring")
   );
-}
-
-function isRingGrid(child: ReactNode): boolean {
-  return (
-    isValidElement(child) &&
-    typeof child.type !== "string" &&
-    (child.type as { displayName?: string }).displayName === "RingGrid"
-  );
-}
-
-function hasRingGrid(children: ReactNode): boolean {
-  let found = false;
-  Children.forEach(children, (child) => {
-    if (isRingGrid(child)) {
-      found = true;
-    }
-  });
-  return found;
 }
 
 // Helper to check if a child is a RingCenter component
@@ -183,8 +164,7 @@ const RingChartCore = memo(function RingChartCore({
   // Calculate scaled dimensions to fit within the available space
   // The outermost ring needs to fit within the chart with some padding
   const ringCount = data.length;
-  const padding =
-    paddingProp ?? (hasRingGrid(children) ? RING_GRID_PADDING : 8);
+  const padding = paddingProp ?? 8;
   const availableRadius = center - padding;
 
   // Calculate the "design" outer radius (what we'd need at 1:1 scale)

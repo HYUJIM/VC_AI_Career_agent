@@ -52,6 +52,18 @@ def script(monkeypatch):
     return generate_test_data, connects
 
 
+def test_blank_db_port_means_the_default_port_like_the_app(monkeypatch):
+    # 앱(app/services/database.py)과 같은 규칙: `DB_PORT=`로 비워 둔 줄은 5432다 (예전에는 int('') ValueError).
+    import generate_test_data
+
+    seen: dict = {}
+    monkeypatch.setattr(generate_test_data.psycopg, "connect", lambda **kwargs: seen.update(kwargs))
+    for value, port in (("", 5432), (" ", 5432), ("6543", 6543)):
+        monkeypatch.setenv("DB_PORT", value)
+        generate_test_data.get_db_connection()
+        assert seen["port"] == port
+
+
 def test_refuses_outside_development_before_connecting(script, monkeypatch, capsys):
     module, connects = script
     for value in ("production", " Production ", "prod", "staging"):
@@ -384,6 +396,12 @@ def test_csv_rename_failure_after_commit_keeps_the_db_changes_and_says_so(scratc
 # ── 기존 CSV를 바꿀 때: 예전 덮어쓰기처럼 권한·소유자·심볼릭 링크를 남긴다 ─────────
 
 _POSIX_ONLY = pytest.mark.skipif(not hasattr(os, "geteuid"), reason="POSIX 권한·소유자·신호")
+# SIGHUP으로 멈추는 경우의 매개변수. 이 테스트 프로세스가 SIGHUP을 무시하도록 실행됐으면(nohup으로 띄운 pytest 등) 하위
+# 프로세스도 그 무시를 물려받고, 스크립트는 물려받은 무시를 그대로 두므로(아래 inherited_ignored 테스트) SIGHUP으로 멈추지
+# 않는다. 그 환경에서는 이 경우만 건너뛴다 (SIGTERM·Ctrl+C 경우와, SIGHUP을 일부러 무시시키는 테스트는 그대로 돈다).
+_SIGHUP = pytest.param("SIGHUP", marks=pytest.mark.skipif(
+    hasattr(signal, "SIGHUP") and signal.getsignal(signal.SIGHUP) is signal.SIG_IGN,
+    reason="이 프로세스가 SIGHUP을 무시한다 (nohup 등): 하위 프로세스가 SIGHUP으로 멈추지 않는다"))
 
 
 @_POSIX_ONLY
@@ -663,7 +681,7 @@ def _run_and_signal(dbname: str, cwd, marker, where: str, signame: str, ignored:
 
 
 @_POSIX_ONLY
-@pytest.mark.parametrize("signame", ["SIGTERM", "SIGHUP", "SIGINT"])
+@pytest.mark.parametrize("signame", ["SIGTERM", _SIGHUP, "SIGINT"])
 def test_signal_after_commit_keeps_the_db_changes_says_so_and_leaves_no_temp_file(scratch_db, tmp_path, signame):
     """커밋한 뒤 이름을 바꾸기 전에 SIGTERM(kill 등)·SIGHUP·Ctrl+C(SIGINT)를 받으면 이름 바꾸기 실패와 같은 정리를
     거친다: 임시 파일은 지우고, 종료 코드 1과 함께 DB 변경은 커밋되어 남았고 CSV는 저장하지 못했다고 stderr 한 줄로 알린다.
@@ -685,7 +703,7 @@ def test_signal_after_commit_keeps_the_db_changes_says_so_and_leaves_no_temp_fil
 
 
 @_POSIX_ONLY
-@pytest.mark.parametrize("signame", ["SIGTERM", "SIGHUP"])
+@pytest.mark.parametrize("signame", ["SIGTERM", _SIGHUP])
 def test_signal_before_commit_rolls_back_and_leaves_no_temp_file(scratch_db, tmp_path, signame):
     """CSV 임시 파일을 쓰는 중(커밋 전)에 SIGTERM·SIGHUP을 받으면 Ctrl+C처럼 DB는 롤백되고 쓰다 만 임시 파일은 지우며,
     종료 코드 1과 함께 어느 신호로 멈췄는지 stderr 한 줄로 남긴다 (예전에는 신호로 바로 죽어 임시 파일이 남았다)."""
@@ -705,7 +723,7 @@ def test_signal_before_commit_rolls_back_and_leaves_no_temp_file(scratch_db, tmp
 
 
 @_POSIX_ONLY
-@pytest.mark.parametrize("signame", ["SIGTERM", "SIGHUP", "SIGINT"])
+@pytest.mark.parametrize("signame", ["SIGTERM", _SIGHUP, "SIGINT"])
 @pytest.mark.parametrize("where", ["in_commit", "in_close"])
 def test_signal_right_after_the_commit_says_the_db_changes_were_kept(scratch_db, tmp_path, where, signame):
     """신호가 COMMIT 응답 직후(in_commit: 트랜잭션을 나가는 중)나 연결을 닫는 중(in_close)에 닿아도 커밋 뒤의 중단으로
@@ -728,7 +746,7 @@ def test_signal_right_after_the_commit_says_the_db_changes_were_kept(scratch_db,
 
 
 @_POSIX_ONLY
-@pytest.mark.parametrize("signame", ["SIGTERM", "SIGHUP", "SIGINT"])
+@pytest.mark.parametrize("signame", ["SIGTERM", _SIGHUP, "SIGINT"])
 def test_signal_in_the_finally_of_a_successful_run_exits_1_without_the_before_commit_line(scratch_db, tmp_path,
                                                                                           signame):
     """DB 변경·새 CSV·완료 안내까지 마친 뒤 finally의 정리 중(임시 파일 확인)에 신호가 닿아도 커밋 전 중단 안내('신호를 받아
@@ -752,7 +770,7 @@ def test_signal_in_the_finally_of_a_successful_run_exits_1_without_the_before_co
 
 
 @_POSIX_ONLY
-@pytest.mark.parametrize("signame", ["SIGTERM", "SIGHUP", "SIGINT"])
+@pytest.mark.parametrize("signame", ["SIGTERM", _SIGHUP, "SIGINT"])
 def test_signals_while_reporting_a_rename_failure_keep_the_db_kept_line_and_leave_no_temp_file(scratch_db, tmp_path,
                                                                                                signame):
     """커밋한 뒤 이름 바꾸기가 실패하고(엑셀이 연 CSV처럼 PermissionError) 그 안내를 남기기 직전과 안내 뒤 finally의 정리 중에
@@ -777,7 +795,7 @@ def test_signals_while_reporting_a_rename_failure_keep_the_db_kept_line_and_leav
 
 
 @_POSIX_ONLY
-@pytest.mark.parametrize("signame", ["SIGTERM", "SIGHUP", "SIGINT"])
+@pytest.mark.parametrize("signame", ["SIGTERM", _SIGHUP, "SIGINT"])
 def test_second_signal_while_cleaning_up_before_the_commit_leaves_no_temp_file(scratch_db, tmp_path, signame):
     """커밋 전 CSV 임시 파일을 쓰는 중에 멈춘 뒤 그 정리(finally) 중에 두 번째 신호가 닿아도 쓰다 만 임시 파일은 지우고, 첫 신호의
     결과(SIGTERM·SIGHUP은 '신호를 받아 중단했습니다' 한 줄과 종료 코드 1, Ctrl+C는 KeyboardInterrupt traceback)만 남는다.

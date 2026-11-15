@@ -1,10 +1,9 @@
 "use client";
 
-import NumberFlow from "@number-flow/react";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useMemo } from "react";
 import { cn } from "@/lib/utils";
 
-/** Subset of `Intl.NumberFormatOptions` supported by NumberFlow */
+/** Subset of `Intl.NumberFormatOptions` used to format the value */
 export interface ChartStatFlowFormat {
   notation?: "standard" | "compact";
   compactDisplay?: "short" | "long";
@@ -37,31 +36,6 @@ function formatStatValue(
   return `${prefix ?? ""}${formatted}${suffix ?? ""}`;
 }
 
-function useNumberFlowElementReady(): boolean {
-  const [ready, setReady] = useState(
-    () =>
-      typeof customElements !== "undefined" &&
-      Boolean(customElements.get("number-flow-react"))
-  );
-
-  useEffect(() => {
-    if (ready) {
-      return;
-    }
-    let cancelled = false;
-    customElements.whenDefined("number-flow-react").then(() => {
-      if (!cancelled) {
-        setReady(true);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [ready]);
-
-  return ready;
-}
-
 export interface ChartStatFlowProps {
   value: number;
   label: string;
@@ -74,8 +48,12 @@ export interface ChartStatFlowProps {
 }
 
 /**
- * Shared value + label stack using NumberFlow (same layout as pie / ring centers).
+ * Shared value + label stack (same layout as pie / ring centers).
  * Parent should provide flex alignment and sizing when needed.
+ *
+ * 숫자는 NumberFlow(@number-flow/react) 없이 서식을 적용한 글자로 바로 그린다. NumberFlow 는 자기 요소 안에 <style>
+ * 태그를 만들어 넣어서, 운영 CSP(style-src 에 'unsafe-inline' 없음)에서는 스타일이 막혀 "01234567890123456789개"처럼
+ * 깨진다. 숫자가 굴러가는 효과는 없고, 링에 마우스를 올리면 숫자와 이름이 함께 바로 바뀐다.
  */
 export function ChartStatFlow({
   value,
@@ -87,7 +65,6 @@ export function ChartStatFlow({
   labelClassName = "text-xs",
   icon,
 }: ChartStatFlowProps) {
-  const numberFlowReady = useNumberFlowElementReady();
   const staticValue = useMemo(
     () => formatStatValue(value, formatOptions, prefix, suffix),
     [value, formatOptions, prefix, suffix]
@@ -101,18 +78,7 @@ export function ChartStatFlow({
         </div>
       ) : null}
       <span className={cn("text-foreground tabular-nums", valueClassName)}>
-        {numberFlowReady ? (
-          <NumberFlow
-            format={formatOptions}
-            isolate
-            prefix={prefix}
-            suffix={suffix}
-            value={value}
-            willChange
-          />
-        ) : (
-          staticValue
-        )}
+        {staticValue}
       </span>
       <span className={cn("mt-0.5 text-chart-label", labelClassName)}>
         {label}

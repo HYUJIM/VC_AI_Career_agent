@@ -65,6 +65,18 @@ export function getApiErrorStatus(error: unknown): number | undefined {
   return axios.isAxiosError(error) ? error.response?.status : undefined;
 }
 
+/** BE가 보낸 detail 원문 (문자열일 때만). 같은 상태 코드 안에서 화면을 나눠야 할 때 쓴다. */
+export function getApiErrorDetail(error: unknown): string | undefined {
+  if (!axios.isAxiosError(error)) return undefined;
+  const detail = (error.response?.data as ApiErrorBody | undefined)?.detail;
+  return typeof detail === 'string' ? detail : undefined;
+}
+
+/** BE의 응답을 전혀 받지 못한 요청인지 (연결 실패·시간 초과). 본문 없는 5xx 처럼 응답이 하나라도 왔으면 false */
+export function isNoResponseError(error: unknown): boolean {
+  return axios.isAxiosError(error) && !error.response;
+}
+
 /**
  * 화면 분기용 에러 종류.
  * - network: BE에 연결 불가 (서버 미실행 / vite 프록시가 연결 실패 시 본문 없이 5xx 반환)
@@ -116,16 +128,26 @@ export function getApiErrorKind(error: unknown): ApiErrorKind {
 /** 시도 횟수 초과(429) 안내. 번역표에 없는 429(운영 WAF·로드밸런서의 HTML·{"message": ...} 본문 등)에도 쓴다. */
 const TOO_MANY_ATTEMPTS_MESSAGE = '시도가 너무 많습니다. 잠시 후 다시 시도해주세요.';
 
+/**
+ * Google 로그인 콜백의 409 detail 중 "같은 이메일이 이미 이메일·비밀번호 계정으로 가입돼 있음".
+ * 같은 409 인 "다른 Google 계정이 이미 연동됨"과 화면을 나누기 위해 콜백 화면이 detail 원문과 비교한다.
+ */
+export const OAUTH_PASSWORD_ACCOUNT_DETAIL =
+  'This email is registered with a password. Log in with your email and password.';
+
 /** BE가 반환하는 알려진 영문 에러 메시지 → 사용자용 한국어 메시지 */
 const KNOWN_ERROR_MESSAGES: Record<string, string> = {
   'Invalid email or password': '이메일 또는 비밀번호가 올바르지 않습니다.',
   'Email already registered': '이미 가입된 이메일입니다.',
   'User not found or not verified yet.': '사용자 정보를 찾을 수 없습니다. 다시 로그인해주세요.',
+  'User not found': '사용자 정보를 찾을 수 없습니다. 다시 로그인해주세요.',
   'Authentication required': '로그인이 필요합니다. 다시 로그인해주세요.',
   'Invalid token': '로그인 정보가 올바르지 않습니다. 다시 로그인해주세요.',
   'Token expired': '로그인이 만료되었습니다. 다시 로그인해주세요.',
   // 같은 이메일로 로그인을 너무 많이 틀림 (BE 429)
   'Too many attempts. Try again later.': TOO_MANY_ATTEMPTS_MESSAGE,
+  // DB 연결 한도·쿼리 시간 초과로 지금 처리할 수 없음 (BE 503 + Retry-After). 모든 API에서 날 수 있다
+  'Service is busy. Try again later.': '요청이 많아 처리가 지연되고 있습니다. 잠시 후 다시 시도해주세요.',
   // 권한 (403)
   'Forbidden: not your DID': '본인 DID의 정보만 조회할 수 있습니다.',
   'Forbidden: can only issue to your own DID': '본인 DID로만 배지를 발급받을 수 있습니다.',
@@ -138,10 +160,18 @@ const KNOWN_ERROR_MESSAGES: Record<string, string> = {
   // 모의 발급 (403 / 429 / 404)
   'Template not allowed': '허용되지 않은 배지 템플릿입니다.',
   'Mock issuance limit reached; try again later': '모의 발급 한도(24시간)를 넘었습니다. 나중에 다시 시도해주세요.',
+  // 사용자별 한도가 아니라 서버 전체의 모의 발급 한도(24시간)에 도달함 (BE 429). 발급을 적게 한 사용자도 받을 수 있다
+  'Mock issuance service limit reached; try again later.':
+    '전체 모의 발급 한도(24시간)에 도달했습니다. 잠시 후 다시 시도하거나 관리자에게 문의해주세요.',
+  // 발급 서버(협력사) 오류가 이어져 BE가 모의 발급을 잠시 멈춤 (BE 429 + Retry-After). BE가 약 1분마다 한 건씩 보내 보고 성공하면 풀린다
+  'Mock issuance is paused after repeated failures. Try again shortly.':
+    '발급 서버 오류가 이어져 모의 발급을 잠시 멈췄습니다. 1분쯤 뒤에 다시 시도해주세요.',
   'Mock issuer is disabled': '이 서버에서는 모의 발급을 사용할 수 없습니다.',
   // 발급·검증 협력사 오류 (502 / 503). 협력사 메시지는 BE 로그에만 남는다.
   'Credential service error': '배지 발급·검증 서비스에서 오류가 발생했습니다.',
   'Credential service is not configured': '배지 발급·검증 서비스를 지금 사용할 수 없습니다.',
+  // 로그인 사용자의 검증 호출 한도 초과 (BE 429 + Retry-After): 검증·재검증·포트폴리오 저장·직무 비교
+  'Too many verification requests. Try again later.': '검증 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.',
   // 재검증·포트폴리오·선택 공개 (v0.6.0)
   'Credential not found': '자격증명을 찾을 수 없습니다. 목록을 새로고침해주세요.',
   'No verified credentials selected': '선택한 자격증명 중 지금 검증을 통과한 것이 없습니다.',
@@ -152,18 +182,31 @@ const KNOWN_ERROR_MESSAGES: Record<string, string> = {
   'Share not found': '공유 링크를 찾을 수 없습니다.',
   'Share link not found or expired': '링크가 없거나 철회·만료되었습니다.',
   'Share verification is busy. Try again later.': '현재 검증 요청이 많습니다. 잠시 후 다시 열어주세요.',
-  // 소셜 로그인 (Google OAuth 2.0). 400 / 409 / 503
+  // 사용자별 개수 한도 (409)
+  'Share link limit reached. Revoke unused links first.':
+    '공유 링크를 더 만들 수 없습니다. 사용하지 않는 링크를 먼저 폐기해주세요.',
+  'Portfolio limit reached.': '포트폴리오를 더 만들 수 없습니다.',
+  // 소셜 로그인 (Google OAuth 2.0). 400 / 409 / 502 / 503
   'Invalid or expired OAuth state': '로그인 요청이 만료되었거나 올바르지 않습니다. 처음부터 다시 시도해주세요.',
   'Invalid or expired OAuth authorization code': '로그인 인증이 만료되었습니다. 처음부터 다시 시도해주세요.',
   'Invalid OAuth access token': '소셜 계정 정보를 확인하지 못했습니다. 처음부터 다시 시도해주세요.',
   'OAuth email is not verified': '소셜 계정의 이메일이 인증되지 않아 로그인할 수 없습니다.',
   'Missing OAuth code or state': '로그인 응답이 올바르지 않습니다. 처음부터 다시 시도해주세요.',
   'redirect_uri does not match OAuth state': '로그인 요청이 올바르지 않습니다. 처음부터 다시 시도해주세요.',
+  'Invalid code_challenge': '로그인 요청이 올바르지 않습니다. 처음부터 다시 시도해주세요.',
+  'Only S256 code_challenge_method is supported': '로그인 요청이 올바르지 않습니다. 처음부터 다시 시도해주세요.',
   'Invalid redirect_uri': '허용되지 않은 로그인 경로입니다. 관리자에게 문의해주세요.',
   'User is already linked to another account for this provider':
     '이 이메일 계정에는 이미 다른 Google 계정이 연동되어 있습니다. 연동된 Google 계정으로 로그인해주세요.',
+  // 같은 이메일이 이미 이메일·비밀번호 계정으로 가입돼 있다 (409). BE는 비밀번호가 있는 계정에 Google 계정을 붙이지 않는다
+  [OAUTH_PASSWORD_ACCOUNT_DETAIL]: '이미 이메일·비밀번호로 가입된 계정입니다. 이메일과 비밀번호로 로그인해주세요.',
   'Google OAuth is not configured': 'Google 로그인을 지금 사용할 수 없습니다.',
   'Google OAuth redirect_uri is not configured': 'Google 로그인을 지금 사용할 수 없습니다.',
+  // Google 쪽 응답 실패 (502). 원인은 BE 로그의 "Provider error" 줄에만 남는다
+  'Google OAuth error': 'Google 로그인 서비스에 일시적인 문제가 있습니다.',
+  // 직무별 요구 역량 통계 (404 / 409)
+  'Market snapshot not found': '이 직무의 통계가 아직 없습니다.',
+  'Market snapshot integrity check failed': '저장된 통계 자료가 손상되어 보여 줄 수 없습니다. 관리자에게 문의해주세요.',
   // 직무 비교·커리큘럼 (AI)
   'AI service temporarily unavailable': 'AI 서버에 연결할 수 없습니다. AI 서버가 실행 중인지 확인해주세요.',
   'No eligible reviewed job sources; import sources first':
@@ -175,6 +218,51 @@ const KNOWN_ERROR_MESSAGES: Record<string, string> = {
   'External LLM access is not enabled for this account': '이 계정은 LLM 모드를 사용할 수 없습니다.',
   'LEARNING_CHOICE_IS_OUTSIDE_ACTIONABLE_GAPS': '선택한 학습 항목이 비교 결과의 보완 대상이 아닙니다.',
   LLM_CONTEXT_TOO_LARGE: '계획 옵션이 너무 많아 LLM에 보낼 수 없습니다. 템플릿 모드를 사용해주세요.',
+  // 공고·학습 자료가 지원 규모를 넘음 (422 / 413). 화면에 지역·경력 필터가 없어 사용자가 줄일 방법은 없다
+  'Too many eligible postings; narrow region or seniority':
+    '비교에 쓸 수 있는 공고가 너무 많아 지금은 처리할 수 없습니다. 관리자에게 문의해주세요.',
+  'Local corpus is too large; narrow the job sources':
+    '등록된 공고가 너무 많아 지금은 처리할 수 없습니다. 관리자에게 문의해주세요.',
+  'Request too large for the AI service':
+    'AI 서버로 보낼 자료가 너무 커서 지금은 처리할 수 없습니다. 관리자에게 문의해주세요.',
+  'Learning catalog exceeds supported corpus size':
+    '등록된 학습 자료가 너무 많아 지금은 계획을 만들 수 없습니다. 관리자에게 문의해주세요.',
+  SELECT_TARGET_POSTING_OR_NARROW_COMPARISON:
+    '비교한 요구사항이 너무 많아 계획을 만들 수 없습니다. 공고 하나를 골라 다시 비교해주세요.',
+  // 비교·계획 도중 자료가 바뀌었거나 유효시간이 지남 (409)
+  'Job source changed during analysis; retry': '비교하는 동안 공고 내용이 바뀌었습니다. 다시 비교해주세요.',
+  'Learning source changed; create the plan again':
+    '계획을 만드는 동안 학습 자료가 바뀌었습니다. 계획을 다시 만들어주세요.',
+  'Evidence expired during generation; create a new analysis':
+    '계획을 만드는 동안 직무 비교 결과의 유효시간이 지났습니다. 다시 비교한 뒤 계획을 만들어주세요.',
+  'Create a fresh full-profile career analysis first':
+    '직무 비교 결과의 유효시간(5분)이 지났습니다. 다시 비교한 뒤 계획을 만들어주세요.',
+  'Verification snapshot is stale or invalid; verify again':
+    '자격증명 검증 결과의 유효시간이 지났습니다. 다시 비교해주세요.',
+  'Idempotency key was used for a different request':
+    '같은 요청 식별자로 다른 내용의 요청이 이미 처리되었습니다. 계획을 다시 만들어주세요.',
+  // 요청이 저장된 공고·비교 결과와 맞지 않음 (404 / 409 / 422)
+  'Job posting not found': '선택한 공고를 찾을 수 없습니다. 화면을 새로고침한 뒤 다시 골라주세요.',
+  'Analysis not found': '직무 비교 결과를 찾을 수 없습니다. 다시 비교해주세요.',
+  'Target posting does not match the request': '선택한 공고가 요청과 맞지 않습니다. 다시 비교해주세요.',
+  'Curriculum request does not match the analysis':
+    '계획 요청이 직무 비교 결과와 맞지 않습니다. 다시 비교한 뒤 계획을 만들어주세요.',
+  INVALID_ALTERNATIVE_CHOICE: '선택한 대안 기술이 비교 결과와 맞지 않습니다. 다시 비교한 뒤 골라주세요.',
+  UNUSED_OR_UNKNOWN_ALTERNATIVE_CHOICE: '선택한 대안 기술이 비교 결과와 맞지 않습니다. 다시 비교한 뒤 골라주세요.',
+  // 저장된 자료의 무결성 검사 실패 (409)
+  'Job source integrity check failed': '저장된 공고 자료가 손상되어 비교에 쓸 수 없습니다. 관리자에게 문의해주세요.',
+  'Learning source integrity check failed':
+    '저장된 학습 자료가 손상되어 계획에 쓸 수 없습니다. 관리자에게 문의해주세요.',
+  'Stored analysis integrity check failed': '저장된 직무 비교 결과가 손상되었습니다. 다시 비교해주세요.',
+  'Stored curriculum integrity check failed': '저장된 학습 계획이 손상되었습니다. 계획을 다시 만들어주세요.',
+  // 계획 생성 실패 (422). LLM 응답을 쓸 수 없거나 계획 자료에 문제가 있다
+  LLM_PROVIDER_REJECTED: 'LLM이 계획을 만들지 못했습니다. 템플릿 모드를 사용해주세요.',
+  LLM_RESPONSE_TOO_LARGE: 'LLM이 계획을 만들지 못했습니다. 템플릿 모드를 사용해주세요.',
+  LLM_MALFORMED_RESPONSE: 'LLM이 계획을 만들지 못했습니다. 템플릿 모드를 사용해주세요.',
+  CYCLIC_RESOURCE_PREREQUISITES:
+    '학습 자료의 선수 조건이 서로 얽혀 있어 계획을 만들 수 없습니다. 관리자에게 문의해주세요.',
+  UNTRUSTED_OR_UNSUPPORTED_JOB_INPUT: '학습 계획을 만들지 못했습니다. 다시 비교한 뒤 계획을 만들어주세요.',
+  INTERNAL_GENERATION_ERROR: '학습 계획을 만들지 못했습니다. 다시 비교한 뒤 계획을 만들어주세요.',
   // 서버 설정 이름이 들어간 운영자용 안내는 개발 서버(npm run dev)에서만 쓴다. 운영 빌드에서는 번들에서 빠지고
   // (import.meta.env.DEV 가 false 로 바뀌어 이 분기가 사라짐), 여기 없는 5xx는 getApiErrorMessage가 공통 문구로 바꾼다.
   ...(import.meta.env.DEV
@@ -196,8 +284,24 @@ const KNOWN_ERROR_MESSAGES: Record<string, string> = {
     : {}),
 };
 
+/**
+ * 본문의 기계용 `code` → 사용자용 한국어 메시지. detail 문구가 따로 정해지지 않은 응답에 쓰며 detail 번역표보다 먼저 본다.
+ */
+const KNOWN_ERROR_CODES: Record<string, string> = {
+  // BE→AI 동시 호출 한도 초과 (503 + Retry-After). 공고 조회·직무 비교·학습 계획
+  AI_SERVICE_BUSY: '분석 요청이 많습니다. 잠시 후 다시 시도해주세요.',
+};
+
 /** 운영 빌드에서 개발자용 안내(로컬 주소·서버 로그) 대신 붙이는 공통 안내 */
 export const RETRY_LATER_MESSAGE = '잠시 후 다시 시도해주세요. 문제가 계속되면 관리자에게 문의해주세요.';
+
+/**
+ * 화면이 오류 문구 뒤에 "잠시 후 다시 시도" 안내(RETRY_LATER_MESSAGE·개발용 안내)를 덧붙여도 되는지.
+ * 429 와 혼잡 안내(검증 요청 한도, DB·AI 혼잡 503)는 문구가 이미 같은 안내로 끝나므로 덧붙이지 않는다.
+ */
+export function needsRetryHint(status: number | undefined, message: string): boolean {
+  return status !== 429 && !message.endsWith('잠시 후 다시 시도해주세요.');
+}
 
 /** 운영 빌드에서 번역되지 않은 5xx 본문 대신 보여 주는 문구 (외부 서비스·서버 내부 문구를 화면에 싣지 않는다) */
 const SERVER_ERROR_MESSAGE = '서버에서 일시적인 오류가 발생했습니다.';
@@ -258,7 +362,7 @@ function formatValidationDetail(detail: ValidationErrorItem[]): string {
     .map((item) => {
       const field = item.loc
         ?.filter((part) => part !== 'body')
-        .map((part) => FIELD_LABELS[String(part)] ?? String(part))
+        .map((part) => (Object.hasOwn(FIELD_LABELS, String(part)) ? FIELD_LABELS[String(part)] : String(part)))
         .join('.');
       return field && item.msg ? `${field}: ${item.msg}` : item.msg;
     })
@@ -269,6 +373,8 @@ function formatValidationDetail(detail: ValidationErrorItem[]): string {
 }
 
 export function getApiErrorMessage(error: unknown): string {
+  const code = axios.isAxiosError(error) ? (error.response?.data as ApiErrorBody | undefined)?.code : undefined;
+  if (typeof code === 'string' && Object.hasOwn(KNOWN_ERROR_CODES, code)) return KNOWN_ERROR_CODES[code];
   if (getApiErrorKind(error) === 'network') {
     return import.meta.env.DEV
       ? 'BE 서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.'

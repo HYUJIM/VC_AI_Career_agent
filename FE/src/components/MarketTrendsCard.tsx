@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { getMarketSnapshot, getMarketSnapshots } from '@/api/market';
 import { Alert } from '@/components/ui/Alert';
+import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { getApiErrorMessage } from '@/lib/apiClient';
 import type { MarketRoleId, MarketSkillCategory, MarketSnapshot } from '@/types/market';
@@ -51,7 +52,15 @@ export function MarketTrendsCard() {
   if (list.isPending || (list.data && list.data.length === 0)) return null;
   if (list.isError) {
     return (
-      <Alert variant="error" title="직무별 요구 역량 통계를 불러오지 못했어요">
+      <Alert
+        variant="error"
+        title="직무별 요구 역량 통계를 불러오지 못했어요"
+        actions={
+          <Button variant="outline" size="sm" disabled={list.isFetching} onClick={() => list.refetch()}>
+            다시 시도
+          </Button>
+        }
+      >
         {getApiErrorMessage(list.error)}
       </Alert>
     );
@@ -95,7 +104,15 @@ export function MarketTrendsCard() {
       </div>
 
       {detail.isError && (
-        <Alert variant="error" title="통계를 불러오지 못했어요">
+        <Alert
+          variant="error"
+          title="통계를 불러오지 못했어요"
+          actions={
+            <Button variant="outline" size="sm" disabled={detail.isFetching} onClick={() => detail.refetch()}>
+              다시 시도
+            </Button>
+          }
+        >
           {getApiErrorMessage(detail.error)}
         </Alert>
       )}
@@ -114,7 +131,13 @@ export function MarketTrendsCard() {
                   <span className="font-semibold">
                     {skill.rank}. {skill.label}
                     <span className="ml-2 text-[12px] font-normal text-[var(--color-text-sub)]">
-                      {CATEGORY_LABEL[skill.category]}
+                      {/* Object.hasOwn: 표에 없는 값이 Object.prototype 의 이름(constructor 등)이어도 그 값 그대로 보여 준다.
+                          문자열이 아닌 값(객체 등)은 그대로 그리면 화면 전체가 오류 화면으로 바뀌므로 빈 이름으로 둔다 */}
+                      {Object.hasOwn(CATEGORY_LABEL, skill.category)
+                        ? CATEGORY_LABEL[skill.category]
+                        : typeof skill.category === 'string'
+                          ? skill.category
+                          : ''}
                     </span>
                   </span>
                   <span className="shrink-0 text-[13px] text-[var(--color-text-sub)]">
@@ -156,14 +179,17 @@ export function MarketTrendsCard() {
             요구 경력:{' '}
             {snapshot.experience
               .filter((item) => item.postings > 0)
-              .map((item) => `${EXPERIENCE_LABEL[item.bucket]} ${item.postings}건`)
+              .map((item) => {
+                const label = Object.hasOwn(EXPERIENCE_LABEL, item.bucket) ? EXPERIENCE_LABEL[item.bucket] : item.bucket;
+                return `${label} ${item.postings}건`;
+              })
               .join(' · ')}
           </p>
 
           {snapshot.warnings.length > 0 && (
             <ul className="flex flex-col gap-1 text-[13px] text-[var(--color-text-sub)]">
               {snapshot.warnings.map((code) => (
-                <li key={code}>※ {WARNING_TEXT[code] ?? code}</li>
+                <li key={code}>※ {Object.hasOwn(WARNING_TEXT, code) ? WARNING_TEXT[code] : code}</li>
               ))}
             </ul>
           )}

@@ -83,7 +83,7 @@ function PortfolioDetailModal({ id, onClose }: { id: string; onClose: () => void
   const { copy, isCopied } = useCopy();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
-  const { data, isLoading, isError, error } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['portfolio', id],
     queryFn: () => getPortfolio(id),
   });
@@ -135,7 +135,15 @@ function PortfolioDetailModal({ id, onClose }: { id: string; onClose: () => void
       <div className="flex flex-col gap-4">
         {isLoading && <p className="text-[13px] text-[var(--color-text-muted)]">불러오는 중...</p>}
         {isError && (
-          <Alert variant="error" title="포트폴리오를 불러오지 못했습니다.">
+          <Alert
+            variant="error"
+            title="포트폴리오를 불러오지 못했습니다."
+            actions={
+              <Button variant="outline" size="sm" disabled={isFetching} onClick={() => refetch()}>
+                다시 시도
+              </Button>
+            }
+          >
             {getApiErrorMessage(error)}
           </Alert>
         )}
@@ -235,7 +243,7 @@ function PortfolioDetailModal({ id, onClose }: { id: string; onClose: () => void
 /** 저장된 포트폴리오 목록 (BE v0.6.0 GET /portfolios) */
 export function SavedPortfolios() {
   const [openId, setOpenId] = useState<string | null>(null);
-  const { data, isLoading, isError, error, refetch } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['portfolios'],
     queryFn: listPortfolios,
   });
@@ -253,7 +261,7 @@ export function SavedPortfolios() {
           variant="error"
           title="목록을 불러오지 못했습니다."
           actions={
-            <Button variant="outline" size="sm" onClick={() => refetch()}>
+            <Button variant="outline" size="sm" disabled={isFetching} onClick={() => refetch()}>
               다시 시도
             </Button>
           }

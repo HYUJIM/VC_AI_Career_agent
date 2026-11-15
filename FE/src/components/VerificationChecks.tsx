@@ -29,7 +29,7 @@ export function VerificationChecks({ checks }: { checks: VerificationCheck[] }) 
         return (
           <li key={`${c.name}-${i}`} className="flex items-start justify-between gap-3">
             <span className="min-w-0 text-[var(--color-text-sub)]">
-              {CHECK_LABELS[c.name] ?? c.name}
+              {Object.hasOwn(CHECK_LABELS, c.name) ? CHECK_LABELS[c.name] : c.name}
               {c.detail && <span className="block text-[12px] text-[var(--color-text-muted)]">{c.detail}</span>}
             </span>
             <span className={`shrink-0 font-semibold ${style.className}`}>{style.label}</span>

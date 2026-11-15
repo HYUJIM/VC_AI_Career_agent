@@ -22,7 +22,10 @@ export function ShareLinksCard({ selectedIds }: { selectedIds: string[] }) {
   const [days, setDays] = useState(14);
   const [createdUrl, setCreatedUrl] = useState<string | null>(null);
 
-  const { data, dataUpdatedAt, isLoading, isError, error } = useQuery({ queryKey: ['shares'], queryFn: listShares });
+  const { data, dataUpdatedAt, isLoading, isError, error, refetch, isFetching } = useQuery({
+    queryKey: ['shares'],
+    queryFn: listShares,
+  });
   const shares = data?.data ?? [];
 
   const create = useMutation({
@@ -110,7 +113,16 @@ export function ShareLinksCard({ selectedIds }: { selectedIds: string[] }) {
       <div className="flex flex-col gap-2">
         <p className="text-[13px] font-semibold text-[var(--color-text-sub)]">내 공유 링크</p>
         {isLoading && <p className="text-[13px] text-[var(--color-text-muted)]">불러오는 중...</p>}
-        {isError && <p className="text-[13px] text-[var(--color-danger)]">{getApiErrorMessage(error)}</p>}
+        {isError && (
+          <>
+            <p className="text-[13px] text-[var(--color-danger)]">{getApiErrorMessage(error)}</p>
+            {/* BE가 답한 오류는 자동으로 다시 부르지 않으므로(main.tsx) 사용자가 직접 다시 부르는 버튼을 둔다.
+                다시 부르는 중에는 잠근다: 이전 목록이 남아 있으면 오류 문구와 버튼이 그대로 보여, 누를 때마다 GET 이 또 나간다 */}
+            <Button variant="outline" size="sm" className="self-start" disabled={isFetching} onClick={() => refetch()}>
+              다시 시도
+            </Button>
+          </>
+        )}
         {!isLoading && !isError && shares.length === 0 && (
           <p className="text-[13px] text-[var(--color-text-muted)]">만든 링크가 없어요.</p>
         )}

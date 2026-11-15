@@ -305,9 +305,11 @@ export interface ValidationErrorItem {
 /**
  * BE 에러 응답. 일반 에러는 `{ detail: string }`,
  * 요청 본문 검증 실패(422)는 `{ detail: ValidationErrorItem[] }` 이다.
+ * 발급·검증 협력사 오류와 AI 연동 오류에는 기계용 `code` 가 함께 온다 (예: `AI_SERVICE_BUSY`).
  */
 export interface ApiErrorBody {
   detail?: string | ValidationErrorItem[];
+  code?: string;
   error?: string;
   message?: string;
 }

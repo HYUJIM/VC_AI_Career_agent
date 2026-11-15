@@ -15,10 +15,13 @@ concurrency:
   group: tests-${{ github.ref }}
   cancel-in-progress: true
 
+# job마다 timeout-minutes를 둔다 (가장 긴 BE 테스트가 3~4분). 테스트가 멈추면(예: DB 잠금을 끝없이 기다리는 회귀)
+# GitHub 기본 제한(6시간)까지 도는 대신 20분에 실패로 끝난다.
 jobs:
   be:
     name: BE (pytest)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         # BE/docker-compose.yml과 같은 고정 태그 (pgvector 0.8.7, PostgreSQL 16, Debian bookworm)
@@ -54,6 +57,7 @@ jobs:
   ai:
     name: AI (pytest)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: ai
@@ -76,6 +80,7 @@ jobs:
   research-vc:
     name: research-vc (typecheck + vitest)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: research-vc
@@ -95,6 +100,7 @@ jobs:
   fe:
     name: FE (lint + build)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: FE
@@ -113,8 +119,9 @@ jobs:
       - run: npm run build
       # 운영 번들(dist)이 외부 출처의 스크립트를 불러오지 않는지 본다. 외부 스크립트는 이 사이트 권한으로 실행되어
       # localStorage의 로그인 토큰·비밀번호 입력을 읽을 수 있다. Figma 캡처 스크립트(mcp.figma.com)는
-      # vite.config.ts의 개발 서버 전용 플러그인이 npm run dev에서만 넣는다.
-      # Pretendard 웹폰트 <link>(cdn.jsdelivr.net 스타일시트)는 <script>가 아니므로 이 검사 대상이 아니다.
+      # vite.config.ts의 플러그인이 FIGMA_CAPTURE=1로 띄운 개발 서버(npm run dev)에서만 넣는다 (빌드에는 넣지 않는다).
+      # Pretendard 웹폰트(cdn.jsdelivr.net 스타일시트)는 index.html에 태그가 없고 src/main.tsx가 실행 중에 <link>로 붙인다:
+      # <script>가 아니므로 이 검사 대상이 아니다.
       - name: Check dist has no third-party scripts
         run: |
           test -f dist/index.html
@@ -136,7 +143,7 @@ jobs:
       - name: Check dist has no dev-only hints
         run: |
           test -d dist
-          if grep -rnoE 'localhost:3000|AI_SERVICE_(TOKEN|URL)|DXWORKS_|ai_contract' dist; then
+          if grep -rnoE 'localhost:3000|AI_SERVICE_(TOKEN|URL)|DXWORKS_|GOOGLE_|ai_contract' dist; then
             echo "::error::운영 번들(dist)에 개발 전용 안내가 있습니다. import.meta.env.DEV 분기 안으로 옮기세요 (위 위치 참고)."
             exit 1
           fi
@@ -144,6 +151,7 @@ jobs:
   docker:
     name: Docker (image build)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -157,6 +165,8 @@ jobs:
       - run: docker run --rm vc-ai:ci python -c "import src.server.app"
       # AWS 일회성 태스크로 쓰는 마이그레이션 실행기(python -m app.migrate)가 이미지 안에서 뜨는지 (DB 접속 없음)
       - run: docker run --rm vc-be:ci python -m app.migrate --help
+      # 시장 통계 배치(python -m app.jobs.market)도 이미지 안에서 뜨는지 (DB·AI 접속 없음, 운영 비밀값 없이)
+      - run: docker run --rm vc-be:ci python -m app.jobs.market --help
       # Compose 파일 문법·서비스 참조 검사. env_file(BE/.env)은 저장소에 없으므로 예시 파일을 복사해 쓴다
       # (러너의 Compose v2는 --no-env-resolution을 줘도 .env 파일이 있어야 한다).
       - run: cp BE/.env.example BE/.env && docker compose -f BE/docker-compose.yml config -q

@@ -13,7 +13,7 @@ from src.career.gap_analyzer import (
 )
 from src.career.job_requirements import infer_logic, preview_requirements, validate_annotations
 from src.career.errors import EvidenceError
-from src.career.skill_catalog import bounded_normalized_text, contains_skill
+from src.career.skill_catalog import bounded_normalized_text, contains_skill, normalized_text
 from src.career.skill_normalizer import map_skills
 from pydantic import ValidationError
 
@@ -386,3 +386,107 @@ def test_growth_bound_is_twice_the_length_plus_slack():
     assert bounded_normalized_text("…" * 64) == "." * 192  # 192 <= 2 * 64 + 64
     with pytest.raises(EvidenceError, match=TEXT_EXPANDS):
         bounded_normalized_text("…" * 65)  # 195 > 2 * 65 + 64
+
+
+def old_normalized_text(value):
+    """결합 문자 구간을 자르기 전의 normalized_text."""
+    import unicodedata
+
+    return " ".join(unicodedata.normalize("NFKC", value).casefold().split())
+
+
+# U+0301(ccc 230) 뒤에 U+0323(ccc 220): NFKC가 순서를 바꿔야 하는 쌍이다.
+UNSORTED_MARKS = "\u0301\u0323"
+
+
+@pytest.mark.parametrize(
+    "hostile, kept",
+    [
+        (UNSORTED_MARKS * 50000, 30),
+        ("\u0f73" * 100000, 60),  # 결합 문자는 아니지만 NFKD로 U+0F71 U+0F72(둘 다 결합 문자)가 된다
+        ("\u0301\uff9e" * 50000, 30),  # U+FF9E도 NFKC로 결합 문자 U+3099가 된다
+        ("\U0001d16d\U0001d165" * 50000, 30),  # BMP 밖의 결합 문자
+    ],
+)
+def test_long_runs_of_combining_marks_are_cut_before_nfkc(monkeypatch, hostile, kept):
+    # NFKC의 결합 문자 재배열은 삽입 정렬이라, 자르지 않으면 10만 자에 초 단위로 GIL을 잡는다.
+    import unicodedata
+
+    seen = []
+    real = unicodedata.normalize
+    monkeypatch.setattr(
+        unicodedata, "normalize", lambda form, value: seen.append(len(value)) or real(form, value)
+    )
+    assert len(normalized_text(hostile)) == kept
+    assert seen == [30]  # NFKC가 받은 길이: 10만 자가 아니라 MAX_COMBINING_RUN자
+    seen.clear()
+    assert bounded_normalized_text("SQL " + hostile + " 필수").startswith("sql ")
+    assert seen == [len("SQL ") + 30 + len(" 필수")]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "e" + "\u0301" * 30 + " SQL",  # 30개까지는 자르지 않는다
+        ("a" + UNSORTED_MARKS * 15) * 100,
+        "\u1ea5" * 500 + "a\u0302\u0301" * 500,  # 베트남어: 합성형과 분해형
+        "가\u3099나\uff9e ﾊ\uff9eｯｸｴﾝﾄ\uff9e ㈜데이터컴퍼니 ① ＡＷＳ 👩\u200d💻 e\u0301",
+        "\u0f73" * 30 + "x" + "\U0001d16d\U0001d165" * 15,
+    ],
+)
+def test_text_without_long_combining_runs_normalizes_as_before(text):
+    assert normalized_text(text) == old_normalized_text(text)
+
+
+def test_only_the_marks_beyond_the_limit_are_dropped():
+    assert normalized_text("e" + "\u0301" * 31 + " SQL") == old_normalized_text("e" + "\u0301" * 30 + " SQL")
+    text = "SQL " + "e" + UNSORTED_MARKS * 40 + " Python " + "\u0301" * 100 + "x 필수"
+    cut = "SQL " + "e" + UNSORTED_MARKS * 15 + " Python " + "\u0301" * 30 + "x 필수"
+    assert normalized_text(text) == old_normalized_text(cut)
+    assert preview_requirements(text)[0].skill_ids == ["sql", "python"]
+
+
+def test_the_cut_costs_nothing_on_text_without_a_long_combining_run(monkeypatch):
+    # 치환(sub)은 맞는 곳이 없어도 호출마다 템플릿(\1)을 처리해, 짧은 문자열의 정규화를 6~20배 느리게 했다.
+    # 긴 결합 문자 구간이 없으면 sub를 부르지 않고(ASCII는 search도 하지 않는다), 있으면 첫 구간 뒤만 치환한다.
+    import random
+    import unicodedata
+
+    from src.career import skill_catalog
+
+    real = skill_catalog._LONG_COMBINING_RUN
+    calls = []
+
+    class Spy:
+        def search(self, text):
+            calls.append(("search", text))
+            return real.search(text)
+
+        def sub(self, template, text):
+            calls.append(("sub", text))
+            return real.sub(template, text)
+
+    monkeypatch.setattr(skill_catalog, "_LONG_COMBINING_RUN", Spy())
+    assert normalized_text("Apache  Spark") == "apache spark" and calls == []
+    ordinary = "㈜데이터컴퍼니 ＡＷＳ 👩‍💻 e" + "́" * 30  # 결합 문자 30개까지는 긴 구간이 아니다
+    assert normalized_text(ordinary) == old_normalized_text(ordinary)
+    assert calls == [("search", ordinary)]
+    calls.clear()
+    hostile = "SQL e" + UNSORTED_MARKS * 40 + " Python " + "́" * 100 + "x 필수"
+    assert normalized_text(hostile) == old_normalized_text(
+        "SQL e" + UNSORTED_MARKS * 15 + " Python " + "́" * 30 + "x 필수"
+    )
+    assert calls == [("search", hostile), ("sub", " Python " + "́" * 100 + "x 필수")]
+
+    def previous(text):
+        """사전 검사를 넣기 전의 normalized_text: 항상 전체를 치환한다."""
+        return " ".join(unicodedata.normalize("NFKC", real.sub(r"\1", text)).casefold().split())
+
+    rng = random.Random(0)
+    pieces = ["SQL ", "데이터 ", "x", "é", "́", "̣", "ཱི", "ﾞ", "\U0001d165", "👩"]
+    changed = 0
+    for _ in range(300):  # 구간 길이가 30 앞뒤로 섞여 나온다
+        text = "".join(rng.choice(pieces) * rng.randint(1, 20) for _ in range(rng.randint(1, 12)))
+        assert normalized_text(text) == previous(text)
+        changed += real.search(text) is not None
+    assert 50 < changed < 250  # 긴 구간이 있는 텍스트와 없는 텍스트를 모두 본다

@@ -42,6 +42,24 @@ function toExpiresAt(expiresIn: number | null | undefined): number | null {
     : null;
 }
 
+const isNonEmptyString = (value: unknown): value is string => typeof value === 'string' && value !== '';
+
+/**
+ * 화면이 그대로 쓰는 프로필인지: id·did·name 은 빈 문자열이 아닌 문자열, email 은 문자열.
+ * 로그인 응답(startSession)과 저장된 세션(persist merge)을 같은 기준으로 본다. 머리글의 프로필 메뉴가 이름을 그대로 쓰므로
+ * 이름이 없는 프로필을 받아들이면 머리글·로그아웃 버튼까지 그려지지 않는 빈 화면이 새로고침해도 계속된다.
+ * (persist 가 스토어를 만들면서 바로 merge 를 부르므로 스토어보다 위에 둔다.)
+ */
+function isUserProfile(value: unknown): value is UserProfile {
+  const user = value as Partial<UserProfile> | null | undefined;
+  return (
+    isNonEmptyString(user?.id) &&
+    isNonEmptyString(user?.did) &&
+    isNonEmptyString(user?.name) &&
+    typeof user?.email === 'string'
+  );
+}
+
 /**
  * 예전 형식의 저장값을 지금 형식으로 바꾼다.
  * 토큰이 없는 세션은 BE(AUTH_REQUIRED=true)가 모든 요청을 401로 거절하므로 버리고 다시 로그인하게 한다.
@@ -84,14 +102,29 @@ export const useAuthStore = create<AuthState>()(
         isAuthenticated: state.isAuthenticated,
       }),
       // 저장된 세션이 세션 필드를 모두 정한다 (expiresAt 이 없으면 null).
-      merge: (persisted, current) => ({ ...current, expiresAt: null, ...(persisted as Partial<AuthState>) }),
+      // 로그인 상태라고 적혀 있는데 사용자 정보가 프로필이 아닌(없음·이름 없음 등, isUserProfile) 저장값은 버린다. 그대로 쓰면
+      // 메뉴·로그아웃 버튼이 없는 빈 화면이 새로고침해도 계속된다. 프로필은 맞고 토큰만 없는 세션(개발용 미리보기 등)은
+      // 그대로 둔다: BE의 401로 로그아웃된다.
+      merge: (persisted, current) => {
+        const stored = persisted as Partial<AuthState> | undefined;
+        const session = stored?.isAuthenticated && !isUserProfile(stored.user) ? EMPTY_SESSION : stored;
+        return { ...current, expiresAt: null, ...session };
+      },
     },
   ),
 );
 
-/** BE 인증 응답(`AuthResponse`)으로 세션을 시작한다. 이메일 로그인·회원가입·소셜 로그인이 같은 경로를 쓴다. */
+/**
+ * BE 인증 응답(`AuthResponse`)으로 세션을 시작한다. 이메일 로그인·회원가입·소셜 로그인이 같은 경로를 쓴다.
+ * 200 이지만 인증 응답이 아닌 본문(예: /api 요청이 SPA 의 index.html 로 넘어가는 배포 설정, 빈 객체, 이름 없는 프로필)은
+ * 저장하지 않고 오류로 알린다. 저장하면 사용자·토큰 없이 "로그인됨" 상태만 남는다. 각 화면의 onError·catch 가 이 문구를 보여 준다.
+ */
 export function startSession(res: AuthResponse): void {
-  useAuthStore.getState().setSession(res.data, res.access_token, res.expires_in);
+  const user = res?.data;
+  if (!isUserProfile(user) || !isNonEmptyString(res.access_token)) {
+    throw new Error('서버 응답이 올바르지 않습니다.');
+  }
+  useAuthStore.getState().setSession(user, res.access_token, res.expires_in);
 }
 
 let expiryTimer: ReturnType<typeof setTimeout> | undefined;

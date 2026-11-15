@@ -4,6 +4,7 @@
 체크섬 검사(CLI 종료 코드 1), 실패한 파일의 롤백, docker-compose initdb 마운트 순서와 실행기 순서의 일치를 본다.
 운영(APP_ENV=production) 검사(--seed 거부, 공개된 시드 비밀번호 계정, DB_PASSWORD)와 서비스 계정(DB_APP_ROLE) 권한,
 09·10 마이그레이션이 만든 열·표를 쓰는 DB 함수(토큰 버전, 모의 발급 한도)도 본다.
+13 마이그레이션(이메일 유일성, 쓰지 않는 표·인덱스 정리)은 예전 버전으로 만든 DB의 업그레이드와 대소문자만 다른 이메일에서 멈추는 것을 본다.
 DB가 필요한 테스트는 임시 DB(TEST_DB_NAME + 임의 접미사)를 만들고 끝나면 지운다. 임시 역할도 테스트가 끝나면 지운다.
 """
 import hashlib
@@ -12,6 +13,8 @@ import os
 import re
 import secrets
 import shutil
+import subprocess
+import sys
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -26,7 +29,7 @@ from tests.conftest import BE_DIR, TEST_DB_NAME, _conn_kwargs, _connect
 # 지금 있는 마이그레이션. 새 파일은 이 뒤에 다음 번호로 붙는다.
 KNOWN = ["04_users_password_hash.sql", "05_credentials_raw_token.sql", "06_holder_keys.sql", "07_shares.sql",
          "08_career_curriculum.sql", "09_users_token_version.sql", "10_mock_issuances.sql", "11_oauth_accounts.sql",
-         "12_market_statistics.sql"]
+         "12_market_statistics.sql", "13_email_unique_drop_unused_tables.sql"]
 
 
 @pytest.fixture
@@ -100,6 +103,13 @@ def test_empty_database_gets_schema_and_every_migration_once(scratch_db):
     assert _migrate(db) == []  # 다시 실행하면 아무것도 적용하지 않는다
     assert _scalar(db, "SELECT count(*) FROM users") == 0  # --seed가 없으면 테스트 계정을 만들지 않는다 (운영 경로)
     assert _scalar(db, "SELECT to_regclass('public.curricula') IS NOT NULL")
+    # 새 DB에는 확장을 만들지 않고(마이그레이션 계정에 확장 권한이 필요 없다) 쓰지 않는 표·중복 인덱스도 없다.
+    assert _scalar(db, "SELECT array_agg(extname::text ORDER BY extname) FROM pg_extension") == ["plpgsql"]
+    assert _scalar(db, "SELECT to_regclass('public.user_skills') IS NULL"
+                       " AND to_regclass('public.student_credential_embeddings') IS NULL"
+                       " AND to_regclass('public.idx_users_did') IS NULL")
+    assert _scalar(db, "SELECT indexdef FROM pg_indexes WHERE indexname = 'users_email_lower_key'") == (
+        "CREATE UNIQUE INDEX users_email_lower_key ON public.users USING btree (lower((email)::text))")
 
 
 def test_initdb_volume_without_ledger_is_adopted_and_upgraded(scratch_db):
@@ -199,6 +209,23 @@ def test_cli_decides_production_checks_from_app_env_like_the_app(monkeypatch):
     monkeypatch.setenv("DB_APP_ROLE", " ")
     assert runner.main([]) == 0
     assert calls.pop()["app_role"] is None
+
+
+@pytest.mark.parametrize("log_level", ["", "  ", "warning"])
+def test_cli_treats_a_blank_log_level_as_info(log_level):
+    # 회귀: `LOG_LEVEL=`로 비워 둔 줄이 있으면 실행기가 try 밖에서 "Unknown level: ''" traceback으로 끝났다.
+    # basicConfig는 처리기가 없는 프로세스에서만 수준을 읽으므로 새 프로세스에서 본다 (DB에는 접속하지 않는다).
+    probe = ("import logging, app.migrate as runner\n"
+             "runner.migrate = lambda **kwargs: []\n"
+             "code = runner.main([])\n"
+             "print(code, logging.getLogger().level)")
+    env = {**os.environ, "LOG_LEVEL": log_level, "PYTHONDONTWRITEBYTECODE": "1"}
+    result = subprocess.run([sys.executable, "-B", "-c", probe], cwd=BE_DIR, env=env, capture_output=True, text=True,
+                            timeout=120)
+    assert result.returncode == 0 and "Traceback" not in result.stderr, result.stderr[-2000:]
+    expected = logging.WARNING if log_level == "warning" else logging.INFO
+    assert result.stdout.split() == ["0", str(expected)]
+    assert ("완료: 새로 적용한 마이그레이션 없음" in result.stderr) == (expected == logging.INFO)
 
 
 def test_seed_password_hash_is_the_one_migration_04_sets():
@@ -373,7 +400,8 @@ def test_database_create_for_public_is_refused_with_a_runnable_fix(scratch_db, a
 def owner_db(scratch_db):
     """마이그레이션 계정이 슈퍼유저가 아닌 DB 소유자 역할인 임시 DB (RDS의 전용 소유자 역할·직접 운영하는 PostgreSQL과 같음).
 
-    확장(pgcrypto·vector)은 슈퍼유저가 먼저 만든다(기본 스키마는 IF NOT EXISTS로 건너뛴다).
+    예전 기본 스키마가 만들던 확장(pgcrypto·vector)이 남아 있는 DB처럼 슈퍼유저가 먼저 만들어 둔다 (지금 기본 스키마는 확장을
+    만들지 않고, 있는 확장은 그대로 둔다).
     (DB, 소유자 접속 인자, 역할을 만드는 함수)를 돌려주고, 끝나면 DB와 만든 역할을 지운다.
     """
     db, password = scratch_db(), secrets.token_urlsafe(24)
@@ -541,8 +569,7 @@ def test_least_privilege_master_that_creates_the_app_role_passes(cluster):
     app = f"{TEST_DB_NAME}_role_{uuid.uuid4().hex[:8]}"[-63:]
     with _connect("postgres") as admin:
         admin.execute(sql.SQL("ALTER ROLE {} PASSWORD {}").format(sql.Identifier(master), sql.Literal(password)))
-    db = new_db(owner=master)
-    _as_admin(db, "CREATE EXTENSION IF NOT EXISTS pgcrypto", "CREATE EXTENSION IF NOT EXISTS vector")  # 마스터가 만드는 확장
+    db = new_db(owner=master)  # 확장을 미리 만들지 않는다: 기본 스키마가 확장을 만들지 않으므로 마스터에게 그 권한이 필요 없다
     as_master = {**_conn_kwargs(db), "user": master, "password": password}
     with psycopg.connect(**as_master, autocommit=True) as conn:
         conn.execute(sql.SQL("CREATE ROLE {} LOGIN").format(sql.Identifier(app)))
@@ -551,6 +578,7 @@ def test_least_privilege_master_that_creates_the_app_role_passes(cluster):
         assert migrate(app_role=app, production=True, **as_master) == []
         with _connect(db) as conn:
             assert conn.execute(_CAN_INSERT, (app,)).fetchone()[0] is True
+            assert conn.execute("SELECT array_agg(extname::text) FROM pg_extension").fetchone()[0] == ["plpgsql"]
     finally:  # 마스터가 만든 역할이라 픽스처 목록에 없다: 이 DB에서 받은 권한을 걷고 지운다
         with _connect(db) as conn:
             conn.execute(sql.SQL("DROP OWNED BY {}").format(sql.Identifier(app)))
@@ -721,7 +749,7 @@ def test_runner_never_calls_functions_planted_on_the_search_path(app_role, where
 
     서비스 계정이 (DB CREATE가 있던 동안) 마이그레이션 계정 이름의 스키마("$user")나 DB의 search_path 설정
     (ALTER DATABASE ... SET search_path = planted, pg_catalog, public)이 가리키는 스키마에 실행기가 부르는 것과 같은
-    이름의 함수·뷰를 심어 두어도 실행기는 그것을 부르지 않고, 기본 스키마·확장·테이블도 public에 만든다.
+    이름의 함수·뷰를 심어 두어도 실행기는 그것을 부르지 않고, 기본 스키마의 타입·테이블도 public에 만든다.
     서비스 계정이 소유한 그 스키마는 먼저 거부하고(빈 DB는 빈 채로), 메시지의 ALTER SCHEMA로 소유자만 바꾸면(심은 함수·뷰는
     서비스 계정 소유로 남는다) 통과한다.
     """
@@ -764,9 +792,9 @@ def test_runner_never_calls_functions_planted_on_the_search_path(app_role, where
     with _connect(db) as conn:  # 이 세션도 같은 search_path를 받으므로 pg_catalog.를 붙여 확인한다
         assert conn.execute(f"SELECT pg_catalog.count(*) FROM {s}.calls").fetchone()[0] == 0
         assert conn.execute("SELECT pg_catalog.to_regclass('public.users') IS NOT NULL").fetchone()[0]
-        assert conn.execute("SELECT pg_catalog.array_agg(e.extnamespace::pg_catalog.regnamespace::pg_catalog.text)"
-                            " FROM pg_catalog.pg_extension e WHERE e.extname IN ('pgcrypto', 'vector')"
-                            ).fetchone()[0] == ["public", "public"]
+        assert conn.execute("SELECT pg_catalog.array_agg(DISTINCT t.typnamespace::pg_catalog.regnamespace::pg_catalog.text)"
+                            " FROM pg_catalog.pg_type t WHERE t.typname IN ('credential_format', 'verification_status',"
+                            " 'check_result', 'check_name_type')").fetchone()[0] == ["public"]
         assert conn.execute("SELECT pg_catalog.count(*) FROM pg_catalog.pg_class c WHERE c.relkind = 'r'"
                             " AND c.relnamespace = %s::pg_catalog.regnamespace", (schema.as_string(conn),)
                             ).fetchone()[0] == 1  # 심은 스키마에는 calls 표뿐
@@ -890,6 +918,9 @@ def test_trigger_privilege_and_triggers_calling_temp_functions_are_refused(app_r
     _migrate(db, app_role=role)
     db_dir = _db_dir_with(tmp_path, "99_backfill_probe.sql", "UPDATE public.users SET name = name;\n")
     _log_table(db)
+    # 앱 스키마에는 이제 시퀀스가 없다 (하나뿐이던 user_skills_id_seq를 13 마이그레이션이 표와 함께 지웠다).
+    # 아래의 시퀀스 권한 검사가 계속 뜻이 있도록 시퀀스가 딸린 표를 하나 둔다 (다음 배포에서 생길 수 있는 표).
+    _as_admin(db, "CREATE TABLE public.sequence_probe (id BIGSERIAL PRIMARY KEY)")
     _as_admin(db, "GRANT ALL ON ALL TABLES IN SCHEMA public TO {role}", role=role)
     with psycopg.connect(**as_app, autocommit=True) as app:  # 마이그레이션 태스크가 도는 동안 열려 있는 BE 연결
         app.execute("CREATE FUNCTION pg_temp.probe() RETURNS trigger LANGUAGE plpgsql AS"
@@ -1090,13 +1121,14 @@ def test_objects_planted_as_a_member_role_stay_refused_after_the_fix(cluster, tm
                     admin.execute(sql.SQL("DROP ROLE IF EXISTS {}").format(sql.Identifier(name)))
 
 
-@pytest.mark.parametrize("case", ["schema", "db", "db_without_pgcrypto", "db_and_schema"])
+@pytest.mark.parametrize("case", ["schema", "db", "db_without_extensions", "db_and_schema"])
 def test_owner_fixes_for_a_non_superuser_master_run_in_order(cluster, case):
     """README 'AWS 배포 체크리스트'처럼 슈퍼유저가 아닌 마스터 사용자(LOGIN CREATEDB CREATEROLE)가 DB를 만들고 서비스 계정을
     만든 구성에서, 서비스 계정이 public 스키마나 DB를 소유하고 그 몫의 CREATE를 이미 거둔 상태(소유자를 바꾸기 전에 REVOKE를
     먼저 실행함)면 메시지는 지금 소유자의 권한을 받는 GRANT, ALTER ... OWNER, 마이그레이션에 필요한 CREATE를 다시 주는 GRANT를
-    순서대로 준다(DB CREATE는 확장을 만들거나 public 스키마 소유자를 바꿀 때만). 마스터 사용자가 나온 순서대로 실행하면 빈 DB의
-    마이그레이션이 권한 오류 없이 통과한다.
+    순서대로 준다(DB CREATE는 public 스키마 소유자를 바꿀 때만. 기본 스키마가 확장을 만들지 않으므로 확장이 하나도 없는 DB
+    (db_without_extensions)에서도 DB CREATE 없이 통과한다). 마스터 사용자가 나온 순서대로 실행하면 빈 DB의 마이그레이션이
+    권한 오류 없이 통과한다.
     """
     from app.migrate import MigrationError, migrate
 
@@ -1106,8 +1138,8 @@ def test_owner_fixes_for_a_non_superuser_master_run_in_order(cluster, case):
     with _connect("postgres") as admin:
         admin.execute(sql.SQL("ALTER ROLE {} PASSWORD {}").format(sql.Identifier(master), sql.Literal(password)))
     db = new_db(owner=master)
-    _as_admin(db, *(f"CREATE EXTENSION IF NOT EXISTS {name}"  # 마스터 사용자가 만들어 두는 확장 (vector는 슈퍼유저만)
-                    for name in (("vector",) if case == "db_without_pgcrypto" else ("pgcrypto", "vector"))))
+    _as_admin(db, *(f"CREATE EXTENSION IF NOT EXISTS {name}"  # 예전 버전이 만든 확장이 남은 DB (없는 DB도 본다)
+                    for name in (() if case == "db_without_extensions" else ("pgcrypto", "vector"))))
     as_master = {**_conn_kwargs(db), "user": master, "password": password}
     with psycopg.connect(**as_master, autocommit=True) as conn:
         conn.execute(sql.SQL("CREATE ROLE {} LOGIN").format(sql.Identifier(app)))
@@ -1133,12 +1165,12 @@ def test_owner_fixes_for_a_non_superuser_master_run_in_order(cluster, case):
         expected = [f"GRANT {q['app']} TO {q['master']}{inherit};"]
         if case != "schema":
             expected.append(f"ALTER DATABASE {q['db']} OWNER TO {q['master']};")
-            if case != "db":
+            if case == "db_and_schema":
                 expected.append(f"GRANT CREATE ON DATABASE {q['db']} TO {q['master']};")
         if case in ("schema", "db_and_schema"):
             expected.append("ALTER SCHEMA public OWNER TO pg_database_owner;")
         expected.append("GRANT CREATE ON SCHEMA public TO pg_database_owner;")
-        assert statements == expected  # 필요한 문장만 (DB CREATE는 확장을 만들거나 public 스키마 소유자를 바꿀 때만)
+        assert statements == expected  # 필요한 문장만 (DB CREATE는 public 스키마 소유자를 바꿀 때만)
     finally:  # 마스터 사용자가 만든 역할이라 픽스처 목록에 없다: DB(서비스 계정이 소유했을 수 있음)를 먼저 지우고 역할을 지운다
         with _connect("postgres") as admin:
             admin.execute(sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(sql.Identifier(db)))
@@ -1146,7 +1178,8 @@ def test_owner_fixes_for_a_non_superuser_master_run_in_order(cluster, case):
 
 
 def _rds_master(new_role, new_db) -> tuple[str, dict]:
-    """슈퍼유저가 아닌 마스터 사용자(LOGIN CREATEDB CREATEROLE)가 소유한 임시 DB(확장은 슈퍼유저가 먼저 만듦)와 그 접속 인자."""
+    """슈퍼유저가 아닌 마스터 사용자(LOGIN CREATEDB CREATEROLE)가 소유한 임시 DB(예전 버전이 만든 확장이 남은 DB처럼 슈퍼유저가
+    먼저 만들어 둠)와 그 접속 인자."""
     master, password = new_role("LOGIN CREATEDB CREATEROLE"), secrets.token_urlsafe(24)
     with _connect("postgres") as admin:
         admin.execute(sql.SQL("ALTER ROLE {} PASSWORD {}").format(sql.Identifier(master), sql.Literal(password)))
@@ -1327,6 +1360,162 @@ def test_schemas_owned_by_the_app_role_are_refused_before_any_migration(cluster,
                 admin.execute(sql.SQL("DROP ROLE IF EXISTS {}").format(sql.Identifier(app)))
 
 
+# ── 13 마이그레이션: 이메일 유일성(대소문자 무시) + 쓰지 않는 인덱스·표 정리 ─────────────
+
+MIGRATION_13 = "13_email_unique_drop_unused_tables.sql"
+# 13 이전의 기본 스키마(DB/schema)가 만들던 확장과 표 (그때의 SQL 그대로). 그 버전으로 만든 DB·Compose 볼륨·RDS에 남아 있다.
+_LEGACY_USER_SKILLS = """
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+CREATE TABLE user_skills (
+    id                  BIGSERIAL PRIMARY KEY,
+    user_id             UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    skill_id            VARCHAR(100) NOT NULL,
+    label_ko            VARCHAR(100) NOT NULL,
+    label_en            VARCHAR(100),
+    taxonomy_source     VARCHAR(50),
+    taxonomy_code       VARCHAR(50),
+    level               NUMERIC,
+    confidence          NUMERIC DEFAULT 1.0,
+    source_record_ids   UUID[] NOT NULL DEFAULT '{}',
+    updated_at          TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (user_id, skill_id)
+);
+CREATE INDEX idx_user_skills_user ON user_skills(user_id);
+CREATE INDEX idx_user_skills_sources ON user_skills USING gin(source_record_ids);
+"""
+_LEGACY_EMBEDDINGS = """
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE TABLE student_credential_embeddings (
+    record_id           UUID PRIMARY KEY REFERENCES credentials(record_id) ON DELETE CASCADE,
+    user_id             UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    content_text        TEXT NOT NULL,
+    source_text_hash    VARCHAR(64) NOT NULL,
+    embedding           vector(1536) NOT NULL,
+    created_at          TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_cred_embeddings_hnsw ON student_credential_embeddings
+USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);
+"""
+
+
+def _db_dir_before_13(tmp_path):
+    """13 마이그레이션이 생기기 전의 DB 폴더 (12까지만 있다)."""
+    db_dir = tmp_path / "DB"
+    shutil.copytree(BE_DIR / "DB", db_dir)
+    (db_dir / "migrations" / MIGRATION_13).unlink()
+    return db_dir
+
+
+def _add_legacy_objects(dbname: str) -> list[str]:
+    """예전 기본 스키마가 만들던 확장·표를 마이그레이션 계정(슈퍼유저)으로 만들고, 그 DB의 확장 목록을 돌려준다.
+
+    vector 확장이 없는 서버(pgvector 이미지가 아닌 PostgreSQL)에서는 임베딩 표만 건너뛴다.
+    """
+    with _connect(dbname) as admin:
+        admin.execute(_LEGACY_USER_SKILLS)
+        if admin.execute("SELECT count(*) FROM pg_available_extensions WHERE name = 'vector'").fetchone()[0]:
+            admin.execute(_LEGACY_EMBEDDINGS)
+        return [name for (name,) in admin.execute("SELECT extname::text FROM pg_extension ORDER BY 1")]
+
+
+def test_database_made_before_13_is_upgraded_and_keeps_its_extensions(scratch_db, app_role, tmp_path):
+    """예전 버전으로 만든 DB(쓰지 않는 표 두 개·중복 인덱스·pgcrypto·vector 확장이 있음)에 13만 적용된다.
+
+    표(딸린 시퀀스·인덱스 포함)와 idx_users_did는 없어지고 확장은 그대로 남으며, 스키마는 새로 만든 DB와 같아진다.
+    서비스 계정(DB_APP_ROLE) 검사도 확장이 public에 둔 객체(마이그레이션 계정 소유) 때문에 걸리지 않는다.
+    """
+    old, role, as_app = app_role
+    fresh = scratch_db()
+    assert _migrate(fresh, seed=True) == _names()
+    assert _migrate(old, seed=True, app_role=role, db_dir=_db_dir_before_13(tmp_path)) == _names()[:-1]
+    extensions = _add_legacy_objects(old)
+    assert "pgcrypto" in extensions
+    with _connect(old) as admin:  # 누군가 직접 넣어 둔 행이 있어도 표와 함께 없어진다 (어떤 코드도 읽지 않는다)
+        admin.execute("INSERT INTO user_skills (user_id, skill_id, label_ko)"
+                      " SELECT id, 'SK.TEST', '테스트' FROM users LIMIT 1")
+    assert _scalar(old, "SELECT to_regclass('public.idx_users_did') IS NOT NULL"
+                        " AND to_regclass('public.user_skills_id_seq') IS NOT NULL")
+
+    assert _migrate(old, app_role=role) == [MIGRATION_13]
+    assert _migrate(old, app_role=role) == []
+    with _connect(old) as conn:
+        assert conn.execute(
+            "SELECT to_regclass('public.user_skills'), to_regclass('public.student_credential_embeddings'),"
+            " to_regclass('public.user_skills_id_seq'), to_regclass('public.idx_cred_embeddings_hnsw'),"
+            " to_regclass('public.idx_users_did')").fetchone() == (None,) * 5
+        # 확장은 지우지 않는다 (DROP EXTENSION 없음)
+        assert [name for (name,) in conn.execute("SELECT extname::text FROM pg_extension ORDER BY 1")] == extensions
+    assert _catalog(old) == _catalog(fresh)
+    with psycopg.connect(**as_app, autocommit=True) as conn:  # 서비스 계정은 지금처럼 앱 테이블을 쓴다
+        assert conn.execute("SELECT count(*) FROM users").fetchone()[0] == _scalar(fresh, "SELECT count(*) FROM users")
+        conn.execute("INSERT INTO users (email, name, subject_did) VALUES ('legacy@test.com', 'r', 'did:example:legacy')")
+
+
+def test_migration_13_stops_on_emails_that_differ_only_by_case(scratch_db, tmp_path, monkeypatch, caplog):
+    """대소문자만 다른 이메일의 계정이 이미 있으면 13은 인덱스를 만들기 전에 알기 쉬운 오류로 멈춘다 (CLI 종료 코드 1).
+
+    오류에는 겹치는 수만 있고 이메일 주소는 없다. 13의 다른 변경과 원장 기록도 함께 롤백되어 다시 실행할 수 있고,
+    계정을 정리하면 통과한다. 그 뒤에는 DB가 대소문자만 다른 이메일의 두 번째 계정을 거절한다.
+    """
+    import app.migrate as runner
+
+    db = scratch_db()
+    _migrate(db, db_dir=_db_dir_before_13(tmp_path))
+    _add_legacy_objects(db)
+    with _connect(db) as conn:
+        for email, did in (("Mixed@Example.Test", "did:example:m1"), ("mixed@example.test", "did:example:m2"),
+                           ("other@example.test", "did:example:o1")):
+            conn.execute("INSERT INTO users (email, name, subject_did) VALUES (%s, '테스트', %s)", (email, did))
+    with pytest.raises(psycopg.errors.RaiseException, match="대소문자만 다른 이메일") as error:
+        _migrate(db)
+    assert "겹치는 이메일 1개" in str(error.value) and "mixed@example.test" not in str(error.value).lower()
+    untouched = ("SELECT to_regclass('public.users_email_lower_key') IS NULL"
+                 " AND to_regclass('public.idx_users_did') IS NOT NULL AND to_regclass('public.user_skills') IS NOT NULL")
+    assert MIGRATION_13 not in _ledger(db) and _scalar(db, untouched)
+
+    monkeypatch.setenv("DB_NAME", db)
+    monkeypatch.setattr(runner, "load_dotenv", lambda *args, **kwargs: False)
+    with caplog.at_level(logging.ERROR, logger="app.migrate"):
+        assert runner.main([]) == 1
+    assert "대소문자만 다른 이메일" in caplog.text and "mixed@example.test" not in caplog.text.lower()
+    assert MIGRATION_13 not in _ledger(db) and _scalar(db, untouched)
+
+    with _connect(db) as conn:  # 이메일마다 계정을 하나만 남긴다
+        conn.execute("DELETE FROM users WHERE email = 'Mixed@Example.Test'")
+    assert runner.main([]) == 0
+    assert MIGRATION_13 in _ledger(db) and _scalar(db, "SELECT to_regclass('public.user_skills') IS NULL")
+    with _connect(db) as conn, pytest.raises(psycopg.errors.UniqueViolation):
+        conn.execute("INSERT INTO users (email, name, subject_did) VALUES ('MIXED@example.test', 'n', 'did:example:m3')")
+
+
+def test_email_lookup_uses_the_case_insensitive_unique_index(db):
+    """로그인·Google 연동의 lower(email) 조회는 13의 인덱스를 타고, 대소문자만 다른 이메일로는 두 번째 계정을 만들 수 없다
+    (가입 API는 소문자로 바꿔 넣지만, 그러지 않는 경로가 생겨도 DB가 막는다)."""
+    from app.services.database import EmailAlreadyRegistered, db_service
+
+    email = f"case-{uuid.uuid4().hex[:10]}@test.com"
+    user = db_service.create_user(email=email, name="테스트", did=f"did:example:{uuid.uuid4().hex}", password_hash="h")
+    with pytest.raises(EmailAlreadyRegistered):
+        db_service.create_user(email=email.upper(), name="테스트", did=f"did:example:{uuid.uuid4().hex}",
+                               password_hash="h")
+    assert db_service.get_user_by_email(email.upper())["id"] == user["id"]
+    index = db.execute(
+        "SELECT indisunique, indisvalid, indisready, indcheckxmin, pg_get_indexdef(indexrelid) AS definition"
+        " FROM pg_index WHERE indexrelid = 'public.users_email_lower_key'::regclass").fetchone()
+    assert index["indisunique"] and index["indisvalid"] and index["indisready"]
+    assert index["definition"].endswith("ON public.users USING btree (lower((email)::text))")
+    if index["indcheckxmin"]:
+        # 인덱스를 만들 때 같은 PostgreSQL 서버(다른 DB 포함)에 그보다 오래된 트랜잭션이 열려 있었다 (04가 방금 고친 시드 행
+        # 때문에 붙는 표시다). 그 트랜잭션들이 끝날 때까지 플래너가 이 인덱스를 쓰지 않으므로 계획은 보지 않는다: 이 서버를
+        # 함께 쓰는 다른 세션에 따라 결과가 달라지기 때문이다. 유일성은 위에서 본 대로 그동안에도 지켜진다.
+        return
+    with db.transaction():
+        db.execute("SET LOCAL enable_seqscan = off")  # 표가 작으면 순차 탐색을 고르므로 인덱스를 쓸 수 있는지만 본다
+        plan = "\n".join(row["QUERY PLAN"] for row in db.execute(
+            "EXPLAIN SELECT * FROM users WHERE lower(email) = lower('USER001@example.com')"))
+    assert "users_email_lower_key" in plan
+
+
 # ── 09·10 마이그레이션의 열·표를 쓰는 DB 함수 ───────────────────────────
 
 def _new_user(db) -> str:
@@ -1355,11 +1544,13 @@ def test_mock_issuance_reservation_counts_last_24_hours_per_user(db):
     from app.services.database import db_service
 
     alice, bob = _new_user(db), _new_user(db)
-    first = db_service.reserve_mock_issuance(alice, "tpl-default", 2)
-    second = db_service.reserve_mock_issuance(alice, "tpl", 2)
+    # 예약은 (발급 기록 id, None), 한도에 닿으면 (None, 막은 한도)를 돌려준다.
+    first, _ = db_service.reserve_mock_issuance(alice, "tpl-default", 2)
+    second, _ = db_service.reserve_mock_issuance(alice, "tpl", 2)
     assert first and second and first != second
-    assert db_service.reserve_mock_issuance(alice, "tpl-default", 2) is None  # 한도에 닿으면 None, 기록도 남기지 않는다
-    assert db_service.reserve_mock_issuance(bob, "tpl-default", 2) is not None  # 사용자별로 센다
+    # 한도에 닿으면 id가 없고 기록도 남기지 않는다
+    assert db_service.reserve_mock_issuance(alice, "tpl-default", 2) == (None, "user")
+    assert db_service.reserve_mock_issuance(bob, "tpl-default", 2)[0] is not None  # 사용자별로 센다
 
     digest = hashlib.sha256(b"header.payload.signature").hexdigest()
     db_service.complete_mock_issuance(first, digest)
@@ -1370,13 +1561,13 @@ def test_mock_issuance_reservation_counts_last_24_hours_per_user(db):
 
     # 협력사 발급이 실패해 취소한 자리는 한도에 세지 않는다.
     db_service.cancel_mock_issuance(second)
-    assert db_service.reserve_mock_issuance(alice, "tpl-default", 2) is not None
-    assert db_service.reserve_mock_issuance(alice, "tpl-default", 2) is None
+    assert db_service.reserve_mock_issuance(alice, "tpl-default", 2)[0] is not None
+    assert db_service.reserve_mock_issuance(alice, "tpl-default", 2)[0] is None
 
     # 24시간이 지난 기록은 세지 않는다.
     db.execute("UPDATE mock_issuances SET created_at = NOW() - INTERVAL '25 hours' WHERE id = %s", (first,))
-    assert db_service.reserve_mock_issuance(alice, "tpl-default", 2) is not None
-    assert db_service.reserve_mock_issuance(alice, "tpl-default", 2) is None
+    assert db_service.reserve_mock_issuance(alice, "tpl-default", 2)[0] is not None
+    assert db_service.reserve_mock_issuance(alice, "tpl-default", 2)[0] is None
 
     # 계정을 지우면 발급 기록도 함께 지워진다 (ON DELETE CASCADE).
     db.execute("DELETE FROM users WHERE id = %s", (bob,))
@@ -1389,7 +1580,7 @@ def test_mock_issuance_reservation_holds_under_concurrency(db):
     user_id = _new_user(db)
     # 같은 사용자의 동시 요청(여러 태스크)도 advisory lock으로 줄을 서서 한도(3)를 넘지 못한다.
     with ThreadPoolExecutor(max_workers=8) as pool:
-        ids = list(pool.map(lambda _: db_service.reserve_mock_issuance(user_id, "tpl-default", 3), range(12)))
+        ids = list(pool.map(lambda _: db_service.reserve_mock_issuance(user_id, "tpl-default", 3)[0], range(12)))
     assert sum(i is not None for i in ids) == 3
     assert db.execute("SELECT count(*) AS n FROM mock_issuances WHERE user_id = %s",
                       (user_id,)).fetchone()["n"] == 3

@@ -26,13 +26,20 @@ class ProviderError(Exception):
     응답에는 싣지 않는다 (main.py가 고정 문구로 답한다).
     """
 
-    def __init__(self, message: str, upstream_status: Optional[int] = None, unavailable: bool = False):
+    def __init__(self, message: str, upstream_status: Optional[int] = None, unavailable: bool = False,
+                 ambiguous: bool = False, service: str = "credential"):
         message = _log_safe(message)
         super().__init__(message)
         self.message = message
         self.upstream_status = upstream_status
+        # 어느 외부 서비스의 실패인지: "credential"(발급·검증 인프라, 기본값) | "google_oauth".
+        # main.py가 응답의 고정 문구를 고를 때만 쓴다 (상태 코드·code·로그 줄은 같다).
+        self.service = service
         # True면 설정 누락 등으로 호출 자체를 할 수 없는 상태 (503)
         self.unavailable = unavailable
+        # True면 요청이 협력사에 닿았을 수 있는데 결과를 모르는 상태 (응답 대기 중 시간 초과·끊김, 쓸 수 없는 2xx 본문).
+        # 발급은 이미 됐을 수 있으므로 모의 발급은 이 경우 한도 기록을 지우지 않는다 (api/mock_issuer.py).
+        self.ambiguous = ambiguous
 
 
 class OAuthCodeError(Exception):

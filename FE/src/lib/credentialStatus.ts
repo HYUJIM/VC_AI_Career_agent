@@ -28,5 +28,5 @@ const STATUS_DESCRIPTION: Record<string, string> = {
 };
 
 export function getStatusDescription(status: CredentialStatus): string {
-  return STATUS_DESCRIPTION[status] ?? `알 수 없는 상태(${status})예요.`;
+  return Object.hasOwn(STATUS_DESCRIPTION, status) ? STATUS_DESCRIPTION[status] : `알 수 없는 상태(${status})예요.`;
 }

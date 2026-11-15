@@ -7,7 +7,8 @@
   APP_ENV=production(운영 이미지 기본값)에서 DB_PASSWORD가 비었거나 로컬 기본값이면 접속하지 않고 실패한다 (종료 코드 1).
 - 원장 public.schema_migrations(filename, checksum, applied_at)에 적용한 DB/migrations 파일을 남기고 다시 실행하지 않는다.
   적용한 뒤 SQL이 바뀐 파일이 있으면 아무것도 적용하지 않고 실패한다 (CLI 종료 코드 1). 바꿀 내용은 다음 번호 파일로 추가한다.
-- 빈 DB(public.users 없음): DB/schema의 기본 스키마 두 개(--seed면 DB/seeds/03_seed_data.sql까지)와 원장을 한 트랜잭션으로 만든다.
+- 빈 DB(public.users 없음): DB/schema의 기본 스키마(--seed면 DB/seeds/03_seed_data.sql까지)와 원장을 한 트랜잭션으로 만든다.
+  기본 스키마는 확장을 만들지 않는다 (예전 버전이 만든 pgcrypto·vector가 있는 DB에서는 그대로 둔다).
 - 원장 없이 이미 만들어진 DB(docker-compose initdb·수동 psql): 마이그레이션을 모두 다시 적용하고 기록한다.
   그래서 마이그레이션은 여러 번 실행해도 안전하게 쓴다 (IF NOT EXISTS 등). 새 Compose 볼륨은 initdb가 같은 파일을 먼저 실행한다.
 - DB/migrations/NN_*.sql은 번호 순으로, 파일마다 새 연결(시드 덤프가 search_path를 비우므로)의 한 트랜잭션에서 원장 기록과
@@ -65,13 +66,14 @@ from dotenv import load_dotenv
 from psycopg import sql
 from psycopg.rows import tuple_row
 
+from app.core.config import log_level
 from app.services.database import get_db_connection
 
 logger = logging.getLogger("app.migrate")
 
 DB_DIR = Path(__file__).resolve().parents[1] / "DB"
 # 빈 DB에 마이그레이션보다 먼저 넣는 파일. 기본 스키마에는 04~07 내용이 이미 들어 있다.
-BASELINE = ("schema/schema_PostgreSQL.sql", "schema/schema_pgvector.sql")
+BASELINE = ("schema/schema_PostgreSQL.sql",)
 SEED = "seeds/03_seed_data.sql"  # 로컬·테스트 전용 (테스트 계정). 운영 이미지에는 넣지 않는다.
 # 04 마이그레이션이 시드 테스트 계정(user001~user045@example.com)에 넣는 bcrypt 해시 (평문 비밀번호는 README에 공개).
 # 운영 DB에 이 해시를 쓰는 계정이 있으면 누구나 로그인할 수 있으므로 운영 마이그레이션을 실패시킨다 (값은 로그에 남기지 않는다).
@@ -302,9 +304,6 @@ FROM pg_catalog.pg_roles r CROSS JOIN pg_catalog.pg_namespace s
 JOIN pg_catalog.pg_roles o ON o.oid = s.nspowner
 WHERE r.rolname = %s AND pg_catalog.pg_has_role(r.oid, s.nspowner, 'MEMBER')
 ORDER BY 1 LIMIT 10"""
-# 빈 DB의 기본 스키마가 만드는 확장 중 아직 없는 것이 있는지 (슈퍼유저가 아닌 계정이 확장을 만들려면 DB CREATE가 필요하다)
-_MISSING_EXTENSIONS = """
-SELECT pg_catalog.count(*) < 2 FROM pg_catalog.pg_extension e WHERE e.extname IN ('pgcrypto', 'vector')"""
 
 
 class MigrationError(RuntimeError):
@@ -378,8 +377,8 @@ def _create_refusal(conn: psycopg.Connection, role: str, *, schema: bool, db: bo
         name, is_self, can = owners["db owner"]
         also = ", pg_database_owner로 public 스키마도 소유" if schema_owner == "pg_database_owner" else ""
         regrant = ""
-        # DB CREATE는 확장(pgcrypto·vector)을 아직 만들지 않았거나 public 스키마의 소유자도 바꿀 때만 필요하다.
-        if not can and (schema_fix or conn.execute(_MISSING_EXTENSIONS).fetchone()[0]):
+        # DB CREATE는 public 스키마의 소유자도 바꿀 때만 필요하다 (기본 스키마가 확장을 만들지 않으므로 그 밖에는 쓰지 않는다).
+        if not can and schema_fix:
             regrant += f" GRANT CREATE ON DATABASE {db_q} TO {migrator_q};"
         if also and not owners["schema owner"][2]:  # 새 DB 소유자는 pg_database_owner로 public 스키마를 받는다
             regrant += " GRANT CREATE ON SCHEMA public TO pg_database_owner;"
@@ -658,7 +657,7 @@ def main(argv: list[str] | None = None) -> int:
                         help="빈 DB를 처음 만들 때 시드(테스트 계정)도 넣는다. 로컬·테스트 전용이며 APP_ENV=production에서는 거부한다.")
     args = parser.parse_args(argv)
     load_dotenv()  # 로컬 실행용 BE/.env. 컨테이너·ECS에서는 이미 있는 환경변수가 우선한다.
-    logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO").upper())
+    logging.basicConfig(level=log_level())  # 없거나 비우면 INFO
     try:
         # APP_ENV·DB_APP_ROLE은 .env를 읽은 뒤에 본다 (로컬 BE/.env는 development, 운영 이미지·ECS 태스크는 production).
         done = migrate(seed=args.seed, production=_production(), wait_seconds=60,

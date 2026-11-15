@@ -7,8 +7,17 @@ import { useAuthStore } from '@/store/authStore';
 /**
  * GET /v1/subjects/{did}/careers 실패 시 공통 안내.
  * 대시보드와 AI 포트폴리오 화면이 같은 데이터를 쓰므로 에러 화면도 공유한다.
+ * isFetching: 그 조회를 다시 부르는 중이면 "다시 시도" 버튼을 잠근다 (누를 때마다 같은 GET 이 또 나가지 않게).
  */
-export function CareersErrorAlert({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+export function CareersErrorAlert({
+  error,
+  onRetry,
+  isFetching,
+}: {
+  error: unknown;
+  onRetry: () => void;
+  isFetching: boolean;
+}) {
   const logout = useAuthStore((state) => state.logout);
   const navigate = useNavigate();
   const kind = getApiErrorKind(error);
@@ -40,7 +49,7 @@ export function CareersErrorAlert({ error, onRetry }: { error: unknown; onRetry:
   }
 
   const retry = (
-    <Button variant="outline" size="sm" onClick={onRetry}>
+    <Button variant="outline" size="sm" disabled={isFetching} onClick={onRetry}>
       다시 시도
     </Button>
   );

@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 import pytest
 
 from app.domain.credential import (
-    ProviderBadgeResult, decode_jwt_payload, evaluate_badge, is_issuer_confirmed, to_record_id,
+    ProviderBadgeResult, decode_jwt_payload, evaluate_badge, is_compact_jws, is_issuer_confirmed, to_record_id,
 )
 from tests.conftest import make_vc_jwt
 
@@ -41,7 +41,7 @@ def provider(token: str, **overrides) -> ProviderBadgeResult:
     vc = decode_jwt_payload(token)["vc"]
     base = dict(valid=True, signature_ok=True, issuer_trusted=True, credential_status="VALID",
                 recipient_did=DID, credential_id=vc["id"], issuer_name="예시대학교",
-                achievement_name=None, issued_at=None, raw={})
+                achievement_name=None, issued_at=None)
     base.update(overrides)
     return ProviderBadgeResult(**base)
 
@@ -278,3 +278,99 @@ def test_unstorable_credential_id_from_verifier_is_hashed(credential_id):
     ev = evaluate_badge(provider(token, credential_id=credential_id), token, NOW)  # 예전: uuid5 인코딩 오류·DB 오류
     assert ev.external_id.startswith("sha256:")
     uuid.UUID(ev.record_id)
+
+
+# ── compact JWS 모양 검사 (검증기로 넘기기 전의 구조 필터) ─────────────────
+
+def _segment(raw: bytes) -> str:
+    return base64.urlsafe_b64encode(raw).decode().rstrip("=")
+
+
+def test_compact_jws_accepts_signed_token_shapes():
+    assert is_compact_jws(make_vc_jwt(DID))
+    assert is_compact_jws(make_raw_jwt("not json at all"))  # 페이로드 내용은 보지 않는다 (판정은 검증기·evaluate_badge)
+    for alg in ("EdDSA", "ES256", "RS256", "ES256K"):
+        assert is_compact_jws(f"{_segment(json.dumps({'alg': alg}).encode())}.e30.c2ln")
+    # 머리말에 다른 필드(kid·typ)가 있어도 되고, 조각 길이는 따지지 않는다.
+    assert is_compact_jws(f"{_segment(json.dumps({'alg': 'EdDSA', 'kid': 'k' * 500}).encode())}.e30.{'A' * 5000}")
+    # alg는 [A-Za-z0-9_-] 32자까지다.
+    assert is_compact_jws(f"{_segment(json.dumps({'alg': 'A' * 32}).encode())}.e30.c2ln")
+
+
+JWS = "eyJhbGciOiJFZERTQSJ9.e30.c2ln"  # {"alg":"EdDSA"} . {} . sig
+KB_JWT = "eyJhbGciOiJFZERTQSIsInR5cCI6ImtiK2p3dCJ9.eyJub25jZSI6Im4ifQ.a2Jfc2ln"  # 키 바인딩 JWT 모양
+DISCLOSURE = "WyJzYWx0IiwgIm5hbWUiLCAieCJd"  # ["salt", "name", "x"]
+
+
+@pytest.mark.parametrize("token", [
+    "eyJhbGciOiJFZERTQSJ9.e30=.c2ln",  # 조각 끝의 base64 패딩 (RFC 7515는 빼지만 붙여 내는 구현이 있다)
+    "eyJhbGciOiJFZERTQSJ9.e30=.c2lnZw==",
+    "eyJhbGciOiAiRWREU0EifQ==.e30=.c2ln",  # 머리말에 패딩 둘
+    "eyJhbGciOiJFZERTQSJ9.e30==.c2ln",  # 필요한 것보다 하나 많은 패딩 (해석기는 지금처럼 읽는다)
+    JWS + "~",  # SD-JWT: 공개 항목 없음
+    f"{JWS}~{DISCLOSURE}~",
+    f"{JWS}~{DISCLOSURE}~{DISCLOSURE}~",
+    f"{JWS}~{DISCLOSURE}~{KB_JWT}",  # SD-JWT + 키 바인딩 JWT
+    f"{JWS}~{KB_JWT}",
+    f"eyJhbGciOiJFZERTQSJ9.e30=.c2ln~{DISCLOSURE}~",
+], ids=["padded-payload", "padded-signature", "padded-header", "one-pad-too-many", "sd-jwt-no-disclosure",
+        "sd-jwt-one-disclosure", "sd-jwt-two-disclosures", "sd-jwt-with-key-binding", "sd-jwt-only-key-binding",
+        "sd-jwt-padded-jws"])
+def test_compact_jws_accepts_padded_segments_and_sd_jwt(token):
+    assert is_compact_jws(token)
+    # 기존 해석기는 이 형식들의 페이로드를 지금처럼 읽는다 (두 번째 조각만 본다).
+    assert decode_jwt_payload(token) == {}
+
+
+@pytest.mark.parametrize("token", [
+    "", "x", "a.b", "a.b.c", "a.b.c.d", "..", "e30.e30.", ".e30.c2ln",
+    "eyJhbGciOiJFZERTQSJ9.e30.c2ln===",  # 패딩은 둘까지
+    "eyJhbGciOiJFZERTQSJ9.e30.=",  # 패딩뿐인 조각
+    "eyJhbGciOiJFZERTQSJ9.e30.c2=ln",  # 조각 가운데의 '='
+    "eyJhbGciOiJFZERTQSJ9.e30.c2 ln",  # 공백
+    "eyJhbGciOiJFZERTQSJ9.e30.c2ln\n",
+    "eyJhbGciOiJFZERTQSJ9.e30.c2+n",  # base64url이 아닌 표준 base64 문자
+    "eyJhbGciOiJFZERTQSJ9.e30.서명",  # ASCII가 아님
+    "eyJhbGciOiJFZERTQSJ9.e30.c2ln\u200b",
+    f"{JWS}~{DISCLOSURE}",  # 마지막 '~' 뒤는 비어 있거나 키 바인딩 JWT여야 한다
+    f"{JWS}~~",  # 빈 공개 항목
+    f"{JWS}~{DISCLOSURE}=~",  # 공개 항목에는 패딩이 없다
+    f"{JWS}~a.b~",  # 공개 항목에 점
+    f"{JWS}~{DISCLOSURE}~a.b",  # 조각이 둘뿐인 키 바인딩
+    f"{JWS}~{DISCLOSURE}~{KB_JWT}~",  # 키 바인딩 JWT 뒤에 더 있음
+    f"{JWS}~{DISCLOSURE} ~",
+    f"~{JWS}",
+    f"a.b.c~{DISCLOSURE}~",  # 첫 부분이 JWS 규칙(머리말)을 지키지 않음
+    f"eyJhbGciOiJub25lIn0.e30.c2ln~{DISCLOSURE}~",  # 첫 부분의 alg가 none
+], ids=["empty", "one-char", "two-segments", "header-not-json", "four-segments", "only-dots", "empty-signature",
+        "empty-header", "three-pads", "only-padding", "padding-inside", "space", "newline", "plus", "non-ascii",
+        "zero-width", "sd-jwt-without-final-tilde", "sd-jwt-empty-disclosure", "sd-jwt-padded-disclosure",
+        "sd-jwt-dotted-disclosure", "sd-jwt-short-key-binding", "sd-jwt-after-key-binding", "sd-jwt-space",
+        "sd-jwt-leading-tilde", "sd-jwt-bad-header", "sd-jwt-alg-none"])
+def test_compact_jws_rejects_other_shapes(token):
+    assert not is_compact_jws(token)
+
+
+@pytest.mark.parametrize("header", [
+    b'{"alg":"none"}', b'{"alg":"NONE"}', b'{"alg":"nOnE"}', b'{"alg":""}', b'{"alg":null}', b'{"alg":1}',
+    b'{"alg":["EdDSA"]}', b'{"typ":"JWT"}', b'["EdDSA"]', b'"EdDSA"', b'null', b'{"alg":"EdDSA"', b"\xff\xfe",
+    b"[" * 5000 + b"]" * 5000,
+    # none을 조금 바꾼 값과 알고리즘 이름에 쓰이지 않는 문자
+    b'{"alg":" none"}', b'{"alg":"none "}', b'{"alg":"none\\u0000"}', '{"alg":"ｎｏｎｅ"}'.encode(),
+    b'{"alg":"ES256 "}', b'{"alg":"ECDH-ES+A128KW"}', b'{"alg":"' + b"A" * 33 + b'"}',
+    # 같은 키가 두 번: 파서마다 앞·뒤 값 중 다른 것을 읽는다
+    b'{"alg":"none","alg":"RS256"}', b'{"alg":"RS256","alg":"none"}', b'{"alg":"RS256","jwk":{"kty":"a","kty":"b"}}',
+    # UTF-8이 아닌 인코딩 (bytes를 json.loads에 그대로 주면 UTF-16·32로 추측해 읽는다), BOM
+    '{"alg":"EdDSA"}'.encode("utf-16"), '{"alg":"EdDSA"}'.encode("utf-16-le"), '{"alg":"EdDSA"}'.encode("utf-32"),
+    b"\xef\xbb\xbf" + b'{"alg":"EdDSA"}',
+], ids=["none", "NONE", "nOnE", "empty-alg", "null-alg", "number-alg", "list-alg", "no-alg", "list", "string", "null",
+        "broken-json", "not-utf8", "deep-nesting", "space-none", "none-space", "none-nul", "fullwidth-none",
+        "alg-with-space", "alg-with-plus", "alg-33-chars", "duplicate-alg-none-first", "duplicate-alg-none-last",
+        "duplicate-nested-key", "utf-16", "utf-16-le", "utf-32", "utf-8-bom"])
+def test_compact_jws_requires_a_header_object_with_a_real_alg(header):
+    assert not is_compact_jws(f"{_segment(header)}.e30.c2ln")
+
+
+def test_compact_jws_rejects_non_strings():
+    for value in (None, 1, b"a.b.c", ["a", "b", "c"]):
+        assert not is_compact_jws(value)

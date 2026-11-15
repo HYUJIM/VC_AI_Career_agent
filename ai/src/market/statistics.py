@@ -29,7 +29,11 @@ from src.career.contracts.market import (
     SkillStatistic,
     SourceCount,
 )
-from src.career.skill_catalog import bounded_normalized_text
+from src.career.skill_catalog import (
+    MAX_NORMALIZED_GROWTH,
+    NORMALIZED_GROWTH_SLACK,
+    normalized_text,
+)
 from src.market.catalog import CATALOG_VERSION, ROLE_LABELS, SKILL_BY_ID, STACK_EXACT, TEXT_PATTERNS
 
 EXTRACTOR_VERSION = "rules/1"
@@ -42,29 +46,40 @@ Z95 = 1.959963984540054
 
 
 def _text_skills(normalized: str) -> set[str]:
+    # 표기가 문장에 아예 없으면 정규식을 돌리지 않는다. 패턴은 모두 위치마다 앞 글자를 확인하느라 느린데
+    # (2만 자 구간 하나에 약 80ms), 공고 하나에 나오는 표기는 몇 개뿐이라 대부분 여기서 걸러진다.
     return {
         skill_id
         for skill_id, patterns in TEXT_PATTERNS.items()
-        if any(pattern.search(normalized) for pattern in patterns)
+        if any(literal in normalized and pattern.search(normalized) for literal, pattern in patterns)
     }
+
+
+def clipped_normalized_text(value: str) -> str:
+    """skill_catalog.bounded_normalized_text와 같은 상한(2배 + 64자)을 쓰되, 넘으면 거절하지 않고 자른다.
+
+    수집한 공개 공고 한 건의 이상한 문자(U+FDFA 몇 글자면 넘는다) 때문에 그 직무의 통계 전체가 422로
+    실패하지 않게 한다. 정상 공고는 상한에 닿지 않아 결과가 같고, 넘는 공고만 뒷부분을 보지 않는다.
+    """
+    return normalized_text(value)[: MAX_NORMALIZED_GROWTH * len(value) + NORMALIZED_GROWTH_SLACK]
 
 
 def extract_skills(posting: MarketPosting) -> dict[str, str]:
     """공고 하나에서 찾은 기술과 그 수준. {skill_id: level}"""
     stack = set()
     for item in posting.tech_stack:
-        normalized = bounded_normalized_text(item)
+        normalized = clipped_normalized_text(item)
         exact = STACK_EXACT.get(normalized)
         if exact:
             stack.add(exact)
         stack |= _text_skills(normalized)
     found = {
-        "required": _text_skills(bounded_normalized_text(posting.qualifications)),
+        "required": _text_skills(clipped_normalized_text(posting.qualifications)),
         "stack": stack,
-        "preferred": _text_skills(bounded_normalized_text(posting.preferred)),
-        "mentioned": _text_skills(
-            bounded_normalized_text(posting.title + "\n" + posting.responsibilities)
-        ),
+        "preferred": _text_skills(clipped_normalized_text(posting.preferred)),
+        # 제목과 주요업무는 따로 본다: 이어 붙이면 표기가 둘에 걸쳐 맞는다(제목 "Spring" + 업무 "Boot ...").
+        "mentioned": _text_skills(clipped_normalized_text(posting.title))
+        | _text_skills(clipped_normalized_text(posting.responsibilities)),
     }
     levels: dict[str, str] = {}
     for level in LEVEL_ORDER:  # 강한 자리부터 채운다
@@ -88,11 +103,11 @@ def experience_bucket(posting: MarketPosting) -> str:
 
 def _content_key(posting: MarketPosting) -> tuple:
     return (
-        bounded_normalized_text(posting.company),
-        bounded_normalized_text(posting.title),
-        bounded_normalized_text(posting.qualifications),
-        bounded_normalized_text(posting.preferred),
-        tuple(sorted(bounded_normalized_text(item) for item in posting.tech_stack)),
+        clipped_normalized_text(posting.company),
+        clipped_normalized_text(posting.title),
+        clipped_normalized_text(posting.qualifications),
+        clipped_normalized_text(posting.preferred),
+        tuple(sorted(clipped_normalized_text(item) for item in posting.tech_stack)),
     )
 
 
@@ -127,17 +142,19 @@ def _round(value: float) -> float:
 def build_snapshot(request: MarketSnapshotRequest, now: datetime) -> MarketSnapshotOutput:
     postings, duplicates = deduplicate(request.postings)
     total = len(postings)
-    per_company = Counter(bounded_normalized_text(p.company) for p in postings)
-    weights = [min(1.0, COMPANY_CAP / per_company[bounded_normalized_text(p.company)]) for p in postings]
-    weight_sum = sum(weights)
+    per_company = Counter(clipped_normalized_text(p.company) for p in postings)
+    weights = [min(1.0, COMPANY_CAP / per_company[clipped_normalized_text(p.company)]) for p in postings]
+    # 합은 math.fsum으로 낸다: 순서대로 더하면 공고 순서에 따라 마지막 비트가 달라져, 4자리 반올림 경계에서
+    # importance와 content_hash가 바뀐다(무작위 입력의 약 1%).
+    weight_sum = math.fsum(weights)
 
     extracted = [extract_skills(posting) for posting in postings]
     counts = defaultdict(Counter)  # skill_id -> level -> 공고 수
-    score = Counter()  # skill_id -> 가중 점수 합
+    scores = defaultdict(list)  # skill_id -> 공고별 가중 점수
     for levels, weight in zip(extracted, weights):
         for skill_id, level in levels.items():
             counts[skill_id][level] += 1
-            score[skill_id] += weight * LEVEL_WEIGHT[level]
+            scores[skill_id].append(weight * LEVEL_WEIGHT[level])
 
     statistics = []
     for skill_id, by_level in counts.items():
@@ -158,7 +175,7 @@ def build_snapshot(request: MarketSnapshotRequest, now: datetime) -> MarketSnaps
                 mention_rate_low=_round(low),
                 mention_rate_high=_round(high),
                 required_ratio=_round(by_level["required"] / mentioned),
-                importance=_round(score[skill_id] / weight_sum),
+                importance=_round(math.fsum(scores[skill_id]) / weight_sum),
             )
         )
     # 중요도가 같으면 언급 수, 그다음 ID 순으로 고정해 같은 입력이 항상 같은 해시가 되게 한다.

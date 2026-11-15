@@ -71,7 +71,7 @@ export function PortfolioBuilderPage() {
   const chatRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
-  const { data, isLoading, isError, error, refetch } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['careers', user?.did],
     queryFn: () => getCareersByDid(user!.did),
     enabled: Boolean(user?.did),
@@ -176,7 +176,7 @@ export function PortfolioBuilderPage() {
         </p>
       </section>
 
-      {isError && <CareersErrorAlert error={error} onRetry={() => refetch()} />}
+      {isError && <CareersErrorAlert error={error} onRetry={() => refetch()} isFetching={isFetching} />}
 
       <div className="grid items-start gap-4 lg:grid-cols-[340px_1fr]">
         <Card className="flex h-[760px] flex-col gap-3 px-0 py-5">

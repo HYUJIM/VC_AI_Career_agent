@@ -24,6 +24,7 @@ from app.ai_contract.verification import (
 from app.core.config import get_settings
 from app.domain.credential import BadgeEvaluation, _parse_datetime
 from app.integrations.ai_service import AIRejected, AIServiceClient, AIUnavailable, contract_violation
+from app.integrations.ai_service import _settings as ensure_ai_configured
 from app.integrations.ports import CredentialVerifier
 from app.services.career_store import career_store, curriculum_view
 from app.services.database import db_service
@@ -69,9 +70,9 @@ async def build_snapshot(user: dict, verifier: CredentialVerifier) -> Verificati
     """DB 상태값을 믿지 않고 지금 서명 원본을 다시 검증한 결과로 AI 입력 스냅샷을 만든다."""
     started = datetime.now(timezone.utc)
     rows = await run_in_threadpool(db_service.get_credential_rows, str(user["id"]), None)
-    outcomes = await reverify_rows(rows, verifier)
-    # 검증기 장애(설정 누락·연결 실패·5xx 등)로는 분석을 만들지 않는다: 502/503으로 끝나고 아무것도 저장하지 않는다.
-    # 특정 서명 원본에 대한 4xx 거절은 지금처럼 그 자격증명만 제외한다.
+    outcomes = await reverify_rows(rows, verifier, caller=str(user["id"]), route="career_analysis")
+    # 검증기 장애(설정 누락·연결 실패·5xx·401·403·3xx 등)로는 분석을 만들지 않는다: 502/503으로 끝나고 아무것도 저장하지 않는다.
+    # 특정 서명 원본에 대한 거절(400·404·422)은 지금처럼 그 자격증명만 제외한다 (서명 원본이 둘 이상인데 모두 실패하면 장애).
     raise_on_verifier_outage(outcomes)
     accepted, excluded = [], []
     for outcome in outcomes:
@@ -150,13 +151,21 @@ class CareerService:
         user = await run_in_threadpool(db_service.get_user_by_id, user_id)
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
-        snapshot = await build_snapshot(user, verifier)
-        now = datetime.now(timezone.utc)
-        candidates = await run_in_threadpool(career_store.market_candidates, request.target_role_id, now)
+        # 어차피 실패할 요청은 자격증명 수만큼 검증기(DXWorks)를 부르기 전에 끝낸다:
+        # AI 서비스 설정이 없으면 503, 없는 공고를 가리키면 404.
+        ensure_ai_configured()
         target = None
         if request.target_posting_id:
             target = await run_in_threadpool(career_store.get_job, str(request.target_posting_id))
-        output = await ai.analyze(snapshot, request, candidates, target)
+        # 재검증(검증기 호출)은 AI 묶음 요청 자리를 쥐지 않고 한다. 자리를 쥔 채 검증기를 기다리면, 협력사가 느리거나 멈춘
+        # 동안 분석 몇 건이 자리(AI_MAX_CONCURRENCY개)를 모두 잡아 공고 검색·학습자료 검색·커리큘럼까지 503이 됐다.
+        # 그 대신 자리가 없어 503(AI_SERVICE_BUSY)으로 끝나는 분석은 검증기를 이미 부른 뒤다 (그 양은 호출자별 호출 몫에 묶인다).
+        snapshot = await build_snapshot(user, verifier)
+        # 공고 묶음을 읽기 전에 AI 묶음 요청 자리를 잡는다 (공고 검색·커리큘럼과 같다: 기다리는 요청은 묶음을 올려 두지 않는다).
+        async with ai.corpus_slot("POST /v1/career-analyses"):
+            now = datetime.now(timezone.utc)
+            candidates = await run_in_threadpool(career_store.market_candidates, request.target_role_id, now)
+            output = await ai.analyze(snapshot, request, candidates, target)
         check_analysis(output, snapshot, request, candidates, target)
         await run_in_threadpool(career_store.save_analysis, user_id, output.analysis, snapshot)
         return output.analysis
@@ -176,8 +185,10 @@ class CareerService:
             if user_id not in get_settings().curriculum_llm_user_ids:
                 raise HTTPException(status_code=403, detail="External LLM access is not enabled for this account")
             generator = await ai.generator_info()
-        resources = await run_in_threadpool(career_store.resources)
-        context = await ai.planning_context(analysis, resources, request)
+        # 학습자료 묶음을 읽기 전에 AI 묶음 요청 자리를 잡는다 (자리를 기다리는 요청이 묶음을 메모리에 올려 두지 않게).
+        async with ai.corpus_slot("POST /v1/curricula/context"):
+            resources = await run_in_threadpool(career_store.resources)
+            context = await ai.planning_context(analysis, resources, request)
         check_context(context, analysis, resources)
         job_id = uuid.uuid4()
         outcome = await ai.generate_curriculum(GenerationInput(

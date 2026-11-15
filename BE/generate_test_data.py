@@ -53,7 +53,7 @@ def generate_random_date():
 def get_db_connection():
     return psycopg.connect(
         host=os.getenv("DB_HOST", "localhost"),
-        port=int(os.getenv("DB_PORT", 5432)),
+        port=int(os.getenv("DB_PORT", "").strip() or 5432),  # 앱처럼 `DB_PORT=`로 비워 둔 줄은 기본값
         user=os.getenv("DB_USER", "postgres"),
         # 앱과 같은 규칙: 개발은 로컬 기본값, APP_ENV=production은 비었거나 기본값이면 접속하지 않는다 (app/core/config.py)
         password=db_password(),

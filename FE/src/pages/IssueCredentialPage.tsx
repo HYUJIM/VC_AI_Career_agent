@@ -12,6 +12,7 @@ import {
   getApiErrorMessage,
   getApiErrorStatus,
   getConnectionHint,
+  needsRetryHint,
   RETRY_LATER_MESSAGE,
 } from '@/lib/apiClient';
 import { useAuthStore } from '@/store/authStore';
@@ -164,8 +165,8 @@ export function IssueCredentialPage() {
         onClose={close}
       >
         {err.message}
-        {/* 429(발급 한도 초과)는 메시지가 이미 "나중에 다시 시도"를 안내한다 */}
-        {err.stage === 'issue' && err.httpStatus !== 429 && (
+        {/* 429(발급 한도 초과)·혼잡 안내는 메시지가 이미 "나중에 다시 시도"를 안내한다 */}
+        {err.stage === 'issue' && needsRetryHint(err.httpStatus, err.message) && (
           <>
             <br />
             {import.meta.env.DEV

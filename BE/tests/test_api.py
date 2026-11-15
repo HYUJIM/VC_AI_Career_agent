@@ -4,7 +4,7 @@ import logging
 import uuid
 
 from app.integrations.ports import ProviderError
-from tests.conftest import make_vc_jwt
+from tests.conftest import make_vc_jwt, make_vp_jwt
 
 SERVICE = {"X-Service-Key": "test-service-key"}
 
@@ -215,16 +215,17 @@ def test_verify_with_service_key_is_403(client, register):
     assert res.status_code == 403
 
 
-def test_verify_identity_does_not_create_users(client, register, db):
+def test_verify_identity_does_not_create_users(client, register, db, identity_enabled):
     user = register()
     before = db.execute("SELECT count(*) AS n FROM users").fetchone()["n"]
-    # FakeProvider는 vpToken 값을 holderDid로 돌려준다.
-    res = client.post("/api/v1/verify", json={"type": "identity", "token": user["did"]}, headers=user["headers"])
+    # FakeProvider는 VP 토큰(make_vp_jwt)의 iss를 holderDid로 돌려준다.
+    res = client.post("/api/v1/verify", json={"type": "identity", "token": make_vp_jwt(user["did"])},
+                      headers=user["headers"])
     assert res.status_code == 200 and res.json()["success"] is True
     assert res.json()["data"] == {"verified": True, "holder_did": user["did"], "claims": {"name": "가상학생"}}
     assert db.execute("SELECT count(*) AS n FROM users").fetchone()["n"] == before
 
-    other = client.post("/api/v1/verify", json={"type": "identity", "token": "did:key:z6MkSomeoneElse"},
+    other = client.post("/api/v1/verify", json={"type": "identity", "token": make_vp_jwt("did:key:z6MkSomeoneElse")},
                         headers=user["headers"])
     assert other.status_code == 403
 

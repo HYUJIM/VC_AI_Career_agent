@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { logoutUser } from '@/api/auth';
 import { ProfileMenu } from '@/components/ProfileMenu';
+import { RouteErrorBoundary } from '@/components/RouteErrorBoundary';
 import { Button } from '@/components/ui/Button';
 import { useAuthStore } from '@/store/authStore';
 
@@ -118,7 +119,10 @@ export function Layout() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25, ease: 'easeOut' }}
         >
-          <Outlet />
+          {/* 화면 하나가 그리다 오류를 내도 머리글·로그아웃은 남긴다. key 가 경로라 다른 화면으로 옮기면 오류 상태가 풀린다 */}
+          <RouteErrorBoundary key={pathname}>
+            <Outlet />
+          </RouteErrorBoundary>
         </motion.div>
       </main>
       <footer className="mt-8 border-t border-[var(--color-border)] bg-white">

@@ -24,12 +24,6 @@ def normalize_messages(prompt):
     return messages
 
 
-def measure_messages(tokenizer, prompt):
-    messages = normalize_messages(prompt)
-    rendered = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-    tokens = tokenizer([rendered], add_special_tokens=False)['input_ids'][0]
-    return rendered, len(tokens)
-
 def validate_settings(revision, max_new_tokens, max_input_tokens):
     if not re.fullmatch(r'[0-9a-f]{40}', revision):
         raise ValueError('An exact 40-character model commit is required')

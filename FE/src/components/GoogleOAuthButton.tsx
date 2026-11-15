@@ -7,6 +7,7 @@ import {
   getApiErrorMessage,
   getApiErrorStatus,
   getConnectionHint,
+  needsRetryHint,
   RETRY_LATER_MESSAGE,
 } from '@/lib/apiClient';
 import { startGoogleOAuth } from '@/lib/oauth';
@@ -87,7 +88,7 @@ export function GoogleOAuthButton({
     return (
       <Alert variant="error" title="Google 로그인을 시작할 수 없습니다." onClose={() => setOauthError(null)}>
         {err.message}
-        {err.status !== 429 && (
+        {needsRetryHint(err.status, err.message) && (
           <>
             <br />
             {import.meta.env.DEV

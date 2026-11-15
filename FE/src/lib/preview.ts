@@ -23,6 +23,8 @@ import type {
 /**
  * 개발 모드(`npm run dev`) 전용 미리보기. BE 없이 화면 디자인을 확인하기 위한 가짜 데이터.
  * 프로덕션 빌드에서는 import.meta.env.DEV 가 false 이므로 동작하지 않는다.
+ * 호출하는 쪽은 `import.meta.env.DEV && isPreviewSession()` 으로 쓴다. 조건을 함수 안에만 두면 번들러가 호출부의 분기를
+ * 지우지 못해, 쓰이지 않는 가짜 데이터(preview* 함수)가 운영 번들에 그대로 들어간다.
  */
 export const PREVIEW_ENABLED = import.meta.env.DEV;
 

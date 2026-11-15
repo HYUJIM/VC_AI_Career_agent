@@ -3,6 +3,7 @@
 - 같은 이메일로 WINDOW_SECONDS 안에 MAX_FAILURES번 틀리면, 가장 오래된 실패가 창 밖으로 나갈 때까지 그 이메일의 로그인을
   429로 거절한다 (비밀번호가 맞아도, bcrypt도 돌리지 않음). 로그인에 성공하면 그 이메일의 기록을 지운다.
 - 시도는 비밀번호를 확인하기 전에 실패로 먼저 기록하고 성공하면 지운다. 그래서 동시에 몰아 보내도 한도를 넘지 못한다.
+  DB가 바빠 계정을 조회하지 못하고 503으로 답한 시도는 그 기록 하나만 돌려준다 (비밀번호를 확인한 적이 없다).
 - 가입하지 않은 이메일도 똑같이 센다. 429가 '가입된 이메일'을 알려 주지 않게 하기 위해서다.
 - 이메일은 DB 조회(lower(email))처럼 접어서 센다: 앞뒤 공백을 떼고 글자마다 따로 소문자로 바꾼다. PostgreSQL lower()(libc 정렬)는
   글자마다 접으므로('İ'(U+0130) → 'i', 어말을 포함한 모든 'Σ' → 'σ') DB가 같은 계정으로 찾는 표기는 같은 키를 쓴다.
@@ -14,8 +15,11 @@
   나눠 쓰게 되기 때문이다. IP별 제한은 AWS WAF 속도 기반 규칙이 맡는다 (README "AWS 배포 체크리스트").
 - 기록은 프로세스 메모리에만 둔다(태스크마다 따로 세고 재시작하면 지워짐). 키는 이메일의 SHA-256이라 원문을 들고 있지 않고,
   키 수는 MAX_KEYS로 묶어 아무 이메일이나 보내도 메모리가 자라지 않는다.
+- 잠긴 키로 온 시도마다 감사 로그 한 줄을 남긴다 (로거 vc-be.audit, INFO): event=login_locked key=<키의 앞 12자리 hex>
+  retry_after=<초>. 이메일 원문은 남기지 않는다 (키는 이메일의 SHA-256이라 같은 이메일은 같은 값으로 묶인다).
 """
 import hashlib
+import logging
 import math
 import threading
 import time
@@ -27,6 +31,8 @@ WINDOW_SECONDS = 15 * 60
 MAX_KEYS = 10_000
 
 TOO_MANY_ATTEMPTS = "Too many attempts. Try again later."
+
+audit = logging.getLogger("vc-be.audit")
 
 
 class LoginThrottle:
@@ -73,6 +79,20 @@ class LoginThrottle:
                 else:
                     del self._failures[old]
             return None
+
+    def release(self, email: str) -> None:
+        """reserve가 먼저 기록해 둔 시도 하나를 돌려준다 (비밀번호를 확인하지 못하고 끝난 시도: DB가 바빠 503으로 답한 로그인)."""
+        key = self._key(email)
+        with self._lock:
+            stamps = self._failures.get(key)
+            if stamps:
+                stamps.pop()
+            if not stamps:
+                self._failures.pop(key, None)
+
+    def log_locked(self, email: str, retry_after: int) -> None:
+        """reserve가 한도(잠김)로 거절한 시도를 감사 로그에 남긴다. 이메일 대신 키(SHA-256)의 앞 12자리 hex만 쓴다."""
+        audit.info("event=login_locked key=%s retry_after=%d", self._key(email).hex()[:12], retry_after)
 
     def succeeded(self, email: str) -> None:
         with self._lock:

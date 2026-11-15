@@ -36,7 +36,7 @@ export function DashboardPage() {
   );
   const [detail, setDetail] = useState<VerifiedCredential | null>(null);
 
-  const { data, isLoading, isError, error, refetch } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['careers', user?.did],
     queryFn: () => getCareersByDid(user!.did),
     enabled: Boolean(user?.did),
@@ -117,7 +117,7 @@ export function DashboardPage() {
             />
           )}
 
-          {isError && <CareersErrorAlert error={error} onRetry={() => refetch()} />}
+          {isError && <CareersErrorAlert error={error} onRetry={() => refetch()} isFetching={isFetching} />}
 
           <CredentialList
             credentials={credentials}

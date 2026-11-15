@@ -5,10 +5,13 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import {
   type ApiErrorKind,
+  getApiErrorDetail,
   getApiErrorKind,
   getApiErrorMessage,
   getApiErrorStatus,
   getConnectionHint,
+  needsRetryHint,
+  OAUTH_PASSWORD_ACCOUNT_DETAIL,
   RETRY_LATER_MESSAGE,
 } from '@/lib/apiClient';
 import {
@@ -24,6 +27,8 @@ interface CallbackFailure {
   clientCode?: OAuthCallbackClientErrorCode;
   status?: number;
   message: string;
+  /** 409 중 "같은 이메일이 이미 이메일·비밀번호 계정으로 가입돼 있음" (BE가 그 계정에는 Google 계정을 붙이지 않는다) */
+  passwordAccount?: boolean;
 }
 
 /**
@@ -52,8 +57,9 @@ export function GoogleCallbackPage() {
       .then((res) => {
         if (cancelled) return;
         startSession(res);
-        const newUser = res.message.includes('회원가입');
-        const oauthLinked = res.message.includes('연동');
+        // message 가 없는 응답이어도 로그인은 끝낸다 (환영 문구만 기본값으로 나온다).
+        const newUser = (res.message ?? '').includes('회원가입');
+        const oauthLinked = (res.message ?? '').includes('연동');
         navigate('/dashboard', {
           replace: true,
           state: { welcome: res.data.name, newUser, oauthLinked },
@@ -73,6 +79,7 @@ export function GoogleCallbackPage() {
           kind: getApiErrorKind(error),
           status: getApiErrorStatus(error),
           message: getApiErrorMessage(error),
+          passwordAccount: getApiErrorDetail(error) === OAUTH_PASSWORD_ACCOUNT_DETAIL,
         });
       });
 
@@ -110,6 +117,13 @@ export function GoogleCallbackPage() {
         </Alert>
       );
     }
+    if (err.status === 409 && err.passwordAccount) {
+      return (
+        <Alert variant="warning" title="이 이메일은 Google로 로그인할 수 없습니다.">
+          {err.message}
+        </Alert>
+      );
+    }
     if (err.status === 409) {
       return (
         <Alert variant="warning" title="다른 Google 계정이 이미 연동되어 있습니다.">
@@ -127,7 +141,7 @@ export function GoogleCallbackPage() {
     return (
       <Alert variant="error" title="Google 로그인을 완료할 수 없습니다.">
         {err.message}
-        {err.kind !== 'client' && err.status !== 429 && (
+        {err.kind !== 'client' && needsRetryHint(err.status, err.message) && (
           <>
             <br />
             {import.meta.env.DEV

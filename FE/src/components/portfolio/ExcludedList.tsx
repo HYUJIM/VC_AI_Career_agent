@@ -21,7 +21,9 @@ export function ExcludedList({ excluded, names }: { excluded: ExcludedEvidence[]
         <li key={e.record_id} className="flex items-center justify-between gap-2 text-[13px]">
           <span className="min-w-0 truncate text-[var(--color-text-sub)]">
             {names?.get(e.record_id) ?? e.record_id}
-            <span className="ml-1.5 text-[var(--color-text-muted)]">· {REASON_TEXT[e.reason] ?? e.reason}</span>
+            <span className="ml-1.5 text-[var(--color-text-muted)]">
+              · {Object.hasOwn(REASON_TEXT, e.reason) ? REASON_TEXT[e.reason] : e.reason}
+            </span>
           </span>
           <StatusBadge status={e.status} />
         </li>

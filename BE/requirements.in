@@ -4,6 +4,7 @@
 fastapi
 starlette>=1.10  # starlette.middleware.body_limit (main.py 요청 본문 상한)
 uvicorn
+anyio  # app/services/security.py (bcrypt 전용 스레드 제한기). fastapi·starlette가 함께 설치하는 버전을 그대로 쓴다.
 httpx
 python-dotenv
 psycopg[binary]

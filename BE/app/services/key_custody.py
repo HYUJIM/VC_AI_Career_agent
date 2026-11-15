@@ -49,8 +49,6 @@ class StoredHolderKey:
 
 
 class KeyCustody:
-    key_type = "Ed25519"
-
     def __init__(self, master_key: bytes):
         if len(master_key) != 32:
             raise ValueError("master key must be 32 bytes")

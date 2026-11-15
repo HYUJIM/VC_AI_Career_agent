@@ -4,6 +4,7 @@ import asyncio
 from datetime import datetime, timezone
 from uuid import uuid4
 
+import httpx
 import pytest
 
 from src.career.contracts.api import GenerationInput
@@ -11,7 +12,7 @@ from src.career.contracts.curriculum import CurriculumRequest
 from src.career.curriculum_generator import generate
 from src.career.curriculum_service import planning_context
 from src.career.errors import Rejection
-from src.career.llm_client import LLMConfig, LLMReply, ProviderFailure
+from src.career.llm_client import CompatibleLLMClient, LLMConfig, LLMReply, ProviderFailure
 
 
 class ScriptedClient:
@@ -104,6 +105,25 @@ def test_provider_failure_is_retryable_failure_without_result(job, llm_settings)
         True,
     )
     assert outcome.result is None and outcome.audit[0]["provider_error"]
+
+
+def test_deeply_nested_provider_body_is_an_audited_malformed_response(job, llm_settings, caplog):
+    # json.loads raises RecursionError (a RuntimeError) on such a body. It used to escape the
+    # client's error mapping: INTERNAL_GENERATION_ERROR and no audit entry for the call.
+    current, _ = job("llm", LLMConfig.from_env().public_metadata())
+    client = CompatibleLLMClient(
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, content=b"[" * 200000))
+    )
+    outcome = run(current, client)
+    assert (outcome.state, outcome.error_code, outcome.retryable) == (
+        "failed",
+        "LLM_MALFORMED_RESPONSE",
+        False,
+    )
+    assert [sorted(entry) for entry in outcome.audit] == [["prompt_hash", "provider_error", "usage"]]
+    assert outcome.audit[0]["provider_error"] == "LLM_MALFORMED_RESPONSE"
+    # No "Curriculum processing error type: RecursionError" line from the catch-all handler.
+    assert not [record for record in caplog.records if record.name.startswith("src.")]
 
 
 def test_changed_or_missing_generator_configuration_never_calls_model(

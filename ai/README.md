@@ -1,6 +1,7 @@
 # AI 서비스 설치와 실행
 
 BE(`../BE`)가 호출하는 AI 서버입니다. 직무 비교(검증된 자격증명 ↔ 채용공고 요구사항)와 커리큘럼 생성을 계산합니다.
+수집한 공고 묶음으로 직무별 요구 역량 통계도 계산합니다(`POST /v1/market/snapshots`. 수집·저장·조회는 BE).
 무엇을 어떻게 계산하는지는 [docs/CAREER_AI_SERVICE.md](docs/CAREER_AI_SERVICE.md)를 보세요. 다음 작업(공고 수집·통계 → 커리큘럼 반영) 설계는
 [docs/JOB_MARKET_STATS_DESIGN.md](docs/JOB_MARKET_STATS_DESIGN.md)에 있습니다. 아래 명령은 이 `ai/` 폴더에서 실행합니다.
 
@@ -92,6 +93,8 @@ CURRICULUM_LLM_API_KEY=<키>
 CURRICULUM_LLM_TOKEN_PARAMETER=max_completion_tokens
 ```
 
+`CURRICULUM_LLM_API_KEY`는 공백 없는 출력 가능한 ASCII 문자여야 합니다(요청의 `Authorization` 헤더에 그대로 들어감). 아니면 생성기 설정 오류(`GENERATOR_CONFIGURATION_REQUIRED`)입니다.
+
 **로컬 Qwen 모델** (`Qwen/Qwen2.5-1.5B-Instruct` 고정 revision, NVIDIA GPU·CUDA 11.8, Docker 이미지에는 미포함)
 
 ```bash
@@ -125,6 +128,10 @@ CURRICULUM_LOCAL_ALLOW_DOWNLOAD=true
 | FE에 "AI_SERVICE_TOKEN이 서로 다릅니다" | BE `.env`와 AI의 `AI_SERVICE_TOKEN`이 다름 |
 | BE 502 "contract checks" | 공유 형식이 다름 → 5번 실행 후 둘 다 재시작 |
 | `/v1/...`가 503 `AI_SERVICE_TOKEN_NOT_CONFIGURED` | AI의 토큰이 비었거나 32바이트 미만 |
+| AI가 시작하지 않음 `ConfigurationError: AI_MAX_BODY_BYTES must be a positive integer (bytes)` | `AI_MAX_BODY_BYTES`가 양의 정수(바이트)가 아님(예: `32MiB`, `0`). 부호·밑줄·소수점이 들어간 표기(`+4096`, `4_096`, `4096.0`)와 전각 숫자도 해당 → 지우거나 비우면 기본값 32 MiB, 넣으려면 ASCII 숫자만(예: `33554432`, 18자리까지) |
+| FE에 "분석 요청이 많습니다…" (BE 503 `AI_SERVICE_BUSY`) | BE 프로세스가 AI로 동시에 보내는 공고·학습자료 묶음 요청이 BE의 `AI_MAX_CONCURRENCY`(기본 4)개로 찬 채 10초가 지남. 이 요청은 AI에 오지 않았음 → 잠시 뒤 다시 시도, 자주 나오면 AI가 느린지(CPU·메모리) 확인 |
+| `/v1/...`의 422 `REQUEST_SCHEMA_INVALID`에 보낸 값이 없음 | `detail`은 오류마다 `loc`·`msg`·`type`만 싣고(입력값 없음) 앞에서부터 20개까지, 64자를 넘는 키 이름은 `<long key>`로 나옴 |
 | 비교할 공고가 없음 | 연구자 반입 공고가 없거나, 수집 7일·게시 90일이 지났거나, `dataset_kind`가 `real`이 아님 |
 | 공고·자료 미리보기·반입이 422 `TEXT_EXPANDS_TOO_MUCH_WHEN_NORMALIZED` | 원문·인용에 NFKC 정규화로 크게 늘어나는 호환 문자(예: U+FDFA)가 많음 → 풀어 쓴 문자로 고쳐 다시 반입 |
+| 새 버전으로 올린 뒤 공고 목록·직무 비교가 409 `JOB_SOURCE_INVALID` (학습자료는 `LEARNING_SOURCE_INVALID`) | 이미 저장된 공고·자료 버전이 지금 규칙의 재검사를 통과하지 못함. 이번 버전은 결합 문자가 30개 넘게 이어진 구간을 30개에서 자르므로, 그런 구간이 든 원문·인용(실제 문장에는 없는 형태)이 저장돼 있으면 걸릴 수 있음 → `../BE/README.md`의 "결합 문자 점검"으로 찾아 고쳐서 다시 반입 |
 | 커리큘럼 409 | 비교 결과 유효시간(5분)이 지남 → 다시 비교 |

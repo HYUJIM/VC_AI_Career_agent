@@ -21,7 +21,7 @@ import type {
 
 /** GET /api/v1/shares (최근 생성순) */
 export async function listShares(): Promise<ShareListResponse> {
-  if (isPreviewSession()) return previewListShares();
+  if (import.meta.env.DEV && isPreviewSession()) return previewListShares();
   const { data } = await apiClient.get<ShareListResponse>('/v1/shares');
   return data;
 }
@@ -34,14 +34,14 @@ export async function createShare(payload: ShareCreateRequest): Promise<ShareCre
     label: cleanedLabel || null,
     ...(payload.expires_in_days ? { expires_in_days: payload.expires_in_days } : {}),
   };
-  if (isPreviewSession()) return previewCreateShare(body);
+  if (import.meta.env.DEV && isPreviewSession()) return previewCreateShare(body);
   const { data } = await apiClient.post<ShareCreateResponse>('/v1/shares', body);
   return data;
 }
 
 /** DELETE /api/v1/shares/{id} — 철회한 링크는 기업용 조회에서 바로 404 */
 export async function revokeShare(id: string): Promise<SimpleSuccess> {
-  if (isPreviewSession()) return previewRevokeShare(id);
+  if (import.meta.env.DEV && isPreviewSession()) return previewRevokeShare(id);
   const { data } = await apiClient.delete<SimpleSuccess>(`/v1/shares/${encodeURIComponent(id)}`);
   return data;
 }
@@ -52,6 +52,11 @@ export async function revokeShare(id: string): Promise<SimpleSuccess> {
  */
 export async function getPublicShare(token: string): Promise<PublicShare> {
   const { data } = await apiClient.get<PublicShare>(`/v1/public/shares/${encodeURIComponent(token)}`);
+  // 200 이지만 공유 응답이 아닌 본문(예: /api 요청이 SPA 의 index.html 로 넘어가는 배포 설정)은 오류로 처리한다.
+  // 그대로 넘기면 화면이 credentials 를 읽다가 흰 화면이 된다. 오류로 넘기면 "불러오지 못했습니다" 안내가 나온다.
+  if (!Array.isArray(data?.credentials)) {
+    throw new Error('서버 응답이 올바르지 않습니다.');
+  }
   return data;
 }
 

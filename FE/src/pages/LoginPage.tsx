@@ -16,6 +16,7 @@ import {
   getApiErrorMessage,
   getApiErrorStatus,
   getConnectionHint,
+  needsRetryHint,
   RETRY_LATER_MESSAGE,
 } from '@/lib/apiClient';
 import { PREVIEW_ENABLED, PREVIEW_USER } from '@/lib/preview';
@@ -158,8 +159,8 @@ export function LoginPage() {
         return (
           <Alert variant="error" title="로그인 중 오류가 발생했습니다." onClose={() => setLoginError(null)}>
             {err.message}
-            {/* 429(시도 횟수 초과)는 메시지가 이미 "잠시 후 다시 시도"를 안내한다 */}
-            {err.status !== 429 && (
+            {/* 429(시도 횟수 초과)·혼잡 안내는 메시지가 이미 "잠시 후 다시 시도"를 안내한다 */}
+            {needsRetryHint(err.status, err.message) && (
               <>
                 <br />
                 {import.meta.env.DEV

@@ -66,11 +66,24 @@ if os.getenv("CAREER_AI_SKIP_DOTENV", "false").lower() != "true":
 
 DEFAULT_MAX_BODY_BYTES = 32 * 1024 * 1024
 TOO_LARGE = "Request too large for the AI service"
+# 422 응답에 싣는 검증 오류 수와 loc 문자열 길이의 상한 (validation_handler)
+MAX_REPORTED_ERRORS = 20
+MAX_LOC_CHARS = 64
 bearer = HTTPBearer(auto_error=False)
 
 
 def error(status, code, message):
     return JSONResponse(status_code=status, content={"detail": message, "code": code})
+
+
+def max_body_bytes() -> int:
+    """AI_MAX_BODY_BYTES. 비어 있으면 기본값이고, 양의 정수(ASCII 숫자, 18자리 이하)가 아니면 설정 오류다."""
+    raw = os.getenv("AI_MAX_BODY_BYTES", "").strip()
+    if not raw:
+        return DEFAULT_MAX_BODY_BYTES
+    if not (raw.isascii() and raw.isdigit()) or len(raw) > 18 or int(raw) == 0:
+        raise ConfigurationError("AI_MAX_BODY_BYTES must be a positive integer (bytes)")
+    return int(raw)
 
 
 def require_service_token(
@@ -119,8 +132,8 @@ class ServiceGuard:
                 MutableHeaders(scope=message)[CONTRACT_HEADER] = CONTRACT_ID
             await send(message)
 
-        limit = int(os.getenv("AI_MAX_BODY_BYTES", DEFAULT_MAX_BODY_BYTES))
         try:
+            limit = self.body_limit()
             await self.check_headers(scope, limit)
         except Rejection as exc:
             response = error(exc.status, exc.code, exc.message)
@@ -138,6 +151,17 @@ class ServiceGuard:
             return message
 
         await self.app(scope, receive_with_limit, send_with_contract)
+
+    @staticmethod
+    def body_limit():
+        """요청마다 다시 읽는다(테스트가 값을 바꾼다). 잘못된 값은 create_app이 시작할 때 이미 막지만,
+        그 뒤에 바뀌었다면 모든 경로가 처리되지 않은 500이 되는 대신 503으로 답한다."""
+        try:
+            return max_body_bytes()
+        except ConfigurationError as exc:
+            raise Rejection(
+                503, "AI_CONFIGURATION_REQUIRED", "AI service configuration required"
+            ) from exc
 
     @staticmethod
     async def check_headers(scope, limit):
@@ -161,6 +185,7 @@ class ServiceGuard:
 
 
 def create_app() -> FastAPI:
+    max_body_bytes()  # 잘못된 AI_MAX_BODY_BYTES는 첫 요청의 500이 아니라 시작(import) 실패로 드러나게 한다.
     app = FastAPI(
         title="VC AI Career Agent AI",
         version="0.1.0",
@@ -192,7 +217,19 @@ def create_app() -> FastAPI:
     @app.exception_handler(RequestValidationError)
     async def validation_handler(request, exc: RequestValidationError):
         # Never echo inputs: they may contain personal data from verified credentials.
-        errors = [{"loc": i["loc"], "msg": i["msg"], "type": i["type"]} for i in exc.errors()]
+        # loc에는 호출자가 보낸 키 이름이 들어간다(모르는 키 하나마다 오류 하나). 오류는 앞의
+        # MAX_REPORTED_ERRORS개만, MAX_LOC_CHARS자를 넘는 키 이름은 자리표시로 바꿔 응답 크기를 묶는다.
+        errors = [
+            {
+                "loc": [
+                    part if isinstance(part, int) or len(part) <= MAX_LOC_CHARS else "<long key>"
+                    for part in i["loc"]
+                ],
+                "msg": i["msg"],
+                "type": i["type"],
+            }
+            for i in exc.errors()[:MAX_REPORTED_ERRORS]
+        ]
         return JSONResponse(
             status_code=422,
             content={"detail": errors, "code": "REQUEST_SCHEMA_INVALID"},

@@ -17,7 +17,7 @@ import { useRingHover, useRingStable } from "./ring-context";
 export interface RingCenterProps {
   /** Label shown below the value. Default: "Total" when not hovering */
   defaultLabel?: string;
-  /** Format options for NumberFlow. Default: standard notation */
+  /** Format options for the value. Default: standard notation */
   formatOptions?: ChartStatFlowFormat;
   /** Custom render function for complete control over center content */
   children?: (props: {
@@ -90,7 +90,7 @@ export function RingCenter({
     );
   }
 
-  // Default center content with NumberFlow animations
+  // Default center content (formatted value + label)
   // Now renders as pure HTML, avoiding Safari's foreignObject bugs
   return (
     <div
