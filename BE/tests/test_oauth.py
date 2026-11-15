@@ -1,11 +1,13 @@
 """Google OAuth 2.0 어댑터 및 인증 API 통합 테스트 (MockTransport / FakeOAuthProvider + 실제 PostgreSQL).
 
 Google에는 한 번도 요청하지 않는다: 어댑터는 httpx.MockTransport로, API는 FakeGoogleOAuthProvider(또는 MockTransport를 단
-실제 어댑터)로 시험한다. 값은 모두 가상의 값이다.
-- 계정 연동 규칙: 비밀번호가 있는 계정에는 Google 로그인을 붙이지 않는다 (409). 비밀번호 없는 계정과 이미 연동된 계정은 그대로.
-- Google로 내보내기 전의 입력 한도(code·state·redirect_uri 2,048자, PKCE 형식)와 프로세스 전체의 토큰 교환 한도(429).
+실제 어댑터)로 시험한다. 값은 모두 가상의 값이다. 카카오·네이버 어댑터와 제공자 사이의 계정 연동 규칙은
+tests/test_oauth_providers.py에서 본다. 경로 시험 중 제공자와 관계없는 것은 세 제공자(google·kakao·naver)로 함께 돈다.
+- 계정 연동 규칙: 비밀번호가 있는 계정에는 OAuth 로그인을 붙이지 않는다 (409). 이미 연동된 계정은 그대로이고, 비밀번호 없는
+  계정에는 그 계정의 이메일이 인증된 제공자(Google·Kakao) 연동으로 확인된 주소일 때만 붙인다 (아니면 409).
+- 제공자로 내보내기 전의 입력 한도(code·state·redirect_uri 2,048자, PKCE 형식)와 제공자별 프로세스 전체의 토큰 교환 한도(429).
 - 어댑터: 2xx만 결과, 프록시 환경변수·리다이렉트 사용 안 함, 프로필 값(sub·email·name) 검사·정리, Google 전용 오류 문구.
-- GET 콜백은 development 전용(production 404), 감사 로그(vc-be.audit) event=oauth_login.
+- GET 콜백은 development 전용(production 404), 감사 로그(vc-be.audit) event=oauth_login … provider=<제공자>.
 """
 import json
 import logging
@@ -25,11 +27,11 @@ from app.api import oauth as oauth_api
 from app.core.auth import ALGORITHM
 from app.core.config import get_settings
 from app.domain.did_key import is_ed25519_did_key
-from app.integrations import get_google_oauth_provider
+from app.integrations import get_google_oauth_provider, get_kakao_oauth_provider, get_naver_oauth_provider
 from app.integrations import oauth as oauth_adapter
 from app.integrations.oauth import GoogleOAuthAdapter
 from app.integrations.ports import OAuthCodeError, OAuthUserInfo, ProviderError
-from app.services.database import OAUTH_PASSWORD_ACCOUNT, OAuthAccountConflict, db_service
+from app.services.database import OAUTH_OTHER_METHOD_ACCOUNT, OAUTH_PASSWORD_ACCOUNT, OAuthAccountConflict, db_service
 from tests.conftest import TEST_DB_NAME, TEST_DB_PASSWORD
 
 BASE = "/api/v1/users/oauth/google"
@@ -41,15 +43,31 @@ PKCE_CHALLENGE = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
 TOO_MANY = {"detail": "Too many attempts. Try again later."}
 GOOGLE_NOT_CONFIGURED = {"detail": "Google OAuth is not configured", "code": "PROVIDER_NOT_CONFIGURED"}
 GOOGLE_ERROR = {"detail": "Google OAuth error", "code": "PROVIDER_ERROR"}
+PROVIDERS = ("google", "kakao", "naver")
+LABELS = {"google": "Google", "kakao": "Kakao", "naver": "Naver"}
+DEPENDENCIES = {"google": get_google_oauth_provider, "kakao": get_kakao_oauth_provider,
+                "naver": get_naver_oauth_provider}
+# 가짜 제공자가 만드는 인가 주소 (실제 주소 모양만 흉내 낸다. 요청은 보내지 않는다)
+AUTH_URLS = {"google": "https://accounts.google.com/o/oauth2/v2/auth",
+             "kakao": "https://kauth.kakao.com/oauth/authorize", "naver": "https://nid.naver.com/oauth2.0/authorize"}
+CALLBACKS = {name: f"http://localhost:5173/auth/{name}/callback" for name in PROVIDERS}
+# 제공자마다 쓰는 OAuth 설정 (가상 값)
+PROVIDER_ENV = {name: {f"{name.upper()}_CLIENT_ID": f"test-{name}-client-id",
+                       f"{name.upper()}_CLIENT_SECRET": f"test-{name}-secret",
+                       f"{name.upper()}_REDIRECT_URI": CALLBACKS[name]} for name in PROVIDERS}
 
 
-class FakeGoogleOAuthProvider:
-    provider_name = "google"
+class FakeOAuthProvider:
+    """OAuthProvider 포트를 직접 구현한 가짜 (제공자 이름만 다르다). 외부 API 형식을 모른다.
 
-    def __init__(self):
+    calls에는 code·redirect_uri·code_verifier를, states에는 넘겨받은 state를 따로 남긴다."""
+
+    def __init__(self, provider_name: str = "google"):
+        self.provider_name = provider_name
         self.next_user: OAuthUserInfo | None = None
         self.error: Exception | None = None
         self.calls: list[dict] = []
+        self.states: list[str | None] = []
 
     def build_authorize_url(
         self,
@@ -62,16 +80,15 @@ class FakeGoogleOAuthProvider:
         from urllib.parse import urlencode
 
         params = {
-            "client_id": "test-google-client-id",
+            "client_id": f"test-{self.provider_name}-client-id",
             "redirect_uri": redirect_uri,
             "response_type": "code",
-            "scope": "openid email profile",
             "state": state,
         }
         if code_challenge:
             params["code_challenge"] = code_challenge
             params["code_challenge_method"] = code_challenge_method or "S256"
-        return f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
+        return f"{AUTH_URLS[self.provider_name]}?{urlencode(params)}"
 
     async def exchange_code(
         self,
@@ -79,12 +96,24 @@ class FakeGoogleOAuthProvider:
         code: str,
         redirect_uri: str,
         code_verifier: str | None = None,
+        state: str | None = None,
     ) -> OAuthUserInfo:
         self.calls.append({"code": code, "redirect_uri": redirect_uri, "code_verifier": code_verifier})
+        self.states.append(state)
         if self.error:
             raise self.error
         assert self.next_user is not None
         return self.next_user
+
+
+class FakeGoogleOAuthProvider(FakeOAuthProvider):
+    def __init__(self):
+        super().__init__("google")
+
+
+def provide(provider):
+    """app.dependency_overrides에 넣을, provider를 돌려주는 인자 없는 의존성."""
+    return lambda: provider
 
 
 @pytest.fixture
@@ -93,16 +122,26 @@ def fake_google():
 
 
 @pytest.fixture
-def oauth_client(client, fake_google, monkeypatch):
+def fakes(fake_google):
+    """제공자 이름 → 가짜 제공자. Google 것은 fake_google과 같은 객체다."""
+    return {"google": fake_google, "kakao": FakeOAuthProvider("kakao"), "naver": FakeOAuthProvider("naver")}
+
+
+@pytest.fixture
+def oauth_client(client, fakes, monkeypatch):
+    """세 제공자를 모두 설정하고(가상 값) 가짜 제공자를 끼운 클라이언트."""
     from main import app
 
-    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-google-client-id")
-    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "test-google-secret")
-    monkeypatch.setenv("GOOGLE_REDIRECT_URI", "http://localhost:5173/auth/google/callback")
+    for values in PROVIDER_ENV.values():
+        for name, value in values.items():
+            monkeypatch.setenv(name, value)
     get_settings.cache_clear()
-    app.dependency_overrides[get_google_oauth_provider] = lambda: fake_google
+    for name, fake in fakes.items():
+        # 기본값 인자를 둔 lambda는 FastAPI가 쿼리 매개변수로 읽으므로 인자 없는 함수로 감싼다.
+        app.dependency_overrides[DEPENDENCIES[name]] = provide(fake)
     yield client
-    app.dependency_overrides.pop(get_google_oauth_provider, None)
+    for dependency in DEPENDENCIES.values():
+        app.dependency_overrides.pop(dependency, None)
     get_settings.cache_clear()
 
 
@@ -194,31 +233,39 @@ async def test_adapter_network_error_raises_provider_error():
 
 # ── API + DB 통합 테스트 ───────────────────────────────────────────────
 
-def test_oauth_unconfigured_returns_503(client, monkeypatch, caplog):
-    monkeypatch.setenv("GOOGLE_CLIENT_ID", "")
-    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "")
+@pytest.mark.parametrize("provider", PROVIDERS)
+def test_oauth_unconfigured_returns_503(client, monkeypatch, caplog, provider):
+    # 실제 어댑터(가짜를 끼우지 않음)가 설정이 없음을 알린다: 요청은 나가지 않는다.
+    monkeypatch.setenv(f"{provider.upper()}_CLIENT_ID", "")
+    monkeypatch.setenv(f"{provider.upper()}_CLIENT_SECRET", "")
     get_settings.cache_clear()
     with caplog.at_level(logging.WARNING, logger="vc-be"):
-        res = client.get("/api/v1/users/oauth/google/authorize")
+        res = client.get(f"/api/v1/users/oauth/{provider}/authorize")
     assert res.status_code == 503
     # 회귀: Google 설정이 없는데 발급·검증 인프라 문구(Credential service is not configured)로 답해 FE가 배지 서비스
-    # 안내를 보여 줬다. 상태 코드·code·로그 줄('Provider error' 한 줄)은 그대로다.
-    assert res.json() == GOOGLE_NOT_CONFIGURED
+    # 안내를 보여 줬다. 상태 코드·code·로그 줄('Provider error' 한 줄)은 그대로이고, 문구는 제공자 이름을 쓴다.
+    assert res.json() == {"detail": f"{LABELS[provider]} OAuth is not configured", "code": "PROVIDER_NOT_CONFIGURED"}
+    if provider == "google":
+        assert res.json() == GOOGLE_NOT_CONFIGURED
     assert [r.getMessage() for r in caplog.records if r.name == "vc-be"] == [
-        "Provider error: Google OAuth is not configured (upstream=None)"]
+        f"Provider error: {LABELS[provider]} OAuth is not configured (upstream=None)"]
 
 
-def test_oauth_authorize_returns_url_and_supports_redirect(oauth_client):
-    res = oauth_client.get("/api/v1/users/oauth/google/authorize")
+@pytest.mark.parametrize("provider", PROVIDERS)
+def test_oauth_authorize_returns_url_and_supports_redirect(oauth_client, provider):
+    res = oauth_client.get(f"/api/v1/users/oauth/{provider}/authorize")
     assert res.status_code == 200
     body = res.json()
-    assert body["success"] is True and body["provider"] == "google"
+    assert body["success"] is True and body["provider"] == provider
     assert body["expires_in"] == 600
     assert body["state"] in body["authorization_url"]
+    assert jwt.decode(body["state"], get_settings().jwt_secret, algorithms=[ALGORITHM])["provider"] == provider
+    query = parse_qs(urlparse(body["authorization_url"]).query)
+    assert query["redirect_uri"] == [CALLBACKS[provider]]  # 그 제공자의 기본 콜백 주소
 
-    redir = oauth_client.get("/api/v1/users/oauth/google/authorize?redirect=true", follow_redirects=False)
+    redir = oauth_client.get(f"/api/v1/users/oauth/{provider}/authorize?redirect=true", follow_redirects=False)
     assert redir.status_code == 302
-    assert redir.headers["location"].startswith("https://accounts.google.com/o/oauth2/v2/auth?")
+    assert redir.headers["location"].startswith(AUTH_URLS[provider] + "?")
 
 
 def test_oauth_authorize_validates_redirect_uri_and_pkce(oauth_client, monkeypatch):
@@ -243,6 +290,30 @@ def test_oauth_authorize_validates_redirect_uri_and_pkce(oauth_client, monkeypat
     assert ok.status_code == 200
 
 
+@pytest.mark.parametrize("provider", ["kakao", "naver"])
+def test_kakao_and_naver_accept_exactly_their_own_redirect_uri(oauth_client, monkeypatch, provider):
+    # 카카오·네이버는 *_REDIRECT_URI 하나만 받는다: Google의 허용 목록·다른 제공자의 콜백 주소는 쓰지 않는다.
+    monkeypatch.setenv("GOOGLE_ALLOWED_REDIRECT_URIS", f"http://localhost:3000/auth/{provider}/callback")
+    get_settings.cache_clear()
+    base = f"/api/v1/users/oauth/{provider}/authorize"
+    ok = oauth_client.get(base, params={"redirect_uri": CALLBACKS[provider]})
+    assert ok.status_code == 200, ok.text
+    for other in (f"http://localhost:3000/auth/{provider}/callback", CALLBACKS["google"], CALLBACKS[provider] + "/",
+                  "https://evil.example/cb"):
+        res = oauth_client.get(base, params={"redirect_uri": other})
+        assert res.status_code == 400 and res.json() == {"detail": "Invalid redirect_uri"}, other
+    # 콜백 주소를 비운 서버: redirect_uri를 주든 안 주든 503 (제공자 이름이 든 문구). 허용 목록이 비었으므로
+    # FE가 보낸 주소와 비교하지 않는다 (400이면 FE가 '허용되지 않은 로그인 경로'로 보여 준다).
+    monkeypatch.setenv(f"{provider.upper()}_REDIRECT_URI", "")
+    get_settings.cache_clear()
+    for params in ({}, {"redirect_uri": CALLBACKS[provider]}):
+        res = oauth_client.get(base, params=params)
+        assert res.status_code == 503 and res.json() == {
+            "detail": f"{LABELS[provider]} OAuth redirect_uri is not configured"}
+    # Google은 그대로다 (다른 제공자 설정의 영향을 받지 않는다).
+    assert oauth_client.get("/api/v1/users/oauth/google/authorize").status_code == 200
+
+
 def test_oauth_creates_new_user_with_managed_did_and_logs_in(oauth_client, fake_google, db):
     state = oauth_client.get("/api/v1/users/oauth/google/authorize").json()["state"]
     email = f"goog-{uuid.uuid4().hex[:8]}@gmail.com"
@@ -258,7 +329,7 @@ def test_oauth_creates_new_user_with_managed_did_and_logs_in(oauth_client, fake_
     assert res.status_code == 200, res.text
     body = res.json()
     assert body["success"] is True
-    # FE(GoogleCallbackPage)가 message의 '회원가입'·'연동' 포함 여부로 환영 안내를 고른다.
+    # FE(OAuthCallbackPage)가 message의 '회원가입'·'연동' 포함 여부로 환영 안내를 고른다.
     assert body["message"] == "Google OAuth 회원가입 및 로그인 완료"
     assert "회원가입" in body["message"] and "연동" not in body["message"]
     assert set(body["data"]) == {"id", "name", "email", "did"}
@@ -296,20 +367,34 @@ def test_oauth_creates_new_user_with_managed_did_and_logs_in(oauth_client, fake_
     assert "회원가입" not in relogin.json()["message"] and "연동" not in relogin.json()["message"]
 
 
-def insert_passwordless_user(db, email: str, name: str = "비밀번호없음") -> dict:
-    """비밀번호도 Google 연동도 없는 기존 계정 (password_hash NULL인 예전 사용자). 지금은 API로 만들 수 없어 직접 넣는다."""
+def insert_passwordless_user(db, email: str, name: str = "비밀번호없음", *, attested_by: str | None = None) -> dict:
+    """비밀번호 없는 기존 계정을 직접 넣는다 (password_hash NULL).
+
+    attested_by가 None이면 어느 OAuth 연동도 없는 계정(API로는 만들 수 없는 예전 사용자)이고, 'kakao' 등을 주면 그 제공자로
+    만든 계정처럼 같은 이메일의 그 제공자 연동 행도 함께 넣는다 (이메일이 그 연동으로 확인된 계정)."""
     user_id = str(uuid.uuid4())
     did = f"did:key:z6MkOAuthTest{uuid.uuid4().hex[:12]}"
     db.execute("INSERT INTO users (id, email, name, subject_did, password_hash) VALUES (%s, %s, %s, %s, NULL)",
                (user_id, email, name, did))
+    if attested_by is not None:
+        db.execute("INSERT INTO oauth_accounts (user_id, provider, provider_user_id, email) VALUES (%s, %s, %s, %s)",
+                   (user_id, attested_by, f"{attested_by}-{uuid.uuid4().hex[:10]}", email))
     return {"id": user_id, "email": email, "did": did}
 
 
+def social_login(client, fake: FakeOAuthProvider, *, provider_user_id: str, email: str, name: str = "이름",
+                 verified: bool | None = None):
+    """fake의 제공자로 authorize → POST callback. verified를 주지 않으면 Naver만 인증되지 않은 이메일이다."""
+    provider = fake.provider_name
+    state = client.get(f"/api/v1/users/oauth/{provider}/authorize").json()["state"]
+    fake.next_user = OAuthUserInfo(provider=provider, provider_user_id=provider_user_id, email=email,
+                                   email_verified=provider != "naver" if verified is None else verified, name=name)
+    return client.post(f"/api/v1/users/oauth/{provider}/callback",
+                       json={"code": f"code-{uuid.uuid4().hex[:8]}", "state": state})
+
+
 def google_login(client, fake_google, *, sub: str, email: str, name: str = "구글이름", verified: bool = True):
-    state = client.get(f"{BASE}/authorize").json()["state"]
-    fake_google.next_user = OAuthUserInfo(provider="google", provider_user_id=sub, email=email,
-                                          email_verified=verified, name=name)
-    return client.post(f"{BASE}/callback", json={"code": f"code-{uuid.uuid4().hex[:8]}", "state": state})
+    return social_login(client, fake_google, provider_user_id=sub, email=email, name=name, verified=verified)
 
 
 def audit_lines(caplog) -> list[str]:
@@ -317,8 +402,9 @@ def audit_lines(caplog) -> list[str]:
 
 
 def test_oauth_links_existing_email_user_when_email_verified(oauth_client, fake_google, db):
-    # 새 규칙: 같은 (Google이 인증한) 이메일의 기존 계정에 비밀번호가 없을 때만 그 계정에 연동한다.
-    existing = insert_passwordless_user(db, f"legacy-{uuid.uuid4().hex[:8]}@test.com")
+    # 같은 (Google이 인증한) 이메일의 기존 계정에 비밀번호가 없고, 그 계정의 이메일이 인증된 제공자 연동(여기서는 카카오로
+    # 만든 계정)으로 확인된 주소일 때 그 계정에 연동한다.
+    existing = insert_passwordless_user(db, f"legacy-{uuid.uuid4().hex[:8]}@test.com", attested_by="kakao")
     sub = f"sub-link-{uuid.uuid4().hex[:8]}"
 
     res = google_login(oauth_client, fake_google, sub=sub, email=existing["email"])
@@ -330,7 +416,7 @@ def test_oauth_links_existing_email_user_when_email_verified(oauth_client, fake_
     assert "연동" in res.json()["message"] and "회원가입" not in res.json()["message"]  # FE가 이 두 낱말로 안내를 고른다
 
     me = oauth_client.get("/api/v1/users/me", headers={"Authorization": f"Bearer {res.json()['access_token']}"}).json()
-    assert me["oauth_providers"] == ["google"]
+    assert me["oauth_providers"] == ["google", "kakao"]
     # 다시 로그인하면 연동이 아니라 그냥 로그인이다.
     again = google_login(oauth_client, fake_google, sub=sub, email=existing["email"])
     assert again.status_code == 200 and again.json()["message"] == "Google OAuth 로그인 성공"
@@ -341,7 +427,25 @@ def test_oauth_links_existing_email_user_when_email_verified(oauth_client, fake_
     assert conflict.status_code == 409
     assert conflict.json() == {"detail": "User is already linked to another account for this provider"}
     assert db.execute("SELECT count(*) AS n FROM oauth_accounts WHERE user_id = %s",
-                      (existing["id"],)).fetchone()["n"] == 1
+                      (existing["id"],)).fetchone()["n"] == 2  # 카카오 + 처음 연동한 Google
+
+
+def test_google_does_not_link_a_passwordless_account_without_a_verified_provider_link(oauth_client, fake_google, db,
+                                                                                    caplog):
+    """어느 OAuth 연동도 없는 비밀번호 없는 계정(API로는 만들 수 없는 예전 계정)의 이메일은 확인된 주소가 아니다:
+    Google이 그 이메일을 인증했어도 붙이지 않고 409 OAUTH_OTHER_METHOD_ACCOUNT로 답한다 (새 계정도 만들지 않는다)."""
+    legacy = insert_passwordless_user(db, f"unattested-{uuid.uuid4().hex[:8]}@test.com")
+    with caplog.at_level(logging.INFO, logger="vc-be.audit"):
+        res = google_login(oauth_client, fake_google, sub=f"sub-{uuid.uuid4().hex[:8]}", email=legacy["email"])
+    assert res.status_code == 409 and res.json() == {"detail": OAUTH_OTHER_METHOD_ACCOUNT}
+    assert OAUTH_OTHER_METHOD_ACCOUNT == ("This email is already used by another sign-in method."
+                                          " Log in with that method.")  # FE가 이 문구로 안내를 고른다
+    assert audit_lines(caplog) == [f"event=oauth_login outcome=refused_unverified_link user={legacy['id']}"
+                                   " provider=google"]
+    assert db.execute("SELECT count(*) AS n FROM oauth_accounts WHERE user_id = %s",
+                      (legacy["id"],)).fetchone()["n"] == 0
+    assert db.execute("SELECT count(*) AS n FROM users WHERE lower(email) = %s",
+                      (legacy["email"],)).fetchone()["n"] == 1
 
 
 def test_oauth_rejects_unverified_email_and_bad_states(oauth_client, fake_google, db):
@@ -421,8 +525,9 @@ def test_google_login_never_attaches_to_a_password_account(oauth_client, fake_go
             assert "access_token" not in res.text  # 그 계정의 토큰을 주지 않는다
     # FE가 이 문구로 안내를 고른다 (FE/src/lib/apiClient.ts). 글자 하나도 바꾸지 않는다.
     assert OAUTH_PASSWORD_ACCOUNT == "This email is registered with a password. Log in with your email and password."
-    # 감사 로그: 거절한 시도마다 한 줄, 그 기존 계정의 id만 (이메일·이름·sub 없음)
-    assert audit_lines(caplog) == [f"event=oauth_login outcome=refused_password_account user={account_id}"] * 2
+    # 감사 로그: 거절한 시도마다 한 줄, 그 기존 계정의 id와 제공자 이름만 (이메일·이름·sub 없음)
+    assert audit_lines(caplog) == [
+        f"event=oauth_login outcome=refused_password_account user={account_id} provider=google"] * 2
 
     # 3) 연동도 새 계정도 생기지 않았고 계정은 그대로다.
     assert db.execute("SELECT count(*) AS n FROM oauth_accounts WHERE user_id = %s OR provider_user_id = %s",
@@ -450,7 +555,7 @@ def test_password_account_linked_earlier_still_logs_in_with_that_google_account(
         res = google_login(oauth_client, fake_google, sub=sub, email=existing["email"])
     assert res.status_code == 200 and res.json()["data"]["id"] == existing["id"]
     assert res.json()["message"] == "Google OAuth 로그인 성공"
-    assert audit_lines(caplog) == [f"event=oauth_login outcome=login user={existing['id']}"]
+    assert audit_lines(caplog) == [f"event=oauth_login outcome=login user={existing['id']} provider=google"]
     # 그 계정에 다른 Google 계정으로 오면 예전처럼 '이미 다른 계정이 연동됨' 409다.
     other = google_login(oauth_client, fake_google, sub=f"{sub}-other", email=existing["email"])
     assert other.status_code == 409
@@ -460,7 +565,8 @@ def test_password_account_linked_earlier_still_logs_in_with_that_google_account(
 def test_oauth_login_audit_lines_carry_the_outcome_and_user_id_only(oauth_client, fake_google, db, caplog):
     email = f"audit-{uuid.uuid4().hex[:8]}@gmail.com"
     sub = f"sub-audit-{uuid.uuid4().hex[:8]}"
-    legacy = insert_passwordless_user(db, f"audit-legacy-{uuid.uuid4().hex[:8]}@test.com", name="감사로그")
+    legacy = insert_passwordless_user(db, f"audit-legacy-{uuid.uuid4().hex[:8]}@test.com", name="감사로그",
+                                      attested_by="kakao")
     with caplog.at_level(logging.INFO, logger="vc-be.audit"):
         created = google_login(oauth_client, fake_google, sub=sub, email=email, name="감사 대상")
         again = google_login(oauth_client, fake_google, sub=sub, email=email, name="감사 대상")
@@ -471,9 +577,9 @@ def test_oauth_login_audit_lines_carry_the_outcome_and_user_id_only(oauth_client
     assert [r.status_code for r in (created, again, linked, unverified)] == [200, 200, 200, 400]
     user_id = created.json()["data"]["id"]
     assert audit_lines(caplog) == [
-        f"event=oauth_login outcome=created user={user_id}",
-        f"event=oauth_login outcome=login user={user_id}",
-        f"event=oauth_login outcome=linked user={legacy['id']}",
+        f"event=oauth_login outcome=created user={user_id} provider=google",
+        f"event=oauth_login outcome=login user={user_id} provider=google",
+        f"event=oauth_login outcome=linked user={legacy['id']} provider=google",
     ]
     assert all(r.levelno == logging.INFO for r in caplog.records if r.name == "vc-be.audit")
     text = " ".join(audit_lines(caplog))
@@ -533,16 +639,17 @@ def test_concurrent_link_of_the_same_google_account_logs_in_instead_of_409(db):
     """회귀: 유일 제약 위반을 제약 이름의 부분 문자열('user_id'와 'provider')로 가렸는데 oauth_accounts의 두 제약이 모두
     걸렸다(provider_user_id에 user_id가 들어 있다). 그래서 같은 Google 사용자의 동시 요청이 다시 시도되지 않고
     '다른 계정이 이미 연동됨' 409가 됐다."""
-    existing = insert_passwordless_user(db, f"race-{uuid.uuid4().hex[:8]}@test.com")
+    # 카카오로 만든 계정(이메일이 확인된 주소)에 같은 Google 계정을 두 탭이 동시에 연동한다.
+    existing = insert_passwordless_user(db, f"race-{uuid.uuid4().hex[:8]}@test.com", attested_by="kakao")
     sub = f"race-sub-{uuid.uuid4().hex[:8]}"
     outcome = _race(db, [(LINK_ROW, (existing["id"], sub, existing["email"]))],
-                    provider="google", provider_user_id=sub, email=existing["email"], name="n",
+                    provider="google", provider_user_id=sub, email=existing["email"], email_verified=True, name="n",
                     issue_identity=_no_new_identity)
     assert "error" not in outcome, outcome
     user, created, linked = outcome["result"]
     assert str(user["id"]) == existing["id"] and (created, linked) == (False, False)  # 먼저 끝난 연동으로 로그인
     assert "oauth_email" not in user
-    assert db.execute("SELECT count(*) AS n FROM oauth_accounts WHERE user_id = %s",
+    assert db.execute("SELECT count(*) AS n FROM oauth_accounts WHERE user_id = %s AND provider = 'google'",
                       (existing["id"],)).fetchone()["n"] == 1
 
 
@@ -555,7 +662,7 @@ def test_concurrent_first_login_of_a_new_google_user_creates_one_account(db):
         [("INSERT INTO users (id, email, name, subject_did, password_hash) VALUES (%s, %s, 'first', %s, NULL)",
           (first_id, email, f"did:key:z6MkRaceFirst{uuid.uuid4().hex[:12]}")),
          (LINK_ROW, (first_id, sub, email))],
-        provider="google", provider_user_id=sub, email=email, name="second",
+        provider="google", provider_user_id=sub, email=email, email_verified=True, name="second",
         issue_identity=lambda user_id: (f"did:key:z6MkRaceSecond{uuid.uuid4().hex[:12]}", None),
     )
     assert "error" not in outcome, outcome
@@ -566,14 +673,15 @@ def test_concurrent_first_login_of_a_new_google_user_creates_one_account(db):
 
 def test_concurrent_link_of_a_different_google_account_is_still_a_conflict(db):
     # 제약 이름을 보지 않아도, 다시 볼 때의 명시적 검사가 '다른 Google 계정이 이미 연동됨'을 가려낸다.
-    existing = insert_passwordless_user(db, f"race-other-{uuid.uuid4().hex[:8]}@test.com")
+    existing = insert_passwordless_user(db, f"race-other-{uuid.uuid4().hex[:8]}@test.com", attested_by="kakao")
     sub = f"race-a-{uuid.uuid4().hex[:8]}"
     outcome = _race(db, [(LINK_ROW, (existing["id"], sub, existing["email"]))],
                     provider="google", provider_user_id=f"race-b-{uuid.uuid4().hex[:8]}", email=existing["email"],
-                    name="n", issue_identity=_no_new_identity)
+                    email_verified=True, name="n", issue_identity=_no_new_identity)
     assert isinstance(outcome.get("error"), OAuthAccountConflict), outcome
     assert str(outcome["error"]) == "User is already linked to another account for this provider"
-    rows = db.execute("SELECT provider_user_id FROM oauth_accounts WHERE user_id = %s", (existing["id"],)).fetchall()
+    rows = db.execute("SELECT provider_user_id FROM oauth_accounts WHERE user_id = %s AND provider = 'google'",
+                      (existing["id"],)).fetchall()
     assert [r["provider_user_id"] for r in rows] == [sub]
 
 
@@ -621,7 +729,8 @@ def test_same_google_account_committed_between_the_two_lookups_is_a_login_not_a_
 
     commit_after_first_select["fn"] = other_tab_creates_the_account
     user, created, linked = db_service.find_or_create_oauth_user(
-        provider="google", provider_user_id=sub, email=email, name="second", issue_identity=_no_new_identity)
+        provider="google", provider_user_id=sub, email=email, email_verified=True, name="second",
+        issue_identity=_no_new_identity)
     assert commit_after_first_select["fired"] == 1
     assert str(user["id"]) == first_id and (created, linked) == (False, False) and "oauth_email" not in user
     assert db.execute("SELECT count(*) AS n FROM users WHERE email = %s", (email,)).fetchone()["n"] == 1
@@ -636,7 +745,7 @@ def test_same_google_account_committed_between_the_two_lookups_is_a_login_not_a_
 
     commit_after_first_select["fn"] = other_tab_links
     user, created, linked = db_service.find_or_create_oauth_user(
-        provider="google", provider_user_id=legacy_sub, email=existing["email"], name="n",
+        provider="google", provider_user_id=legacy_sub, email=existing["email"], email_verified=True, name="n",
         issue_identity=_no_new_identity)
     assert commit_after_first_select["fired"] == 2
     assert str(user["id"]) == existing["id"] and (created, linked) == (False, False)
@@ -653,8 +762,8 @@ def test_same_google_account_committed_between_the_two_lookups_is_a_login_not_a_
     commit_after_first_select["fn"] = other_tab_links_another_google_account
     with pytest.raises(OAuthAccountConflict, match="already linked to another account"):
         db_service.find_or_create_oauth_user(
-            provider="google", provider_user_id=f"win-b-{uuid.uuid4().hex[:8]}", email=other_user["email"], name="n",
-            issue_identity=_no_new_identity)
+            provider="google", provider_user_id=f"win-b-{uuid.uuid4().hex[:8]}", email=other_user["email"],
+            email_verified=True, name="n", issue_identity=_no_new_identity)
     assert commit_after_first_select["fired"] == 3
 
 
@@ -667,15 +776,15 @@ def test_unique_violation_is_retried_exactly_once(monkeypatch):
 
     monkeypatch.setattr(db_service, "_find_or_create_oauth_user_once", always_collides)
     with pytest.raises(psycopg.errors.UniqueViolation):
-        db_service.find_or_create_oauth_user(provider="google", provider_user_id="s", email="e@test.com", name="n",
-                                             issue_identity=_no_new_identity)
+        db_service.find_or_create_oauth_user(provider="google", provider_user_id="s", email="e@test.com",
+                                             email_verified=True, name="n", issue_identity=_no_new_identity)
     assert len(calls) == 2  # 끝없이 다시 시도하지 않는다
 
 
 # ── Google로 내보내기 전의 입력 한도 ─────────────────────────────────────────
 
-def _state(client) -> str:
-    res = client.get(f"{BASE}/authorize")
+def _state(client, provider: str = "google") -> str:
+    res = client.get(f"/api/v1/users/oauth/{provider}/authorize")
     assert res.status_code == 200, res.text
     return res.json()["state"]
 
@@ -696,15 +805,17 @@ OUT_OF_BOUNDS = {
 }
 
 
+@pytest.mark.parametrize("provider", PROVIDERS)
 @pytest.mark.parametrize("field,value", OUT_OF_BOUNDS.values(), ids=OUT_OF_BOUNDS.keys())
-def test_callback_rejects_out_of_bounds_input_before_calling_google(oauth_client, fake_google, field, value):
+def test_callback_rejects_out_of_bounds_input_before_calling_google(oauth_client, fakes, field, value, provider):
     # 회귀: 길이·형식 제한이 없어 1.9 MB짜리 code와 5만 자 code_verifier가 그대로 Google 토큰 엔드포인트로 나갔다.
-    body = {"code": "code-1", "state": _state(oauth_client), field: value}
-    res = oauth_client.post(f"{BASE}/callback", json=body)
+    # 카카오·네이버 콜백도 같은 모델(OAuthCallbackRequest)로 받는다.
+    body = {"code": "code-1", "state": _state(oauth_client, provider), field: value}
+    res = oauth_client.post(f"/api/v1/users/oauth/{provider}/callback", json=body)
     assert res.status_code == 422, res.text
     assert [error["loc"] for error in res.json()["detail"]] == [["body", field]]
     assert value not in res.text  # 받은 값을 되돌려 주지 않는다
-    assert fake_google.calls == []  # Google을 부르지 않았다
+    assert fakes[provider].calls == []  # 제공자를 부르지 않았다
 
 
 @pytest.mark.parametrize("verifier,forwarded", [
@@ -777,33 +888,42 @@ def test_authorize_without_any_redirect_uri_is_503(oauth_client, monkeypatch):
     get_settings.cache_clear()
     res = oauth_client.get(f"{BASE}/authorize")
     assert res.status_code == 503 and res.json() == {"detail": "Google OAuth redirect_uri is not configured"}
+    # 허용 목록도 비었다: FE가 보낸 주소가 있어도 400 'Invalid redirect_uri'가 아니라 '설정 없음' 503이다
+    # (FE는 '<제공자> 로그인을 지금 사용할 수 없습니다'로 보여 준다).
     res = oauth_client.get(f"{BASE}/authorize", params={"redirect_uri": "http://localhost:5173/auth/google/callback"})
-    assert res.status_code == 400 and res.json() == {"detail": "Invalid redirect_uri"}  # 허용 목록도 비었다
+    assert res.status_code == 503 and res.json() == {"detail": "Google OAuth redirect_uri is not configured"}
 
 
-def signed_state(**claims) -> str:
-    """서버와 같은 비밀값으로 서명한 state (클레임만 바꿔 서버 검사를 본다). 값이 None인 클레임은 뺀다."""
-    payload = {"type": "oauth_state", "provider": "google",
-               "redirect_uri": "http://localhost:5173/auth/google/callback", "nonce": "n1",
+def signed_state(provider: str = "google", /, **claims) -> str:
+    """서버와 같은 비밀값으로 서명한 provider용 state (클레임만 바꿔 서버 검사를 본다). 값이 None인 클레임은 뺀다."""
+    payload = {"type": "oauth_state", "provider": provider,
+               "redirect_uri": CALLBACKS[provider], "nonce": "n1",
                "exp": datetime.now(timezone.utc) + timedelta(minutes=5), **claims}
     return jwt.encode({name: value for name, value in payload.items() if value is not None},
                       get_settings().jwt_secret, algorithm=ALGORITHM)
 
 
+@pytest.mark.parametrize("provider", PROVIDERS)
 @pytest.mark.parametrize("claims", [
-    {"type": "access"}, {"provider": "kakao"}, {"redirect_uri": ""}, {"redirect_uri": 5}, {"redirect_uri": None},
-    {"nonce": None}, {"type": None}, {"provider": None}, {"exp": None},
-], ids=["other-type", "other-provider", "empty-redirect", "non-string-redirect", "no-redirect", "no-nonce", "no-type",
-        "no-provider", "no-exp"])
-def test_signed_state_with_wrong_or_missing_claims_is_400_without_calling_google(oauth_client, fake_google, claims):
-    # 대조: 클레임이 온전한 같은 서명의 state는 state 검사를 지나 Google(가짜)까지 간다.
-    fake_google.error = OAuthCodeError("Invalid or expired OAuth authorization code")
-    control = oauth_client.post(f"{BASE}/callback", json={"code": "c", "state": signed_state()})
-    assert control.json() == {"detail": "Invalid or expired OAuth authorization code"} and len(fake_google.calls) == 1
-    fake_google.calls.clear()
-    res = oauth_client.post(f"{BASE}/callback", json={"code": "c", "state": signed_state(**claims)})
+    {"type": "access"}, {"provider": "OTHER"}, {"provider": "GOOGLE"}, {"redirect_uri": ""}, {"redirect_uri": 5},
+    {"redirect_uri": None}, {"nonce": None}, {"type": None}, {"provider": None}, {"exp": None},
+], ids=["other-type", "other-provider", "provider-case", "empty-redirect", "non-string-redirect", "no-redirect",
+        "no-nonce", "no-type", "no-provider", "no-exp"])
+def test_signed_state_with_wrong_or_missing_claims_is_400_without_calling_google(oauth_client, fakes, claims, provider):
+    # 대조: 클레임이 온전한 같은 서명의 state는 state 검사를 지나 그 제공자(가짜)까지 간다.
+    fake = fakes[provider]
+    callback = f"/api/v1/users/oauth/{provider}/callback"
+    fake.error = OAuthCodeError("Invalid or expired OAuth authorization code")
+    control = oauth_client.post(callback, json={"code": "c", "state": signed_state(provider)})
+    assert control.json() == {"detail": "Invalid or expired OAuth authorization code"} and len(fake.calls) == 1
+    fake.calls.clear()
+    if claims.get("provider") == "OTHER":  # 다른 제공자에게 발급한 state (서명은 맞다)
+        claims = {"provider": next(other for other in PROVIDERS if other != provider)}
+    elif claims.get("provider") == "GOOGLE":  # 대소문자만 다른 제공자 이름
+        claims = {"provider": provider.upper()}
+    res = oauth_client.post(callback, json={"code": "c", "state": signed_state(provider, **claims)})
     assert res.status_code == 400 and res.json() == {"detail": "Invalid or expired OAuth state"}
-    assert fake_google.calls == []
+    assert [f.calls for f in fakes.values()] == [[], [], []]
 
 
 def test_access_token_is_not_accepted_as_state_and_state_is_not_a_bearer_token(oauth_client, fake_google, register):
@@ -833,35 +953,49 @@ def test_exchange_budget_is_a_token_bucket():
     assert oauth_api.EXCHANGES_PER_MINUTE == 300 and oauth_api.oauth_exchange_budget.capacity == 300.0
 
 
-def test_token_exchange_budget_answers_429_without_calling_google(oauth_client, fake_google, monkeypatch, caplog):
+BUDGET_NAMES = {"google": "oauth_exchange_budget", "kakao": "kakao_exchange_budget", "naver": "naver_exchange_budget"}
+
+
+@pytest.mark.parametrize("provider", PROVIDERS)
+def test_token_exchange_budget_answers_429_without_calling_google(oauth_client, fakes, monkeypatch, caplog, provider):
     now = [5000.0]
-    monkeypatch.setattr(oauth_api, "oauth_exchange_budget",
+    monkeypatch.setattr(oauth_api, BUDGET_NAMES[provider],
                         oauth_api.ExchangeBudget(calls_per_minute=15, clock=lambda: now[0]))
-    state = _state(oauth_client)
-    fake_google.error = OAuthCodeError("Invalid or expired OAuth authorization code")
+    state = _state(oauth_client, provider)
+    fake = fakes[provider]
+    fake.error = OAuthCodeError("Invalid or expired OAuth authorization code")
+    callback = f"/api/v1/users/oauth/{provider}/callback"
 
     def post(code: str, state_value: str = state):
-        return oauth_client.post(f"{BASE}/callback", json={"code": code, "state": state_value})
+        return oauth_client.post(callback, json={"code": code, "state": state_value})
 
     with caplog.at_level(logging.INFO, logger="vc-be.audit"):
-        # 서명이 틀린 state는 Google을 부르지 않으므로 몫도 쓰지 않는다.
+        # 서명이 틀린 state는 제공자를 부르지 않으므로 몫도 쓰지 않는다.
         assert {post("c", "forged.state.value").status_code for _ in range(30)} == {400}
         assert [post(f"garbage-{i}").status_code for i in range(15)] == [400] * 15
-        assert len(fake_google.calls) == 15
-        assert audit_lines(caplog) == []  # 몫 안의 요청과 Google을 부르지 않는 거절은 줄을 남기지 않는다
+        assert len(fake.calls) == 15
+        assert audit_lines(caplog) == []  # 몫 안의 요청과 제공자를 부르지 않는 거절은 줄을 남기지 않는다
 
         for res in (post("garbage-16"),
-                    oauth_client.get(f"{BASE}/callback", params={"code": "garbage-17", "state": state})):
+                    oauth_client.get(callback, params={"code": "garbage-17", "state": state})):
             assert res.status_code == 429 and res.json() == TOO_MANY  # 로그인 한도와 같은 문구 (FE가 이미 번역한다)
             assert res.headers["retry-after"] == "4"
-        assert len(fake_google.calls) == 15  # 한도를 넘은 요청은 Google에 닿지 않는다
+        assert len(fake.calls) == 15  # 한도를 넘은 요청은 제공자에 닿지 않는다
 
         now[0] += 4
         assert post("garbage-18").status_code == 400 and post("garbage-19").status_code == 429
-        assert len(fake_google.calls) == 16
-    # 한도가 거절한 요청마다 감사 로그 한 줄 (INFO, 코드·state·주소 없음): 지표 필터로 Google 로그인 429를 알 수 있다.
-    assert audit_lines(caplog) == ["event=oauth_exchange_denied retry_after=4"] * 3
+        assert len(fake.calls) == 16
+    # 한도가 거절한 요청마다 감사 로그 한 줄 (INFO, 코드·state·주소 없음): 지표 필터로 그 제공자 로그인의 429를 알 수 있다.
+    assert audit_lines(caplog) == [f"event=oauth_exchange_denied retry_after=4 provider={provider}"] * 3
     assert all(record.levelno == logging.INFO for record in caplog.records if record.name == "vc-be.audit")
+    # 한도는 제공자마다 따로다: 이 제공자의 몫이 바닥난 동안에도 다른 제공자의 콜백은 제공자까지 간다.
+    for other in PROVIDERS:
+        if other == provider:
+            continue
+        fakes[other].error = OAuthCodeError("Invalid or expired OAuth authorization code")
+        res = oauth_client.post(f"/api/v1/users/oauth/{other}/callback",
+                                json={"code": "c", "state": _state(oauth_client, other)})
+        assert res.status_code == 400 and len(fakes[other].calls) == 1, (other, res.text)
 
 
 def test_callback_flood_reaches_google_at_most_the_budget(client, monkeypatch):
@@ -911,36 +1045,41 @@ def test_callback_flood_reaches_google_at_most_the_budget(client, monkeypatch):
 
 # ── GET 콜백은 development 전용 ─────────────────────────────────────────────
 
-def test_get_callback_is_404_in_production_and_the_post_flow_still_works(client, fake_google, production_env,
-                                                                          monkeypatch):
+@pytest.mark.parametrize("provider", PROVIDERS)
+def test_get_callback_is_404_in_production_and_the_post_flow_still_works(client, fakes, production_env,
+                                                                          monkeypatch, provider):
     """FE는 POST만 쓴다. GET은 code·state가 URL(접근 로그·ALB 로그)에 남고 다른 사이트에서도 걸 수 있어 운영에서는 닫는다."""
     from main import app
 
-    redirect_uri = "https://app.example.com/auth/google/callback"
-    monkeypatch.setenv("GOOGLE_CLIENT_ID", "prod-client-id.apps.googleusercontent.com")
-    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", uuid.uuid4().hex + uuid.uuid4().hex)
-    monkeypatch.setenv("GOOGLE_REDIRECT_URI", redirect_uri)
+    redirect_uri = f"https://app.example.com/auth/{provider}/callback"
+    prefix = provider.upper()
+    monkeypatch.setenv(f"{prefix}_CLIENT_ID", f"prod-{provider}-client-id")
+    monkeypatch.setenv(f"{prefix}_CLIENT_SECRET", uuid.uuid4().hex + uuid.uuid4().hex)
+    monkeypatch.setenv(f"{prefix}_REDIRECT_URI", redirect_uri)
     get_settings.cache_clear()
     assert get_settings().app_env == "production"
-    app.dependency_overrides[get_google_oauth_provider] = lambda: fake_google
+    fake = fakes[provider]
+    app.dependency_overrides[DEPENDENCIES[provider]] = provide(fake)
+    callback = f"/api/v1/users/oauth/{provider}/callback"
     try:
-        state = _state(client)
+        state = _state(client, provider)
         # 쿼리가 무엇이든(정상·error·없음·한도 초과·형식 오류) 쿼리 검사보다 먼저 404다.
         for params in ({"code": "c", "state": state}, {"error": "access_denied"}, {},
                        {"code": "c" * 5000, "state": state}, {"code": "c", "state": state, "code_verifier": "bad"}):
-            res = client.get(f"{BASE}/callback", params=params)
+            res = client.get(callback, params=params)
             assert res.status_code == 404 and res.json() == {"detail": "Not Found"}, (params, res.text)
-        assert fake_google.calls == []
+        assert fake.calls == []
 
-        fake_google.next_user = OAuthUserInfo(provider="google", provider_user_id=f"sub-{uuid.uuid4().hex[:8]}",
-                                              email=f"prod-{uuid.uuid4().hex[:8]}@gmail.com", email_verified=True,
-                                              name="운영 사용자")
-        res = client.post(f"{BASE}/callback", json={"code": "c", "state": state, "redirect_uri": redirect_uri,
-                                                    "code_verifier": PKCE_VERIFIER})
+        fake.next_user = OAuthUserInfo(provider=provider, provider_user_id=f"sub-{uuid.uuid4().hex[:8]}",
+                                       email=f"prod-{uuid.uuid4().hex[:8]}@example.com", email_verified=True,
+                                       name="운영 사용자")
+        res = client.post(callback, json={"code": "c", "state": state, "redirect_uri": redirect_uri,
+                                          "code_verifier": PKCE_VERIFIER})
         assert res.status_code == 200 and res.json()["access_token"], res.text
-        assert fake_google.calls == [{"code": "c", "redirect_uri": redirect_uri, "code_verifier": PKCE_VERIFIER}]
+        assert fake.calls == [{"code": "c", "redirect_uri": redirect_uri, "code_verifier": PKCE_VERIFIER}]
+        assert fake.states == [state]  # 인가 요청에 실은 state를 그대로 넘긴다 (Naver는 토큰 요청에 싣는다)
     finally:
-        app.dependency_overrides.pop(get_google_oauth_provider, None)
+        app.dependency_overrides.pop(DEPENDENCIES[provider], None)
         get_settings.cache_clear()
 
 
@@ -1112,7 +1251,6 @@ BAD_PROFILES = {
     "sub-surrogate": {"sub": "a\ud800b"},
     "email-number": {"email": 5},
     "email-object": {"email": {"address": "x@test.com"}},
-    "email-missing": {"email": None},
     "email-no-at": {"email": "not-an-email"},
     "email-no-local-part": {"email": "@example.com"},
     "email-no-domain": {"email": "alice@"},
@@ -1135,6 +1273,19 @@ async def test_adapter_rejects_unusable_sub_or_email_as_a_provider_error(fields)
         await _exchange(adapter)
     assert error.value.service == "google_oauth" and error.value.upstream_status == 200
     assert error.value.message == "Google 사용자 정보의 필수 필드(sub, email)가 없거나 형식이 올바르지 않습니다"  # 값은 싣지 않는다
+
+
+@pytest.mark.parametrize("fields", [{"email": None}, {"email": ""}, {"email": "  \n"}],
+                         ids=["email-null", "email-empty", "email-blank"])
+async def test_adapter_reports_a_missing_email_as_oauth_email_missing(fields):
+    # 이메일이 없으면(없음·null·빈 문자열) 제공자 오류(502)가 아니라 이메일 제공 동의를 안내할 400이다 (api/oauth.py).
+    from app.integrations.ports import OAuthEmailMissing
+
+    for response in (profile_response(**fields),
+                     httpx.Response(200, json={key: value for key, value in PROFILE.items() if key != "email"})):
+        adapter, _ = google_double(userinfo=response)
+        with pytest.raises(OAuthEmailMissing):
+            await _exchange(adapter)
 
 
 async def test_adapter_accepts_sub_and_email_at_the_column_limit():
@@ -1263,6 +1414,11 @@ async def test_provider_error_wording_is_chosen_by_service_and_defaults_to_crede
         503, {"detail": "Credential service is not configured", "code": "PROVIDER_NOT_CONFIGURED"})
     assert await body(ProviderError("x", service="google_oauth")) == (502, GOOGLE_ERROR)
     assert await body(ProviderError("x", service="google_oauth", unavailable=True)) == (503, GOOGLE_NOT_CONFIGURED)
+    for name, label in (("kakao", "Kakao"), ("naver", "Naver")):
+        assert await body(ProviderError("x", service=f"{name}_oauth")) == (
+            502, {"detail": f"{label} OAuth error", "code": "PROVIDER_ERROR"})
+        assert await body(ProviderError("x", service=f"{name}_oauth", unavailable=True)) == (
+            503, {"detail": f"{label} OAuth is not configured", "code": "PROVIDER_NOT_CONFIGURED"})
     # 모르는 표시는 발급·검증 인프라 문구로 답한다 (오류를 내지 않는다).
     assert await body(ProviderError("x", service="something-new")) == (
         502, {"detail": "Credential service error", "code": "PROVIDER_ERROR"})

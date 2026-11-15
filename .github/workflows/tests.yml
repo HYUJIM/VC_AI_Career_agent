@@ -143,7 +143,7 @@ jobs:
       - name: Check dist has no dev-only hints
         run: |
           test -d dist
-          if grep -rnoE 'localhost:3000|AI_SERVICE_(TOKEN|URL)|DXWORKS_|GOOGLE_|ai_contract' dist; then
+          if grep -rnoE 'localhost:3000|AI_SERVICE_(TOKEN|URL)|DXWORKS_|GOOGLE_|KAKAO_|NAVER_|ai_contract' dist; then
             echo "::error::운영 번들(dist)에 개발 전용 안내가 있습니다. import.meta.env.DEV 분기 안으로 옮기세요 (위 위치 참고)."
             exit 1
           fi

@@ -15,7 +15,7 @@ info:
       `{ success, message, ... }` 봉투(envelope)를 쓴다. 조회 계열(`careers`)은 봉투 없이 본문을 바로 반환한다.
     - 에러는 FastAPI 기본 형식 `{ "detail": "..." }` 으로 반환한다.
       FE는 `detail → message → error` 순서로 메시지를 읽는다 (`FE/src/lib/apiClient.ts`).
-    - AI 서비스 연동 오류(직무 비교·커리큘럼 API)와 발급·검증 인프라(DXWorks)·Google 로그인 오류에만 기계용 사유 코드
+    - AI 서비스 연동 오류(직무 비교·커리큘럼 API)와 발급·검증 인프라(DXWorks)·소셜 로그인(Google·카카오·네이버) 오류에만 기계용 사유 코드
       `code`가 더 붙는다: `{ "detail": "...", "code": "..." }`. AI 연동 오류의 상태 코드와 `detail`은 그대로다.
     - 요청 검증 실패는 422 `{ "detail": [ { "type", "loc", "msg" } ] }`다. FastAPI 기본 형식에서 입력값(`input`)과 `ctx`를
       뺀 것이다: 받은 값을 되돌려 주지 않는다. 오류는 앞에서부터 20개까지만 싣고, `loc`에 들어가는 키 이름이 64자를 넘으면
@@ -31,14 +31,14 @@ info:
     - 요청 본문 상한은 경로에 따라 네 가지다 (v0.8.0에서 기본 상한을 2 MiB에서 64 KiB로 낮췄다).
       기본 64 KiB(65,536바이트): 아래에 없는 모든 경로·메서드.
       16 KiB(16,384바이트): 토큰 없이 부르는 `POST /api/v1/users/register`, `POST /api/v1/users/login`,
-      `POST /api/v1/users/oauth/google/callback`.
+      `POST /api/v1/users/oauth/google/callback`, `POST /api/v1/users/oauth/kakao/callback`, `POST /api/v1/users/oauth/naver/callback`.
       320 KiB(327,680바이트): `POST /api/v1/verify` (`token`이 256 KiB까지).
       2 MiB(2,097,152바이트): `POST /api/v1/research/job-postings/preview`, `POST /api/v1/research/job-postings`,
       `POST /api/v1/research/learning-resources`.
       `Content-Length`가 그 경로의 상한보다 크면 인증과 관계없이 본문을 읽지 않고 413 텍스트 `Content Too Large`로 답한다
       (본문을 받지 않는 API는 처리한 뒤 응답만 413으로 바뀐다). `Content-Length` 없는 chunked 전송은 읽은 양이 상한을 넘는 순간
       413 `{ "detail": "Content Too Large" }`로 끊는다(본문을 받지 않는 API는 본문을 읽지 않으므로 413 없이 그대로 처리한다).
-      413의 형식은 네 상한 모두 같다. 각 경로의 가장 큰 정상 본문(Google 콜백 약 6.3 KB, 커리큘럼 요청 약 35 KB,
+      413의 형식은 네 상한 모두 같다. 각 경로의 가장 큰 정상 본문(소셜 로그인 콜백 약 6.3 KB, 커리큘럼 요청 약 35 KB,
       공고 반입 약 1.75 MiB)은 그 경로의 상한 안이다.
     - 끝에 `/`가 붙은 경로(예: `/api/v1/portfolios/`)는 리다이렉트하지 않고 404다. 줄바꿈으로 끝나는 경로
       (예: `/api/v1/users/login%0A`)도 어느 API로도 보내지 않고 404 `{ "detail": "Not Found" }`다.
@@ -46,9 +46,9 @@ info:
       (`DXWORKS_API_HOST`가 없거나 `https://` 주소가 아님, API 키·기본 템플릿 ID 없음)는 503
       `{ "detail": "Credential service is not configured", "code": "PROVIDER_NOT_CONFIGURED" }`이다.
       협력사 오류 코드·메시지와 빠진 설정 이름은 응답에 싣지 않고 BE 로그(`Provider error: ...`)에만 남긴다.
-      Google 로그인 API(`/api/v1/users/oauth/google/*`)의 같은 경우는 상태 코드와 `code`는 같고 문구만 다르다:
-      502 `{ "detail": "Google OAuth error", "code": "PROVIDER_ERROR" }`,
-      503 `{ "detail": "Google OAuth is not configured", "code": "PROVIDER_NOT_CONFIGURED" }`.
+      소셜 로그인 API(`/api/v1/users/oauth/{google,kakao,naver}/*`)의 같은 경우는 상태 코드와 `code`는 같고 문구만 다르다:
+      502 `{ "detail": "<Label> OAuth error", "code": "PROVIDER_ERROR" }`,
+      503 `{ "detail": "<Label> OAuth is not configured", "code": "PROVIDER_NOT_CONFIGURED" }` (`<Label>`은 `Google`·`Kakao`·`Naver`).
       그 외 내부 오류는 500 `Internal server error` (내부 예외 메시지는 응답에 싣지 않는다).
     - 직무 비교·포트폴리오 생성 중 재검증에서 검증기 장애(설정 누락·연결 실패·시간 초과·5xx·408·429·401·403·3xx)가 나면
       결과를 저장하지 않고 502/503으로 답한다. 특정 자격증명에 대한 거절(400·404·422 등)과 형식이 틀린 2xx는 그 자격증명만
@@ -92,7 +92,7 @@ info:
 
     토큰도 서비스 키도 없으면 서버 설정과 관계없이 401 `Authentication required` + `WWW-Authenticate: Bearer`다
     (`Bearer`가 아닌 `Authorization`, 예: Basic도 토큰 없음으로 본다). 토큰 없이 부를 수 있는 API는 `security: []`로 표시한 것
-    (회원가입·로그인·Google 로그인·`/health`·공유 링크 조회)과 API 문서(`/docs`, `/redoc`, `/openapi.json`)뿐이다.
+    (회원가입·로그인·소셜 로그인·`/health`·공유 링크 조회)과 API 문서(`/docs`, `/redoc`, `/openapi.json`)뿐이다.
     API 문서는 `APP_ENV=development`에서만 제공한다 (`APP_ENV=production`에서는 세 경로 모두 404).
 
     사용자 토큰은 서명·만료와 함께 `ver` 클레임이 계정의 현재 토큰 버전(`users.token_version`)과 같아야 받는다.
@@ -100,6 +100,33 @@ info:
     401 `Invalid token`이 된다. 계정이 없어진 토큰도 401 `Invalid token`, 만료된 토큰은 401 `Token expired`다.
     `ver`가 없는 예전 토큰은 0으로 본다. 토큰 수명은 서버 `JWT_EXPIRES_MINUTES`(1~1440분, 기본 1440)다.
     같은 이메일로 15분 안에 10번 로그인에 실패하면 그 이메일의 로그인은 429(`Retry-After`)다 (`POST /api/v1/users/login` 참고).
+
+    ## 소셜 로그인 (Google·카카오·네이버 OAuth 2.0)
+    제공자(`google`·`kakao`·`naver`)마다 고정 경로 세 개가 있다: `GET /api/v1/users/oauth/<제공자>/authorize`,
+    `POST /api/v1/users/oauth/<제공자>/callback`(SPA용), `GET /api/v1/users/oauth/<제공자>/callback`(development 전용, production 404).
+    모두 토큰 없이 부르고 요청·응답 형식(`OAuthAuthorizeResponse`, `OAuthCallbackRequest`, `AuthResponse`)이 같다.
+    제공자 설정(`<GOOGLE|KAKAO|NAVER>_CLIENT_ID`·`_CLIENT_SECRET`)이 없으면 그 제공자만 503 `<Label> OAuth is not configured`다
+    (`<Label>`은 `Google`·`Kakao`·`Naver`).
+    - 이메일: 제공자가 이메일을 주지 않으면(동의 거절 등) 400 `OAuth email is required`다. Google·카카오는 제공자가 인증한 이메일만
+      받는다(아니면 400 `OAuth email is not verified`). 네이버는 인증 여부를 알리지 않으므로 막지 않고 인증되지 않은 이메일로 본다.
+    - 계정 규칙 (계정은 이메일 하나에 하나, 이메일은 대소문자를 구분하지 않는다):
+      1. 이 제공자 계정(Google `sub`, 카카오 회원번호, 네이버 `id`)이 이미 연동된 계정이 있으면 그 계정으로 로그인한다
+         (제공자 쪽 이메일이 바뀌어도 같은 계정).
+      2. 같은 이메일의 계정이 없으면 관리형 `did:key`(또는 임시 DID)를 발급해 비밀번호 없는 계정으로 가입시킨다(제공자와 관계없이).
+      3. 같은 이메일의 계정이 있으면 차례로: 같은 제공자의 다른 계정이 이미 연동되어 있으면 409
+         `User is already linked to another account for this provider`(같은 제공자 계정의 로그인이 동시에 들어와 한쪽이 먼저
+         연동을 마친 경우는 409가 아니라 그 계정의 로그인), 비밀번호가 있으면 연동하지 않고 409
+         `This email is registered with a password. Log in with your email and password.`(가입은 이메일 소유를 확인하지 않으므로,
+         남의 주소로 먼저 가입해 둔 계정에 그 주소의 주인을 넣지 않는다). 그 밖에는 이번 이메일이 인증됐고(Google·카카오) 그 계정에
+         같은 이메일의 Google 또는 카카오 연동이 있을 때만 연동하고, 아니면 409
+         `This email is already used by another sign-in method. Log in with that method.`다 (네이버 로그인은 같은 이메일의 기존
+         계정에 붙지 않고, 네이버로 만든 계정에는 다른 제공자가 붙지 않는다).
+    - 콜백은 `state`(서명·만료·제공자)와 `redirect_uri` 일치를 확인한 요청만 제공자의 토큰 엔드포인트로 보낸다. 그 호출은 서버
+      프로세스(태스크)마다 제공자별로 분당 300번까지이고, 넘으면 제공자를 부르지 않고 429 `Too many attempts. Try again later.` +
+      `Retry-After`다 (`TooManyOAuthExchanges`. 한 제공자에 몰아 보내도 다른 제공자는 막히지 않는다).
+    - 성공 `message`: 가입 `<Label> OAuth 회원가입 및 로그인 완료`, 연동 `기존 계정에 <Label> 계정 연동 및 로그인 성공`, 그 밖
+      `<Label> OAuth 로그인 성공` (FE가 `회원가입`·`연동` 포함 여부로 환영 안내를 고른다). `GET /api/v1/users/me`의 `oauth_providers`는
+      연동된 제공자 이름을 이름순으로 돌려준다.
 
     ## 실행 시점 재검증 준비 (v0.4.0)
     배지 검증 시(검증기가 발급자 서명·신뢰를 확인한 배지만 저장) 서명된 원본 VC-JWT를 `credentials.raw_token`에,
@@ -219,7 +246,7 @@ paths:
       summary: 로그인
       description: |
         이메일과 비밀번호를 확인한다. 이메일이 없거나, 비밀번호가 틀리거나,
-        비밀번호가 설정되지 않은 사용자(Google 로그인으로만 가입한 계정 등)는 모두 같은 401을 반환한다.
+        비밀번호가 설정되지 않은 사용자(소셜 로그인으로만 가입한 계정 등)는 모두 같은 401을 반환한다.
         응답 시간도 같다: 세 경우 모두(비밀번호가 72바이트를 넘어도) 같은 비용의 bcrypt 비교를 한 번 한다(가입 여부가 시간으로
         드러나지 않음).
         시드 테스트 계정(`user001@example.com` ~ `user045@example.com`)의 비밀번호는 `test1234` (로컬 시드 DB 전용).
@@ -358,8 +385,8 @@ paths:
                     type: array
                     items:
                       type: string
-                    description: "연동된 OAuth 제공자 목록 (예: `[\"google\"]`)"
-                    example: [google]
+                    description: "연동된 소셜 로그인 제공자 목록 (`google`·`kakao`·`naver`, 이름순. 예: `[\"google\", \"kakao\"]`)"
+                    example: [google, kakao]
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -374,54 +401,29 @@ paths:
       tags: [users]
       summary: Google OAuth 인가 URL 발급 (또는 리다이렉트)
       description: |
-        Google OAuth 2.0 로그인 시작 URL과 CSRF 방지용 서명된 `state`를 발급한다.
+        Google OAuth 2.0 로그인 시작 URL과 CSRF 방지용 서명된 `state`를 발급한다 (공통 규칙은 info.description "소셜 로그인").
         - `redirect=true`면 JSON 대신 302 Redirect로 Google 로그인 페이지로 보낸다.
-        - `redirect_uri`를 생략하면 서버 `GOOGLE_REDIRECT_URI`를 쓰며, 지정 시 허용 목록(`GOOGLE_ALLOWED_REDIRECT_URIS`)에 있어야 한다.
+        - `redirect_uri`를 생략하면 서버 `GOOGLE_REDIRECT_URI`를 쓰며, 지정 시 허용 목록(`GOOGLE_REDIRECT_URI` +
+          `GOOGLE_ALLOWED_REDIRECT_URIS`)에 글자 그대로 있어야 한다.
           `APP_ENV=production`은 `GOOGLE_REDIRECT_URI`를 localhost 기본값으로 대신하지 않고, 허용 목록은 모두 `https://` 주소다.
         - PKCE를 쓸 경우 `code_challenge`와 `code_challenge_method=S256`을 전달할 수 있다. `code_challenge`는 S256 값
           (SHA-256의 base64url, 패딩 없는 43자)이어야 하고, 그 밖의 값은 400 `Invalid code_challenge`다.
+        - 인가 주소는 `https://accounts.google.com/o/oauth2/v2/auth`이고 `scope=openid email profile`, `prompt=select_account`를 싣는다.
         - `GOOGLE_CLIENT_ID` 또는 `GOOGLE_CLIENT_SECRET`이 없으면 503 `Google OAuth is not configured`를 반환한다.
       operationId: googleOAuthAuthorize
       security: []
       parameters:
-        - name: redirect_uri
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: code_challenge
-          in: query
-          required: false
-          schema:
-            type: string
-            pattern: "^[A-Za-z0-9_-]{43}$"
-        - name: code_challenge_method
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [S256]
-        - name: redirect
-          in: query
-          required: false
-          schema:
-            type: boolean
-            default: false
+        - $ref: "#/components/parameters/OAuthRedirectUri"
+        - $ref: "#/components/parameters/OAuthCodeChallenge"
+        - $ref: "#/components/parameters/OAuthCodeChallengeMethod"
+        - $ref: "#/components/parameters/OAuthRedirect"
       responses:
         "200":
-          description: 인가 URL 발급 성공
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/OAuthAuthorizeResponse"
+          $ref: "#/components/responses/OAuthAuthorized"
         "302":
           description: "`redirect=true`일 때 Google 로그인 페이지로 리다이렉트"
         "400":
-          description: 허용되지 않은 `redirect_uri` 또는 잘못된 PKCE 파라미터
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
+          $ref: "#/components/responses/OAuthAuthorizeBadRequest"
         "503":
           description: Google OAuth 설정 누락 (`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`), 또는 기본 콜백 주소 없음
           content:
@@ -444,54 +446,22 @@ paths:
         (BE 접근 로그는 이 경로의 쿼리를 `[redacted]`로 가린다.)
 
         Google이 리다이렉트한 `code`와 `state`를 검증해 로그인/회원가입을 완료하고 JWT(`AuthResponse`)를 반환한다.
-        입력 한도·계정 연동 규칙·오류는 POST와 같다. `error`가 있으면 400 `OAuth authorization failed: <error의 앞 200자>`다.
+        입력 한도·계정 연동 규칙·오류는 POST와 같다. `error`가 있으면 400 `OAuth authorization failed: <error의 앞 200자>`,
+        `code`나 `state`가 없으면 400 `Missing OAuth code or state`다.
       operationId: googleOAuthCallbackGet
       security: []
       parameters:
-        - name: code
-          in: query
-          required: false
-          schema:
-            type: string
-            maxLength: 2048
-        - name: state
-          in: query
-          required: false
-          schema:
-            type: string
-            maxLength: 2048
-        - name: error
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: code_verifier
-          in: query
-          required: false
-          schema:
-            type: string
-            pattern: "^[A-Za-z0-9._~-]{43,128}$"
+        - $ref: "#/components/parameters/OAuthCode"
+        - $ref: "#/components/parameters/OAuthState"
+        - $ref: "#/components/parameters/OAuthError"
+        - $ref: "#/components/parameters/OAuthCodeVerifier"
       responses:
         "200":
-          description: OAuth 로그인/가입 성공
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AuthResponse"
+          $ref: "#/components/responses/OAuthLoggedIn"
         "400":
-          description: 잘못된 `state`/`code`, 인증되지 않은 이메일, 또는 사용자 취소
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
+          $ref: "#/components/responses/OAuthCallbackBadRequest"
         "404":
-          description: "`APP_ENV=production` (이 경로를 쓰지 않는다)"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                detail: Not Found
+          $ref: "#/components/responses/OAuthDevelopmentOnly"
         "409":
           $ref: "#/components/responses/OAuthAccountConflict"
         "422":
@@ -499,54 +469,35 @@ paths:
         "429":
           $ref: "#/components/responses/TooManyOAuthExchanges"
         "502":
-          $ref: "#/components/responses/GoogleOAuthError"
+          $ref: "#/components/responses/OAuthProviderError"
         "503":
-          $ref: "#/components/responses/GoogleOAuthNotConfigured"
+          $ref: "#/components/responses/OAuthNotConfigured"
     post:
       tags: [users]
       summary: Google OAuth 콜백 코드 교환 (POST, SPA용)
       description: |
-        프론트엔드(SPA) 콜백 페이지가 Google로부터 받은 `code`와 `state`를 전달해 로그인/회원가입을 완료하고
-        JWT(`AuthResponse`)를 반환한다. `message`는 가입이면 `Google OAuth 회원가입 및 로그인 완료`, 연동이면
+        프론트엔드(SPA) 콜백 페이지(`/auth/google/callback`)가 Google로부터 받은 `code`와 `state`를 전달해 로그인/회원가입을
+        완료하고 JWT(`AuthResponse`)를 반환한다. `message`는 가입이면 `Google OAuth 회원가입 및 로그인 완료`, 연동이면
         `기존 계정에 Google 계정 연동 및 로그인 성공`, 그 밖에는 `Google OAuth 로그인 성공`이다
         (FE가 `회원가입`·`연동` 포함 여부로 환영 안내를 고른다).
 
-        **계정 규칙** (Google이 인증한 이메일(`email_verified=true`)만 받는다. 아니면 400):
-        - 이 Google 계정(`sub`)이 이미 연동된 계정이 있으면 그 계정으로 로그인한다 (Google 쪽 이메일이 바뀌어도 같은 계정).
-        - 같은 이메일의 계정이 없으면 관리형 `did:key`(또는 임시 DID)를 발급해 비밀번호 없는 계정으로 가입시킨다.
-        - 같은 이메일의 기존 계정에 **비밀번호가 있으면 연동하지 않고 409**
-          `This email is registered with a password. Log in with your email and password.`로 답한다. 가입은 이메일 소유를
-          확인하지 않으므로, 남의 주소로 먼저 가입해 둔 계정에 그 주소의 주인을 넣지 않기 위해서다 (그 계정의 비밀번호와
-          세션이 그대로 살아 있다). 비밀번호 없는 기존 계정에는 연동한다.
-        - 그 계정에 이미 다른 Google 계정이 연동되어 있으면 409 `User is already linked to another account for this provider`.
-          같은 Google 계정의 로그인이 동시에 들어와 한쪽이 먼저 연동을 마친 경우는 409가 아니라 그 계정의 로그인이다.
+        Google이 인증한 이메일(`email_verified=true`)만 받는다(아니면 400 `OAuth email is not verified`, 이메일이 없으면 400
+        `OAuth email is required`). 계정 규칙·호출 한도는 info.description "소셜 로그인"과 같다.
 
         **Google을 부르기 전의 검사**: `code`·`state`·`redirect_uri`는 2,048자까지, `code_verifier`는 RFC 7636 형식
-        (`[A-Za-z0-9._~-]` 43~128자. 비어 있으면 없는 것으로 본다)이어야 하고 아니면 422다. `state`의 서명·만료·`redirect_uri`
-        일치를 확인한 요청만 Google 토큰 엔드포인트로 간다. 그 호출은 서버 프로세스(태스크)마다 분당 300번까지이고, 넘으면
-        Google을 부르지 않고 429 `Too many attempts. Try again later.` + `Retry-After`다 (모든 사용자가 함께 쓰는 한도).
-        본문 상한은 16 KiB다.
+        (`[A-Za-z0-9._~-]` 43~128자. 비어 있으면 없는 것으로 본다)이어야 하고 아니면 422다. `state`의 서명·만료·제공자와
+        `redirect_uri` 일치를 확인한 요청만 Google 토큰 엔드포인트로 간다(`code_verifier`는 함께 보낸다). 그 호출은 서버
+        프로세스(태스크)마다 분당 300번까지이고, 넘으면 Google을 부르지 않고 429 `Too many attempts. Try again later.` +
+        `Retry-After`다 (Google 로그인의 모든 사용자가 함께 쓰는 한도). 본문 상한은 16 KiB다.
       operationId: googleOAuthCallbackPost
       security: []
       requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/OAuthCallbackRequest"
+        $ref: "#/components/requestBodies/OAuthCallback"
       responses:
         "200":
-          description: OAuth 로그인/가입 성공
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AuthResponse"
+          $ref: "#/components/responses/OAuthLoggedIn"
         "400":
-          description: 잘못된 `state`/`code`/`redirect_uri` 또는 인증되지 않은 이메일
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
+          $ref: "#/components/responses/OAuthCallbackBadRequest"
         "409":
           $ref: "#/components/responses/OAuthAccountConflict"
         "413":
@@ -556,9 +507,235 @@ paths:
         "429":
           $ref: "#/components/responses/TooManyOAuthExchanges"
         "502":
-          $ref: "#/components/responses/GoogleOAuthError"
+          $ref: "#/components/responses/OAuthProviderError"
         "503":
-          $ref: "#/components/responses/GoogleOAuthNotConfigured"
+          $ref: "#/components/responses/OAuthNotConfigured"
+
+  /api/v1/users/oauth/kakao/authorize:
+    get:
+      tags: [users]
+      summary: 카카오 로그인 인가 URL 발급 (또는 리다이렉트)
+      description: |
+        카카오 로그인(REST API, OAuth 2.0) 시작 URL과 서명된 `state`를 발급한다. 요청·응답 형식은 Google과 같다
+        (공통 규칙은 info.description "소셜 로그인").
+        - 인가 주소는 `https://kauth.kakao.com/oauth/authorize`이고 `client_id`(REST API 키)·`redirect_uri`·`response_type=code`·
+          `state`를 싣는다. `scope`·`prompt`는 싣지 않는다(동의 항목은 카카오 개발자 콘솔 설정을 따른다. 이메일 동의 항목은 비즈 앱만).
+        - PKCE: `code_challenge`(S256 43자, 형식이 틀리면 400 `Invalid code_challenge`)를 보내면 `code_challenge_method=S256`과 함께 싣는다.
+        - `redirect_uri`를 생략하면 `KAKAO_REDIRECT_URI`를 쓰고, 지정하면 그 값과 글자 그대로 같아야 한다(추가 허용 목록은 없다).
+          `APP_ENV=production`은 localhost 기본값을 대신 쓰지 않고 `https://` 주소만 받는다.
+        - `redirect=true`면 JSON 대신 302 Redirect로 카카오 로그인 페이지로 보낸다.
+        - `KAKAO_CLIENT_ID` 또는 `KAKAO_CLIENT_SECRET`이 없으면 503 `Kakao OAuth is not configured`를 반환한다.
+      operationId: kakaoOAuthAuthorize
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/OAuthRedirectUri"
+        - $ref: "#/components/parameters/OAuthCodeChallenge"
+        - $ref: "#/components/parameters/OAuthCodeChallengeMethod"
+        - $ref: "#/components/parameters/OAuthRedirect"
+      responses:
+        "200":
+          $ref: "#/components/responses/OAuthAuthorized"
+        "302":
+          description: "`redirect=true`일 때 카카오 로그인 페이지로 리다이렉트"
+        "400":
+          $ref: "#/components/responses/OAuthAuthorizeBadRequest"
+        "503":
+          description: 카카오 로그인 설정 누락 (`KAKAO_CLIENT_ID`/`KAKAO_CLIENT_SECRET`), 또는 기본 콜백 주소(`KAKAO_REDIRECT_URI`) 없음
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                notConfigured:
+                  value: { detail: Kakao OAuth is not configured, code: PROVIDER_NOT_CONFIGURED }
+                noRedirectUri:
+                  value: { detail: Kakao OAuth redirect_uri is not configured }
+
+  /api/v1/users/oauth/kakao/callback:
+    get:
+      tags: [users]
+      summary: 카카오 로그인 콜백 처리 (GET, development 전용)
+      description: |
+        BE 단독 테스트용이다 (FE는 아래 POST만 쓴다). **`APP_ENV=production`에서는 쿼리와 관계없이 404 `Not Found`다.**
+        (BE 접근 로그는 이 경로의 쿼리를 `[redacted]`로 가린다.) 카카오는 콜백 주소를 `KAKAO_REDIRECT_URI` 하나만 받으므로,
+        이 경로로 시험하려면 그 값을 이 BE 주소로 바꾸고 카카오 콘솔에도 등록한다.
+        입력 한도·계정 연동 규칙·오류는 POST와 같다. `error`가 있으면 400 `OAuth authorization failed: <error의 앞 200자>`,
+        `code`나 `state`가 없으면 400 `Missing OAuth code or state`다.
+      operationId: kakaoOAuthCallbackGet
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/OAuthCode"
+        - $ref: "#/components/parameters/OAuthState"
+        - $ref: "#/components/parameters/OAuthError"
+        - $ref: "#/components/parameters/OAuthCodeVerifier"
+      responses:
+        "200":
+          $ref: "#/components/responses/OAuthLoggedIn"
+        "400":
+          $ref: "#/components/responses/OAuthCallbackBadRequest"
+        "404":
+          $ref: "#/components/responses/OAuthDevelopmentOnly"
+        "409":
+          $ref: "#/components/responses/OAuthAccountConflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/TooManyOAuthExchanges"
+        "502":
+          $ref: "#/components/responses/OAuthProviderError"
+        "503":
+          $ref: "#/components/responses/OAuthNotConfigured"
+    post:
+      tags: [users]
+      summary: 카카오 로그인 콜백 코드 교환 (POST, SPA용)
+      description: |
+        FE 콜백 페이지(`/auth/kakao/callback`)가 카카오로부터 받은 `code`와 `state`를 전달해 로그인/회원가입을 완료하고
+        JWT(`AuthResponse`)를 반환한다. `message`는 `Kakao OAuth 회원가입 및 로그인 완료` / `기존 계정에 Kakao 계정 연동 및 로그인 성공` /
+        `Kakao OAuth 로그인 성공`이다. 입력 검사·`state` 확인·본문 상한(16 KiB)·계정 규칙은 Google과 같다.
+
+        - 토큰 요청(`https://kauth.kakao.com/oauth/token`)은 본문에 `client_id`·`client_secret`·`redirect_uri`(state에 든 값)·`code`와
+          (보냈으면) `code_verifier`를 싣는다. 사용자 정보는 `https://kapi.kakao.com/v2/user/me`에서 읽는다.
+        - 카카오 `invalid_grant`(KOE320 다시 쓴·만료된 코드, KOE303 redirect_uri 불일치)는 400
+          `Invalid or expired OAuth authorization code`, 그 밖의 토큰 오류(`invalid_client` 등)는 502다.
+        - 회원번호 `id`는 1~2^63-1의 JSON 정수여야 한다(아니면 502). `kakao_account.email`이 없으면 400 `OAuth email is required`,
+          `is_email_valid`와 `is_email_verified`가 모두 `true`가 아니면 400 `OAuth email is not verified`다.
+        - 토큰 교환은 서버 프로세스(태스크)마다 카카오 로그인끼리 분당 300번까지다(다른 제공자와 따로 센다).
+      operationId: kakaoOAuthCallbackPost
+      security: []
+      requestBody:
+        $ref: "#/components/requestBodies/OAuthCallback"
+      responses:
+        "200":
+          $ref: "#/components/responses/OAuthLoggedIn"
+        "400":
+          $ref: "#/components/responses/OAuthCallbackBadRequest"
+        "409":
+          $ref: "#/components/responses/OAuthAccountConflict"
+        "413":
+          $ref: "#/components/responses/ContentTooLarge"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/TooManyOAuthExchanges"
+        "502":
+          $ref: "#/components/responses/OAuthProviderError"
+        "503":
+          $ref: "#/components/responses/OAuthNotConfigured"
+
+  /api/v1/users/oauth/naver/authorize:
+    get:
+      tags: [users]
+      summary: 네이버 로그인 인가 URL 발급 (또는 리다이렉트)
+      description: |
+        네이버 로그인(기존 OAuth 2.0 엔드포인트) 시작 URL과 서명된 `state`를 발급한다. 요청·응답 형식은 Google과 같다
+        (공통 규칙은 info.description "소셜 로그인").
+        - 인가 주소는 `https://nid.naver.com/oauth2.0/authorize`이고 `response_type=code`·`client_id`·`redirect_uri`·`state`를 싣는다.
+        - PKCE: `code_challenge`는 형식만 검사하고(틀리면 400 `Invalid code_challenge`) 인가 주소에는 싣지 않는다
+          (이 엔드포인트의 문서에 PKCE가 없다). FE는 제공자와 관계없이 보낸다.
+        - `redirect_uri`를 생략하면 `NAVER_REDIRECT_URI`를 쓰고, 지정하면 그 값과 글자 그대로 같아야 한다(추가 허용 목록은 없다).
+          `APP_ENV=production`은 localhost 기본값을 대신 쓰지 않고 `https://` 주소만 받는다.
+        - `redirect=true`면 JSON 대신 302 Redirect로 네이버 로그인 페이지로 보낸다.
+        - `NAVER_CLIENT_ID` 또는 `NAVER_CLIENT_SECRET`이 없으면 503 `Naver OAuth is not configured`를 반환한다.
+      operationId: naverOAuthAuthorize
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/OAuthRedirectUri"
+        - $ref: "#/components/parameters/OAuthCodeChallenge"
+        - $ref: "#/components/parameters/OAuthCodeChallengeMethod"
+        - $ref: "#/components/parameters/OAuthRedirect"
+      responses:
+        "200":
+          $ref: "#/components/responses/OAuthAuthorized"
+        "302":
+          description: "`redirect=true`일 때 네이버 로그인 페이지로 리다이렉트"
+        "400":
+          $ref: "#/components/responses/OAuthAuthorizeBadRequest"
+        "503":
+          description: 네이버 로그인 설정 누락 (`NAVER_CLIENT_ID`/`NAVER_CLIENT_SECRET`), 또는 기본 콜백 주소(`NAVER_REDIRECT_URI`) 없음
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                notConfigured:
+                  value: { detail: Naver OAuth is not configured, code: PROVIDER_NOT_CONFIGURED }
+                noRedirectUri:
+                  value: { detail: Naver OAuth redirect_uri is not configured }
+
+  /api/v1/users/oauth/naver/callback:
+    get:
+      tags: [users]
+      summary: 네이버 로그인 콜백 처리 (GET, development 전용)
+      description: |
+        BE 단독 테스트용이다 (FE는 아래 POST만 쓴다). **`APP_ENV=production`에서는 쿼리와 관계없이 404 `Not Found`다.**
+        (BE 접근 로그는 이 경로의 쿼리를 `[redacted]`로 가린다.) 네이버는 콜백 주소를 `NAVER_REDIRECT_URI` 하나만 받으므로,
+        이 경로로 시험하려면 그 값을 이 BE 주소로 바꾸고 네이버 개발자센터의 Callback URL에도 등록한다.
+        입력 한도·계정 연동 규칙·오류는 POST와 같다. `error`가 있으면 400 `OAuth authorization failed: <error의 앞 200자>`,
+        `code`나 `state`가 없으면 400 `Missing OAuth code or state`다.
+      operationId: naverOAuthCallbackGet
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/OAuthCode"
+        - $ref: "#/components/parameters/OAuthState"
+        - $ref: "#/components/parameters/OAuthError"
+        - $ref: "#/components/parameters/OAuthCodeVerifier"
+      responses:
+        "200":
+          $ref: "#/components/responses/OAuthLoggedIn"
+        "400":
+          $ref: "#/components/responses/OAuthCallbackBadRequest"
+        "404":
+          $ref: "#/components/responses/OAuthDevelopmentOnly"
+        "409":
+          $ref: "#/components/responses/OAuthAccountConflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/TooManyOAuthExchanges"
+        "502":
+          $ref: "#/components/responses/OAuthProviderError"
+        "503":
+          $ref: "#/components/responses/OAuthNotConfigured"
+    post:
+      tags: [users]
+      summary: 네이버 로그인 콜백 코드 교환 (POST, SPA용)
+      description: |
+        FE 콜백 페이지(`/auth/naver/callback`)가 네이버로부터 받은 `code`와 `state`를 전달해 로그인/회원가입을 완료하고
+        JWT(`AuthResponse`)를 반환한다. `message`는 `Naver OAuth 회원가입 및 로그인 완료` / `기존 계정에 Naver 계정 연동 및 로그인 성공` /
+        `Naver OAuth 로그인 성공`이다. 입력 검사·`state` 확인·본문 상한(16 KiB)은 Google과 같다.
+
+        - 토큰 요청(`https://nid.naver.com/oauth2.0/token`)은 본문(`application/x-www-form-urlencoded`)에 `grant_type`·`client_id`·
+          `client_secret`·`code`·`state`를 싣는다(주소에는 싣지 않는다). `code_verifier`는 형식만 검사하고 보내지 않는다.
+          사용자 정보는 `https://openapi.naver.com/v1/nid/me`에서 읽는다.
+        - 네이버는 HTTP 200에 `error`를 담아 답할 수 있어 상태 코드와 관계없이 `error`가 있으면 오류로 본다:
+          `invalid_request`·`unauthorized_client`·`invalid_grant`는 400 `Invalid or expired OAuth authorization code`, 그 밖은 502다.
+          사용자 정보의 `resultcode`가 `"00"`이 아니면 502다.
+        - `response.email`이 없거나 비어 있으면 400 `OAuth email is required`다. 네이버는 이메일 인증 여부를 알리지 않으므로 이메일을
+          막지 않되 인증되지 않은 이메일로 본다: 같은 이메일의 계정이 없으면 새 계정을 만들고, 있으면 연동하지 않고 409다
+          (비밀번호 계정은 `This email is registered with a password. …`, 같은 제공자의 다른 계정이 연동된 계정은
+          `User is already linked to another account for this provider`, 그 밖에는 `This email is already used by another sign-in method. …`).
+        - 토큰 교환은 서버 프로세스(태스크)마다 네이버 로그인끼리 분당 300번까지다(다른 제공자와 따로 센다).
+      operationId: naverOAuthCallbackPost
+      security: []
+      requestBody:
+        $ref: "#/components/requestBodies/OAuthCallback"
+      responses:
+        "200":
+          $ref: "#/components/responses/OAuthLoggedIn"
+        "400":
+          $ref: "#/components/responses/OAuthCallbackBadRequest"
+        "409":
+          $ref: "#/components/responses/OAuthAccountConflict"
+        "413":
+          $ref: "#/components/responses/ContentTooLarge"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/TooManyOAuthExchanges"
+        "502":
+          $ref: "#/components/responses/OAuthProviderError"
+        "503":
+          $ref: "#/components/responses/OAuthNotConfigured"
 
   /api/v1/subjects/{did}/careers:
     get:
@@ -1875,6 +2052,66 @@ components:
       schema:
         type: string
       example: did:key:z6MkMock1a2b3c4d5e6f
+    OAuthRedirectUri:
+      name: redirect_uri
+      in: query
+      required: false
+      description: |
+        FE 콜백 주소(브라우저의 FE 출처 + `/auth/<제공자>/callback`). 생략하면 서버의 기본 콜백 주소를 쓴다.
+        서버 설정과 글자 그대로 같아야 한다(아니면 400 `Invalid redirect_uri`).
+      schema:
+        type: string
+    OAuthCodeChallenge:
+      name: code_challenge
+      in: query
+      required: false
+      description: PKCE S256 값 (SHA-256의 base64url, 패딩 없는 43자). 네이버는 형식만 검사하고 인가 주소에 싣지 않는다.
+      schema:
+        type: string
+        pattern: "^[A-Za-z0-9_-]{43}$"
+    OAuthCodeChallengeMethod:
+      name: code_challenge_method
+      in: query
+      required: false
+      schema:
+        type: string
+        enum: [S256]
+    OAuthRedirect:
+      name: redirect
+      in: query
+      required: false
+      description: "`true`면 JSON 대신 302로 제공자의 로그인 페이지로 보낸다"
+      schema:
+        type: boolean
+        default: false
+    OAuthCode:
+      name: code
+      in: query
+      required: false
+      schema:
+        type: string
+        maxLength: 2048
+    OAuthState:
+      name: state
+      in: query
+      required: false
+      schema:
+        type: string
+        maxLength: 2048
+    OAuthError:
+      name: error
+      in: query
+      required: false
+      description: "제공자가 돌려준 오류 (예: `access_denied`). 있으면 400 `OAuth authorization failed: <앞 200자>`"
+      schema:
+        type: string
+    OAuthCodeVerifier:
+      name: code_verifier
+      in: query
+      required: false
+      schema:
+        type: string
+        pattern: "^[A-Za-z0-9._~-]{43,128}$"
 
   responses:
     ValidationError:
@@ -1912,7 +2149,7 @@ components:
                     msg: "Value error, must be a single line without control characters"
     ContentTooLarge:
       description: |
-        요청 본문이 그 경로의 상한을 넘음. 상한은 기본 64 KiB(65,536바이트)이고, 토큰 없이 부르는 회원가입·로그인·Google
+        요청 본문이 그 경로의 상한을 넘음. 상한은 기본 64 KiB(65,536바이트)이고, 토큰 없이 부르는 회원가입·로그인·소셜 로그인
         콜백(POST)은 16 KiB(16,384바이트), `POST /api/v1/verify`는 320 KiB(327,680바이트), 연구자용
         `POST /api/v1/research/job-postings/preview`·`/api/v1/research/job-postings`·`/api/v1/research/learning-resources`는
         2 MiB(2,097,152바이트)다. `Content-Length`가 상한보다 크면 인증과 관계없이 본문을 읽지 않고
@@ -2009,10 +2246,66 @@ components:
             $ref: "#/components/schemas/ErrorResponse"
           example:
             detail: Researcher permission required
+    OAuthAuthorized:
+      description: 인가 URL 발급 성공
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/OAuthAuthorizeResponse"
+    OAuthAuthorizeBadRequest:
+      description: 허용되지 않은 `redirect_uri` 또는 잘못된 PKCE 파라미터
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            redirectUri:
+              value: { detail: Invalid redirect_uri }
+            codeChallenge:
+              value: { detail: Invalid code_challenge }
+            challengeMethod:
+              value: { detail: Only S256 code_challenge_method is supported }
+    OAuthLoggedIn:
+      description: 소셜 로그인/가입 성공 (`POST /api/v1/users/login`과 같은 형식. `message`는 info.description "소셜 로그인")
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/AuthResponse"
+    OAuthCallbackBadRequest:
+      description: |
+        잘못되거나 만료된 `state`(다른 제공자의 `state` 포함), `redirect_uri`가 `state`와 다름, 만료·재사용된 인가 코드,
+        제공자 액세스 토큰 거절(사용자 정보 조회 401), 이메일 없음(동의 거절 등), 제공자가 인증하지 않은 이메일(Google·카카오).
+        GET 콜백은 `error` 쿼리(사용자 취소 등)나 빠진 `code`·`state`도 400이다.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            state:
+              value: { detail: Invalid or expired OAuth state }
+            redirectUriMismatch:
+              value: { detail: redirect_uri does not match OAuth state }
+            code:
+              value: { detail: Invalid or expired OAuth authorization code }
+            accessToken:
+              value: { detail: Invalid OAuth access token }
+            emailRequired:
+              value: { detail: OAuth email is required }
+            emailNotVerified:
+              value: { detail: OAuth email is not verified }
+    OAuthDevelopmentOnly:
+      description: "`APP_ENV=production` (이 경로를 쓰지 않는다)"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            detail: Not Found
     OAuthAccountConflict:
       description: |
-        Google 로그인을 기존 계정에 붙일 수 없음. 같은 이메일의 계정에 비밀번호가 있거나(그 계정에는 연동하지 않는다),
-        그 계정에 이미 다른 Google 계정이 연동되어 있다.
+        소셜 로그인을 같은 이메일의 기존 계정에 붙일 수 없음 (info.description "소셜 로그인"의 계정 규칙).
+        같은 제공자의 다른 계정이 이미 연동되어 있거나, 그 계정에 비밀번호가 있거나(그 계정에는 연동하지 않는다),
+        이메일이 양쪽에서 확인되지 않았다(이번 로그인이 네이버이거나, 그 계정에 같은 이메일의 Google·카카오 연동이 없음).
       content:
         application/json:
           schema:
@@ -2021,13 +2314,16 @@ components:
             passwordAccount:
               value:
                 detail: This email is registered with a password. Log in with your email and password.
-            otherGoogleAccount:
+            otherMethod:
+              value:
+                detail: This email is already used by another sign-in method. Log in with that method.
+            otherAccountOfSameProvider:
               value:
                 detail: User is already linked to another account for this provider
     TooManyOAuthExchanges:
       description: |
-        Google 토큰 교환 한도 초과 (서버 프로세스(태스크)마다 분당 300번, 모든 사용자가 함께 쓴다). Google을 부르지 않는다.
-        `Retry-After`(초) 뒤에 다시 시도한다.
+        그 제공자의 토큰 교환 한도 초과 (서버 프로세스(태스크)마다 제공자별 분당 300번, 그 제공자의 모든 사용자가 함께 쓴다).
+        제공자를 부르지 않는다. `Retry-After`(초) 뒤에 다시 시도한다.
       headers:
         Retry-After:
           description: 다시 시도할 수 있을 때까지의 초
@@ -2039,27 +2335,36 @@ components:
             $ref: "#/components/schemas/ErrorResponse"
           example:
             detail: Too many attempts. Try again later.
-    GoogleOAuthError:
+    OAuthProviderError:
       description: |
-        Google 호출 실패 (연결 실패·시간 초과, 2xx가 아닌 응답(리디렉션 포함), JSON이 아니거나 너무 깊게 중첩된 본문,
-        `access_token` 없음, 사용자 정보의 `sub`·`email`이 문자열이 아니거나 255자를 넘거나 한 줄이 아님). 응답은 고정 문구와
-        `code`뿐이고 원인은 BE 로그(`Provider error: ...`)에만 남는다.
+        제공자(Google·카카오·네이버) 호출 실패 (연결 실패·시간 초과, 2xx가 아닌 응답(리디렉션 포함), JSON이 아니거나 너무 깊게
+        중첩된 본문, 쓸 수 있는 `access_token` 없음, 인가 코드 문제가 아닌 토큰 오류(예: 카카오 `invalid_client`), 사용자 정보의
+        식별자·이메일이 문자열이 아니거나 255자를 넘거나 한 줄이 아님, 카카오 `id`가 1~2^63-1의 JSON 정수가 아님, 네이버
+        `resultcode`가 `"00"`이 아님). 응답은 제공자 이름이 든 고정 문구와 `code`뿐이고 원인은 BE 로그(`Provider error: ...`)에만 남는다.
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
-          example:
-            detail: Google OAuth error
-            code: PROVIDER_ERROR
-    GoogleOAuthNotConfigured:
-      description: Google OAuth 설정 누락 (`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`)
+          examples:
+            google:
+              value: { detail: Google OAuth error, code: PROVIDER_ERROR }
+            kakao:
+              value: { detail: Kakao OAuth error, code: PROVIDER_ERROR }
+            naver:
+              value: { detail: Naver OAuth error, code: PROVIDER_ERROR }
+    OAuthNotConfigured:
+      description: 그 제공자의 설정 누락 (`<GOOGLE|KAKAO|NAVER>_CLIENT_ID`/`_CLIENT_SECRET`)
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
-          example:
-            detail: Google OAuth is not configured
-            code: PROVIDER_NOT_CONFIGURED
+          examples:
+            google:
+              value: { detail: Google OAuth is not configured, code: PROVIDER_NOT_CONFIGURED }
+            kakao:
+              value: { detail: Kakao OAuth is not configured, code: PROVIDER_NOT_CONFIGURED }
+            naver:
+              value: { detail: Naver OAuth is not configured, code: PROVIDER_NOT_CONFIGURED }
     TooManyVerifications:
       description: |
         검증기(DXWorks) 호출 한도 초과. 호출자(사용자, 서비스 키는 하나로)마다 분당 120번과 시간당 1,200번, 서버 프로세스(태스크)
@@ -2128,6 +2433,14 @@ components:
           example:
             detail: AI service temporarily unavailable
             code: AI_SERVICE_UNAVAILABLE
+  requestBodies:
+    OAuthCallback:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/OAuthCallbackRequest"
+
   schemas:
     CareerEnvelope:
       type: object
@@ -2152,8 +2465,8 @@ components:
           description: |
             기계용 사유 코드. AI 연동 오류(예: AI_SERVICE_UNAVAILABLE, AI_CONTRACT_MISMATCH, NO_ELIGIBLE_JOB_SOURCES,
             TEXT_EXPANDS_TOO_MUCH_WHEN_NORMALIZED)와 발급·검증 인프라 오류(PROVIDER_ERROR: 502 `Credential service error`,
-            PROVIDER_NOT_CONFIGURED: 503 `Credential service is not configured`), Google 로그인 오류(같은 두 코드,
-            `detail`은 `Google OAuth error` / `Google OAuth is not configured`)에만 붙고, 그 밖의 에러에는 없다.
+            PROVIDER_NOT_CONFIGURED: 503 `Credential service is not configured`), 소셜 로그인 오류(같은 두 코드,
+            `detail`은 `<Label> OAuth error` / `<Label> OAuth is not configured`, `<Label>`은 `Google`·`Kakao`·`Naver`)에만 붙고, 그 밖의 에러에는 없다.
 
     ValidationErrorResponse:
       type: object
@@ -2272,6 +2585,7 @@ components:
           type: boolean
         provider:
           type: string
+          enum: [google, kakao, naver]
           example: google
         authorization_url:
           type: string
@@ -2291,7 +2605,7 @@ components:
           type: string
           minLength: 1
           maxLength: 2048
-          description: Google이 돌려준 인가 코드 (앞뒤 공백은 잘라 낸다)
+          description: 제공자(Google·카카오·네이버)가 돌려준 인가 코드 (앞뒤 공백은 잘라 낸다)
         state:
           type: string
           minLength: 1
@@ -2304,7 +2618,7 @@ components:
         code_verifier:
           type: string
           pattern: "^[A-Za-z0-9._~-]{43,128}$"
-          description: PKCE code_verifier (RFC 7636). 빈 문자열·공백뿐이면 없는 것으로 본다
+          description: PKCE code_verifier (RFC 7636). 빈 문자열·공백뿐이면 없는 것으로 본다. 네이버는 형식만 검사하고 제공자로 보내지 않는다
 
     # ── 자격증명 ──────────────────────────────────────────────
     CredentialStatus:

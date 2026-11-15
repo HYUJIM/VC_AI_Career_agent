@@ -4,16 +4,18 @@
 - production: JWT_SECRET(32바이트 이상)·HOLDER_KEY_ENCRYPTION_KEY·DB_HOST·DB_NAME·DB_USER·DB_PASSWORD가 없거나,
   이 저장소에 공개된 값·자리표시 값(DB_PASSWORD는 로컬 기본값)이면 서버가 시작하지 않는다.
   SERVICE_API_KEY는 비우거나 32바이트 이상의 임의 값이어야 한다.
-  JWT_SECRET·HOLDER_KEY_ENCRYPTION_KEY·SERVICE_API_KEY·AI_SERVICE_TOKEN·DXWORKS_API_KEY·GOOGLE_CLIENT_SECRET은
-  (설정한 경우) 모두 서로 다른 값이어야 한다.
+  JWT_SECRET·HOLDER_KEY_ENCRYPTION_KEY·SERVICE_API_KEY·AI_SERVICE_TOKEN·DXWORKS_API_KEY·GOOGLE_CLIENT_SECRET·
+  KAKAO_CLIENT_SECRET·NAVER_CLIENT_SECRET은 (설정한 경우) 모두 서로 다른 값이어야 한다.
   Google 로그인을 켜려면 GOOGLE_CLIENT_ID·GOOGLE_CLIENT_SECRET을 함께 넣고 GOOGLE_REDIRECT_URI를 명시해야 하며 허용하는
-  콜백 주소는 모두 https여야 한다 (localhost 기본값은 development에서만 쓴다).
+  콜백 주소는 모두 https여야 한다 (localhost 기본값은 development에서만 쓴다). 카카오·네이버도 같은 규칙이다
+  (KAKAO_*·NAVER_*, 콜백 주소는 *_REDIRECT_URI 하나).
   CORS_ORIGINS는 비우면 빈 목록이고, 넣었으면 모든 항목이 scheme://host[:port] 꼴이어야 한다 (`*`·`null`·경로·끝의 `/` 거부).
 - 공통: JWT_EXPIRES_MINUTES는 1~1440, 모의 발급 기본값(development 켬·production 끔)·템플릿 허용 목록·사용자별 한도·
   전체 한도, 예전 AUTH_REQUIRED 설정은 경고만 남기고 인증을 끄지 못한다, 설정 객체의 repr에 비밀값이 나오지 않는다.
   DXWorks 접속값(DXWORKS_API_HOST·DXWORKS_API_KEY·DXWORKS_TIMEOUT_SECONDS)은 넣었으면 형식·범위가 맞아야 시작한다
   (비워 두는 것은 지금처럼 허용). 신원 VP 검증은 IDENTITY_VERIFICATION_ENABLED로 켤 때만 받는다.
-  Google·AI 시간 제한도 비우면 기본값이고 범위를 벗어나면 변수 이름을 알리며 시작하지 않는다.
+  OAuth·AI 시간 제한도 비우면 기본값이고 범위를 벗어나면 변수 이름을 알리며 시작하지 않는다 (OAUTH_TIMEOUT_SECONDS가
+  없으면 예전 이름 GOOGLE_OAUTH_TIMEOUT_SECONDS를 읽는다).
   비워 둔 LOG_LEVEL은 INFO, 비워 둔 DB_PORT는 5432다 (traceback이나 요청마다 500이 아니다).
 production에서 받아들이는 값은 실행할 때마다 새로 만든다 (저장소에 고정해 두면 그 자체가 공개된 값이 된다).
 오류 메시지·로그에 비밀값이 들어가지 않는지도 확인한다.
@@ -584,6 +586,178 @@ def test_production_names_all_fifteen_reused_pairs_with_the_google_secret(monkey
     assert settings.google_client_secret == settings.jwt_secret == shared
 
 
+# ── 카카오·네이버 OAuth 설정 ─────────────────────────────────────────
+
+KAKAO_NAVER = [("KAKAO", "Kakao", "kakao"), ("NAVER", "Naver", "naver")]
+
+
+def provider_configured(monkeypatch, prefix: str, **overrides) -> dict:
+    """production 검사를 통과하는 카카오·네이버 설정 (시크릿은 실행할 때마다 새로 만든다). 값이 None인 변수는 지운다."""
+    values = {f"{prefix}_CLIENT_ID": f"{prefix.lower()}-rest-api-key-0123",
+              f"{prefix}_CLIENT_SECRET": base64.b64encode(os.urandom(32)).decode(),
+              f"{prefix}_REDIRECT_URI": f"https://app.example.com/auth/{prefix.lower()}/callback", **overrides}
+    for name, value in values.items():
+        if value is None:
+            monkeypatch.delenv(name, raising=False)
+        else:
+            monkeypatch.setenv(name, value)
+    get_settings.cache_clear()
+    return values
+
+
+@pytest.mark.parametrize("prefix,label,name", KAKAO_NAVER)
+def test_kakao_and_naver_redirect_default_is_for_development_only(monkeypatch, prefix, label, name):
+    monkeypatch.delenv("APP_ENV", raising=False)
+    provider_configured(monkeypatch, prefix, **{f"{prefix}_CLIENT_ID": None, f"{prefix}_CLIENT_SECRET": None,
+                                                f"{prefix}_REDIRECT_URI": None})
+    settings = get_settings()
+    assert getattr(settings, f"{name}_redirect_uri") == f"http://localhost:5173/auth/{name}/callback"
+    assert getattr(settings, f"{name}_client_id") == "" and getattr(settings, f"{name}_client_secret") == ""
+    # 비워 둔 변수는 비운 그대로다 (기본값으로 대신하지 않는다 — Google과 같다).
+    monkeypatch.setenv(f"{prefix}_REDIRECT_URI", " ")
+    get_settings.cache_clear()
+    assert getattr(get_settings(), f"{name}_redirect_uri") == ""
+
+    production(monkeypatch)
+    monkeypatch.delenv(f"{prefix}_REDIRECT_URI")
+    get_settings.cache_clear()
+    assert getattr(get_settings(), f"{name}_redirect_uri") == ""  # production은 localhost 기본값을 쓰지 않는다
+
+
+@pytest.mark.parametrize("prefix,label,name", KAKAO_NAVER)
+def test_production_accepts_a_complete_kakao_or_naver_configuration(monkeypatch, prefix, label, name):
+    production(monkeypatch)
+    values = provider_configured(monkeypatch, prefix, **{f"{prefix}_REDIRECT_URI": "HTTPS://app.example.com/cb"})
+    settings = get_settings()
+    assert getattr(settings, f"{name}_client_id") == values[f"{prefix}_CLIENT_ID"]
+    assert getattr(settings, f"{name}_client_secret") == values[f"{prefix}_CLIENT_SECRET"]
+    assert getattr(settings, f"{name}_redirect_uri") == "HTTPS://app.example.com/cb"  # 주소로 읽고, 값은 적은 그대로
+
+
+@pytest.mark.parametrize("prefix,label,name", KAKAO_NAVER)
+def test_production_kakao_or_naver_needs_id_secret_together_and_an_explicit_https_redirect(monkeypatch, prefix, label,
+                                                                                            name):
+    production(monkeypatch)
+    head = "^APP_ENV=production requires "
+    both = rf"{head}{prefix}_CLIENT_ID and {prefix}_CLIENT_SECRET \(set both, or leave both empty\); "
+    explicit = rf"{head}{prefix}_REDIRECT_URI \(set explicitly when {label} OAuth is configured\); "
+    https = rf"{head}{prefix}_REDIRECT_URI \(https:// address only\); "
+    for missing in (f"{prefix}_CLIENT_ID", f"{prefix}_CLIENT_SECRET"):
+        for blank in (None, "", "  "):
+            values = provider_configured(monkeypatch, prefix, **{missing: blank})
+            with pytest.raises(RuntimeError, match=both) as error:
+                get_settings()
+            for value in values.values():
+                assert not value or not value.strip() or value not in str(error.value)  # 이름만 알리고 값은 넣지 않는다
+    for blank in (None, "", "  "):
+        provider_configured(monkeypatch, prefix, **{f"{prefix}_REDIRECT_URI": blank})
+        with pytest.raises(RuntimeError, match=explicit):
+            get_settings()
+    for uri in (f"http://app.example.com/auth/{name}/callback", f"http://localhost:5173/auth/{name}/callback",
+                "https://", f"https:///auth/{name}/callback", "app.example.com/cb"):
+        provider_configured(monkeypatch, prefix, **{f"{prefix}_REDIRECT_URI": uri})
+        with pytest.raises(RuntimeError, match=https) as error:
+            get_settings()
+        assert "example.com" not in str(error.value) and "localhost" not in str(error.value)
+    # 모두 빠지면 한 번에 알린다. 다른 제공자 설정·Google 설정은 섞이지 않는다.
+    provider_configured(monkeypatch, prefix, **{f"{prefix}_CLIENT_ID": None, f"{prefix}_REDIRECT_URI": None})
+    with pytest.raises(RuntimeError) as error:
+        get_settings()
+    assert str(error.value).startswith(
+        f"APP_ENV=production requires {prefix}_CLIENT_ID and {prefix}_CLIENT_SECRET (set both, or leave both empty), "
+        f"{prefix}_REDIRECT_URI (set explicitly when {label} OAuth is configured); ")
+    assert "GOOGLE_" not in str(error.value)
+    # 켜지 않았으면(ID·시크릿 모두 비움) 콜백 주소가 http여도 시작한다. development는 지금처럼 그대로 받는다.
+    provider_configured(monkeypatch, prefix, **{f"{prefix}_CLIENT_ID": "", f"{prefix}_CLIENT_SECRET": "",
+                                                f"{prefix}_REDIRECT_URI": "http://app.example.com/cb"})
+    assert get_settings().app_env == "production"
+    provider_configured(monkeypatch, prefix,
+                        **{f"{prefix}_CLIENT_SECRET": None, f"{prefix}_REDIRECT_URI": "http://x/cb"})
+    monkeypatch.setenv("APP_ENV", "development")
+    get_settings.cache_clear()
+    assert get_settings().app_env == "development"
+
+
+# 카카오·네이버 시크릿도 각 제공자로 보내고 그 콘솔 관리자가 볼 수 있는 값이라 다른 비밀값과 달라야 한다.
+REUSED_WITH_KAKAO_OR_NAVER = [
+    ("KAKAO_CLIENT_SECRET", "DXWORKS_API_KEY"), ("KAKAO_CLIENT_SECRET", "GOOGLE_CLIENT_SECRET"),
+    ("NAVER_CLIENT_SECRET", "KAKAO_CLIENT_SECRET"), ("HOLDER_KEY_ENCRYPTION_KEY", "NAVER_CLIENT_SECRET"),
+    ("JWT_SECRET", "KAKAO_CLIENT_SECRET"), ("SERVICE_API_KEY", "NAVER_CLIENT_SECRET"),
+    ("AI_SERVICE_TOKEN", "KAKAO_CLIENT_SECRET"), ("NAVER_CLIENT_SECRET", "DXWORKS_API_KEY"),
+]
+
+
+@pytest.mark.parametrize(("name", "other"), REUSED_WITH_KAKAO_OR_NAVER,
+                         ids=[f"{name}-{other}" for name, other in REUSED_WITH_KAKAO_OR_NAVER])
+def test_production_refuses_a_secret_shared_with_a_kakao_or_naver_secret(monkeypatch, name, other):
+    production(monkeypatch)
+    values = distinct_five_secrets(monkeypatch)
+    values["GOOGLE_CLIENT_SECRET"] = google_configured(monkeypatch)["GOOGLE_CLIENT_SECRET"]
+    for prefix in ("KAKAO", "NAVER"):
+        values[f"{prefix}_CLIENT_SECRET"] = provider_configured(monkeypatch, prefix)[f"{prefix}_CLIENT_SECRET"]
+    assert get_settings().app_env == "production"  # 대조: 모두 다르면 시작한다
+    expected = rf"^APP_ENV=production requires {name} \(not the same value as {other}\); "
+    names = (*FIVE_SECRETS, "GOOGLE_CLIENT_SECRET", "KAKAO_CLIENT_SECRET", "NAVER_CLIENT_SECRET", "DB_PASSWORD")
+    others = [n for n in names if n not in (name, other)]
+    for target, source in ((name, other), (other, name)):
+        for reused in (values[source], f" {values[source]}\n"):  # 앞뒤 공백만 다른 값도 같은 비밀이다
+            monkeypatch.setenv(target, reused)
+            get_settings.cache_clear()
+            with pytest.raises(RuntimeError, match=expected) as error:
+                get_settings()
+            assert values[source] not in str(error.value)
+            assert [n for n in others if n in str(error.value)] == []  # 같은 값을 쓴 쌍만 알린다
+        monkeypatch.setenv(target, values[target])
+
+
+def test_production_names_all_twenty_eight_reused_pairs(monkeypatch):
+    production(monkeypatch)
+    shared = base64.b64encode(os.urandom(32)).decode()  # 여덟 변수 어디에나 넣을 수 있는 값 (마스터 키 형식)
+    google_configured(monkeypatch, GOOGLE_CLIENT_SECRET=shared)
+    for prefix in ("KAKAO", "NAVER"):
+        provider_configured(monkeypatch, prefix, **{f"{prefix}_CLIENT_SECRET": shared})
+    for name in FIVE_SECRETS:
+        monkeypatch.setenv(name, shared)
+    with pytest.raises(RuntimeError) as error:
+        get_settings()
+    order = ["DXWORKS_API_KEY", "GOOGLE_CLIENT_SECRET", "KAKAO_CLIENT_SECRET", "NAVER_CLIENT_SECRET",
+             "HOLDER_KEY_ENCRYPTION_KEY", "JWT_SECRET", "SERVICE_API_KEY", "AI_SERVICE_TOKEN"]
+    pairs = ", ".join(f"{order[j]} (not the same value as {order[i]})"
+                      for i in range(len(order)) for j in range(i + 1, len(order)))
+    assert str(error.value).startswith(f"APP_ENV=production requires {pairs}; ")
+    assert str(error.value).count("not the same value as") == 28
+    assert shared not in str(error.value)
+
+
+def test_oauth_timeout_prefers_the_new_name_and_falls_back_to_the_google_name(monkeypatch):
+    # 세 제공자가 같이 쓰는 OAUTH_TIMEOUT_SECONDS. 없거나 비었으면 예전 .env·작업 정의의 GOOGLE_OAUTH_TIMEOUT_SECONDS를 읽는다.
+    monkeypatch.delenv("OAUTH_TIMEOUT_SECONDS", raising=False)
+    monkeypatch.setenv("GOOGLE_OAUTH_TIMEOUT_SECONDS", "25")
+    assert get_settings().oauth_timeout_seconds == 25.0
+    for blank in ("", "  "):
+        monkeypatch.setenv("OAUTH_TIMEOUT_SECONDS", blank)
+        get_settings.cache_clear()
+        assert get_settings().oauth_timeout_seconds == 25.0
+    monkeypatch.setenv("OAUTH_TIMEOUT_SECONDS", "12")
+    get_settings.cache_clear()
+    assert get_settings().oauth_timeout_seconds == 12.0  # 새 이름이 있으면 그 값 (예전 이름은 보지 않는다)
+    monkeypatch.setenv("GOOGLE_OAUTH_TIMEOUT_SECONDS", "not-a-number")
+    get_settings.cache_clear()
+    assert get_settings().oauth_timeout_seconds == 12.0
+    monkeypatch.setenv("OAUTH_TIMEOUT_SECONDS", "0")
+    get_settings.cache_clear()
+    with pytest.raises(RuntimeError, match=r"^OAUTH_TIMEOUT_SECONDS must be a number between 1 and 120$"):
+        get_settings()
+    monkeypatch.delenv("OAUTH_TIMEOUT_SECONDS")
+    get_settings.cache_clear()
+    with pytest.raises(RuntimeError, match=r"^GOOGLE_OAUTH_TIMEOUT_SECONDS must be a number between 1 and 120$"):
+        get_settings()
+    monkeypatch.delenv("GOOGLE_OAUTH_TIMEOUT_SECONDS")
+    get_settings.cache_clear()
+    assert get_settings().oauth_timeout_seconds == 10.0
+    assert not hasattr(get_settings(), "google_oauth_timeout_seconds")  # 세 어댑터가 같은 값을 쓴다
+
+
 # ── production: CORS_ORIGINS ────────────────────────────────────────
 
 DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
@@ -835,13 +1009,16 @@ def test_env_float_names_the_variable_and_keeps_the_default(monkeypatch):
 
 
 @pytest.mark.parametrize("name,field,default,maximum", [
-    ("GOOGLE_OAUTH_TIMEOUT_SECONDS", "google_oauth_timeout_seconds", 10.0, 120),
+    ("OAUTH_TIMEOUT_SECONDS", "oauth_timeout_seconds", 10.0, 120),
+    ("GOOGLE_OAUTH_TIMEOUT_SECONDS", "oauth_timeout_seconds", 10.0, 120),  # 예전 이름 (OAUTH_TIMEOUT_SECONDS가 없을 때)
     ("AI_TIMEOUT_SECONDS", "ai_timeout_seconds", 30.0, 600),
     ("AI_GENERATION_TIMEOUT_SECONDS", "ai_generation_timeout_seconds", 90.0, 600),
 ])
-def test_google_and_ai_timeouts_default_when_blank_and_must_be_in_range(monkeypatch, name, field, default, maximum):
+def test_oauth_and_ai_timeouts_default_when_blank_and_must_be_in_range(monkeypatch, name, field, default, maximum):
     # 회귀: float()로만 읽어 `AI_TIMEOUT_SECONDS=`처럼 비워 둔 줄이 변수 이름 없는 ValueError traceback이었고,
     # 0·음수(모든 호출 실패)·inf(시간 제한 없음)·nan은 그대로 통과했다.
+    for oauth_name in ("OAUTH_TIMEOUT_SECONDS", "GOOGLE_OAUTH_TIMEOUT_SECONDS"):
+        monkeypatch.delenv(oauth_name, raising=False)
     monkeypatch.delenv(name, raising=False)
     assert getattr(get_settings(), field) == default
     for value, seconds in (("", default), ("  ", default), (" 45 ", 45.0), ("1", 1.0), (str(maximum), float(maximum))):
@@ -917,7 +1094,7 @@ def test_secret_like_settings_fields_are_hidden_from_repr():
     # 새 비밀값 필드를 추가하면서 field(repr=False)를 빠뜨리지 않게 이름(…_secret/_key/_token/_password)으로도 확인한다.
     hidden = {f.name for f in dataclasses.fields(Settings) if not f.repr}
     assert hidden == {"dxworks_api_key", "jwt_secret", "service_api_key", "holder_key_encryption_key",
-                      "google_client_secret", "ai_service_token"}
+                      "google_client_secret", "kakao_client_secret", "naver_client_secret", "ai_service_token"}
     assert {f.name for f in dataclasses.fields(Settings)
             if re.search(r"(secret|key|token|password)$", f.name)} <= hidden
 
@@ -933,13 +1110,16 @@ def test_settings_repr_never_contains_secret_values(monkeypatch, app_env):
         "SERVICE_API_KEY": secrets.token_urlsafe(32),
         "AI_SERVICE_TOKEN": secrets.token_urlsafe(40),
         "GOOGLE_CLIENT_SECRET": secrets.token_urlsafe(24),
+        "KAKAO_CLIENT_SECRET": secrets.token_urlsafe(24),
+        "NAVER_CLIENT_SECRET": secrets.token_urlsafe(24),
     }
     master = os.urandom(32)
     for name, value in fake.items():
         monkeypatch.setenv(name, value)
-    # production은 Google 시크릿만 넣은 설정을 받지 않는다: ID와 https 콜백 주소도 함께 넣는다.
-    monkeypatch.setenv("GOOGLE_CLIENT_ID", "1234-test.apps.googleusercontent.com")
-    monkeypatch.setenv("GOOGLE_REDIRECT_URI", "https://app.example.com/auth/google/callback")
+    # production은 시크릿만 넣은 OAuth 설정을 받지 않는다: ID와 https 콜백 주소도 함께 넣는다.
+    for provider in ("google", "kakao", "naver"):
+        monkeypatch.setenv(f"{provider.upper()}_CLIENT_ID", f"1234-test-{provider}-client-id")
+        monkeypatch.setenv(f"{provider.upper()}_REDIRECT_URI", f"https://app.example.com/auth/{provider}/callback")
     monkeypatch.setenv("HOLDER_KEY_ENCRYPTION_KEY", base64.b64encode(master).decode())
 
     settings = get_settings()

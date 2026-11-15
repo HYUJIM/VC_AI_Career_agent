@@ -1,7 +1,7 @@
 /**
  * BE(FastAPI) 요청/응답 타입 정의
  * 출처: BE/openapi.yaml (v0.6.0 — JWT 인증, 관리형 지갑, 실행 시점 재검증, 포트폴리오(VC_ONLY), 선택 공개
- *       + BE 브랜치 Google OAuth 2.0 소셜 로그인)
+ *       + BE 브랜치 Google·카카오·네이버 OAuth 2.0 소셜 로그인)
  */
 
 export interface UserProfile {
@@ -29,14 +29,14 @@ export interface AuthResponse {
 export type RegisterResponse = AuthResponse;
 export type LoginResponse = AuthResponse;
 
-/** BE가 지원하는 소셜 로그인 제공자 (BE `/api/v1/users/oauth/{provider}`) */
-export type OAuthProviderId = 'google';
+/** BE가 지원하는 소셜 로그인 제공자 (BE `/api/v1/users/oauth/{google,kakao,naver}`) */
+export type OAuthProviderId = 'google' | 'kakao' | 'naver';
 
 /** GET /api/v1/users/oauth/{provider}/authorize (openapi `OAuthAuthorizeResponse`) */
 export interface OAuthAuthorizeResponse {
   success: boolean;
   provider: OAuthProviderId;
-  /** 제공자(Google) 로그인 화면 주소. 브라우저를 이 주소로 보낸다. */
+  /** 제공자(Google·카카오·네이버) 로그인 화면 주소. 브라우저를 이 주소로 보낸다. */
   authorization_url: string;
   /** BE가 서명한 CSRF 방지용 state (expires_in 초 동안 유효). 콜백에서 돌아온 값과 비교한다. */
   state: string;
@@ -65,7 +65,10 @@ export interface MeResponse {
     custody: 'managed' | 'none';
     key_type: string | null;
   };
-  /** 연동된 소셜 로그인 제공자 (BE OAuth 지원 이후). 이전 BE는 이 필드가 없을 수 있다. */
+  /**
+   * 연동된 소셜 로그인 제공자 (BE OAuth 지원 이후). 이전 BE는 이 필드가 없을 수 있다.
+   * 화면은 알려진 제공자(OAuthProviderId)만 배지로 보여 준다 (lib/oauthProviders.ts 의 isOAuthProviderId).
+   */
   oauth_providers?: OAuthProviderId[];
 }
 

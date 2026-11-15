@@ -51,7 +51,10 @@ export async function logoutUser(accessToken: string): Promise<void> {
 }
 
 export interface OAuthAuthorizeParams {
-  /** 제공자가 돌려보낼 FE 콜백 주소. BE 허용 목록(GOOGLE_REDIRECT_URI / GOOGLE_ALLOWED_REDIRECT_URIS)에 있어야 한다. */
+  /**
+   * 제공자가 돌려보낼 FE 콜백 주소. BE 허용 목록에 있어야 한다
+   * (Google: GOOGLE_REDIRECT_URI / GOOGLE_ALLOWED_REDIRECT_URIS, 카카오·네이버: KAKAO_REDIRECT_URI / NAVER_REDIRECT_URI 와 똑같은 값).
+   */
   redirectUri: string;
   /** PKCE S256 code_challenge (code_verifier 의 SHA-256, base64url) */
   codeChallenge: string;

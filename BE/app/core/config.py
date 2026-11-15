@@ -107,7 +107,7 @@ def _is_plain_origin(value: str) -> bool:
 
 
 def _is_https_url(value: str) -> bool:
-    """https 주소인지 (Google 콜백 주소 검사). 글자 비교가 아니라 주소로 읽어서 본다: 스킴은 대소문자를 가리지 않고
+    """https 주소인지 (OAuth 콜백 주소 검사). 글자 비교가 아니라 주소로 읽어서 본다: 스킴은 대소문자를 가리지 않고
     (`HTTPS://`), 호스트가 있어야 한다 (`https://`만 있거나 `https:///path`인 값은 아니다)."""
     try:
         parts = urlsplit(value)
@@ -151,6 +151,16 @@ def _env_float(name: str, default: float, *, minimum: float, maximum: float) -> 
     return value
 
 
+def _oauth_timeout_seconds() -> float:
+    """OAuth 제공자(Google·Kakao·Naver) 호출 제한 시간(초, 1~120, 기본 10). 세 제공자가 같이 쓴다.
+
+    OAUTH_TIMEOUT_SECONDS가 없거나 비었으면 예전 이름 GOOGLE_OAUTH_TIMEOUT_SECONDS를 읽는다 (예전 .env·작업 정의도 그대로
+    뜨게). 오류 메시지에는 실제로 읽은 변수 이름을 넣는다.
+    """
+    name = "OAUTH_TIMEOUT_SECONDS" if os.getenv("OAUTH_TIMEOUT_SECONDS", "").strip() else "GOOGLE_OAUTH_TIMEOUT_SECONDS"
+    return _env_float(name, 10.0, minimum=1, maximum=120)
+
+
 @dataclass(frozen=True)
 class Settings:
     # 비밀값 필드는 field(repr=False)로 선언한다: 설정 객체가 로그·오류 보고·디버거 출력(repr/str)에 찍혀도 값이 나오지 않는다.
@@ -190,7 +200,17 @@ class Settings:
     # 기본 콜백 주소. 변수가 없으면 development만 FE 개발 서버 주소로 대신한다 (production은 대신하지 않는다).
     google_redirect_uri: str
     google_allowed_redirect_uris: list[str]
-    google_oauth_timeout_seconds: float
+    # 카카오·네이버 로그인 설정 (Google과 같은 규칙: production에서 켜려면 ID·시크릿을 함께 넣고 https 콜백 주소를 명시한다).
+    # 콜백 주소는 *_REDIRECT_URI 하나만 받는다 (Google의 허용 목록 같은 추가 주소는 없다). 변수가 없으면 development만
+    # FE 개발 서버 주소로 대신한다.
+    kakao_client_id: str
+    kakao_client_secret: str = field(repr=False)
+    kakao_redirect_uri: str
+    naver_client_id: str
+    naver_client_secret: str = field(repr=False)
+    naver_redirect_uri: str
+    # 세 OAuth 제공자 호출의 제한 시간(초). OAUTH_TIMEOUT_SECONDS (비우면 예전 GOOGLE_OAUTH_TIMEOUT_SECONDS, 둘 다 없으면 10).
+    oauth_timeout_seconds: float
     # AI 서비스(ai/, `uvicorn src.server.app:app`). 직무 비교·커리큘럼 계산을 맡는다.
     ai_service_url: str
     # AI의 AI_SERVICE_TOKEN과 같은 32바이트 이상 공유 비밀. 비면 AI 기능 요청은 503.
@@ -254,6 +274,17 @@ def get_settings() -> Settings:
     allowed_redirects = list(
         dict.fromkeys(([google_redirect_uri] if google_redirect_uri else []) + raw_allowed_redirects)
     )
+    # 카카오·네이버도 같은 이유로 FE 개발 서버 콜백 주소는 development에서만 기본값으로 쓴다.
+    kakao_client_id = os.getenv("KAKAO_CLIENT_ID", "").strip()
+    kakao_client_secret = os.getenv("KAKAO_CLIENT_SECRET", "").strip()
+    kakao_redirect_uri = os.getenv(
+        "KAKAO_REDIRECT_URI", "" if production else "http://localhost:5173/auth/kakao/callback"
+    ).strip()
+    naver_client_id = os.getenv("NAVER_CLIENT_ID", "").strip()
+    naver_client_secret = os.getenv("NAVER_CLIENT_SECRET", "").strip()
+    naver_redirect_uri = os.getenv(
+        "NAVER_REDIRECT_URI", "" if production else "http://localhost:5173/auth/naver/callback"
+    ).strip()
 
     service_api_key = os.getenv("SERVICE_API_KEY", "").strip()
     if production and service_api_key and (
@@ -265,12 +296,14 @@ def get_settings() -> Settings:
     if production:
         # 비밀값은 용도마다 따로 만든다: DXWORKS_API_KEY(협력사로 보낸다)나 AI_SERVICE_TOKEN(AI 서비스도 가진다)을 아는 쪽이
         # 같은 값으로 사용자 토큰을 만들거나(JWT_SECRET) 홀더 키를 복호화하거나(HOLDER_KEY_ENCRYPTION_KEY) 모든 DID를 읽지
-        # (SERVICE_API_KEY) 못하게 여섯 값의 모든 쌍을 비교한다. 비운 값은 비교하지 않는다. 바꾸기 어려운 값부터 두고
+        # (SERVICE_API_KEY) 못하게 여덟 값의 모든 쌍을 비교한다. 비운 값은 비교하지 않는다. 바꾸기 어려운 값부터 두고
         # (협력사가 발급한 키, 바꾸면 기존 홀더 키를 복호화할 수 없는 마스터 키, 바꾸면 모두 로그아웃되는 JWT_SECRET 순),
         # 같은 쌍은 뒤쪽(바꿀 값)의 이름을 앞에 써서 알린다. GOOGLE_CLIENT_SECRET도 교환할 때마다 Google로 보내고
         # Google Cloud 프로젝트 관리자가 볼 수 있는 값이라 함께 비교한다 (Google이 발급하므로 앞쪽에 둔다).
+        # KAKAO_CLIENT_SECRET·NAVER_CLIENT_SECRET도 같은 이유로 비교한다 (각 제공자가 발급한다).
         values = {"DXWORKS_API_KEY": os.getenv("DXWORKS_API_KEY", "").strip(),
                   "GOOGLE_CLIENT_SECRET": google_client_secret,
+                  "KAKAO_CLIENT_SECRET": kakao_client_secret, "NAVER_CLIENT_SECRET": naver_client_secret,
                   "HOLDER_KEY_ENCRYPTION_KEY": raw_master_key, "JWT_SECRET": jwt_secret,
                   "SERVICE_API_KEY": service_api_key, "AI_SERVICE_TOKEN": os.getenv("AI_SERVICE_TOKEN", "").strip()}
         for other, name in combinations(values, 2):
@@ -293,6 +326,19 @@ def get_settings() -> Settings:
             missing.append("GOOGLE_REDIRECT_URI (set explicitly when Google OAuth is configured)")
         if any(not _is_https_url(uri) for uri in allowed_redirects):
             missing.append("GOOGLE_REDIRECT_URI and GOOGLE_ALLOWED_REDIRECT_URIS (https:// addresses only)")
+
+    # 카카오·네이버 로그인을 켠 운영 설정도 Google과 같은 규칙이다 (이름만, 값은 넣지 않는다).
+    for prefix, label, client_id, client_secret, redirect_uri in (
+            ("KAKAO", "Kakao", kakao_client_id, kakao_client_secret, kakao_redirect_uri),
+            ("NAVER", "Naver", naver_client_id, naver_client_secret, naver_redirect_uri)):
+        if not (production and (client_id or client_secret)):
+            continue
+        if not (client_id and client_secret):
+            missing.append(f"{prefix}_CLIENT_ID and {prefix}_CLIENT_SECRET (set both, or leave both empty)")
+        if not redirect_uri:
+            missing.append(f"{prefix}_REDIRECT_URI (set explicitly when {label} OAuth is configured)")
+        elif not _is_https_url(redirect_uri):
+            missing.append(f"{prefix}_REDIRECT_URI (https:// address only)")
 
     # development는 변수가 없으면 FE 개발 서버 주소를 쓴다. production은 없거나 비어 있으면 다른 출처를 허용하지 않고
     # (FE와 API가 같은 출처), 넣었으면 모든 항목이 scheme://host[:port] 꼴이어야 한다.
@@ -345,9 +391,15 @@ def get_settings() -> Settings:
         google_client_secret=google_client_secret,
         google_redirect_uri=google_redirect_uri,
         google_allowed_redirect_uris=allowed_redirects,
+        kakao_client_id=kakao_client_id,
+        kakao_client_secret=kakao_client_secret,
+        kakao_redirect_uri=kakao_redirect_uri,
+        naver_client_id=naver_client_id,
+        naver_client_secret=naver_client_secret,
+        naver_redirect_uri=naver_redirect_uri,
         # 아래 세 시간 제한도 DXWORKS_TIMEOUT_SECONDS처럼 읽는다: 비우면 기본값, 숫자가 아니거나 0·음수·inf·nan이면
         # (시간 제한이 없어지거나 모든 호출이 실패한다) 변수 이름을 알리고 시작을 거부한다.
-        google_oauth_timeout_seconds=_env_float("GOOGLE_OAUTH_TIMEOUT_SECONDS", 10.0, minimum=1, maximum=120),
+        oauth_timeout_seconds=_oauth_timeout_seconds(),
         ai_service_url=os.getenv("AI_SERVICE_URL", "http://127.0.0.1:8100").strip().rstrip("/"),
         ai_service_token=os.getenv("AI_SERVICE_TOKEN", ""),
         ai_service_allow_http=_env_bool("AI_SERVICE_ALLOW_HTTP", False),

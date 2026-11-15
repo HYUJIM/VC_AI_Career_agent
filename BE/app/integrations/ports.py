@@ -32,7 +32,7 @@ class ProviderError(Exception):
         super().__init__(message)
         self.message = message
         self.upstream_status = upstream_status
-        # 어느 외부 서비스의 실패인지: "credential"(발급·검증 인프라, 기본값) | "google_oauth".
+        # 어느 외부 서비스의 실패인지: "credential"(발급·검증 인프라, 기본값) | "google_oauth" | "kakao_oauth" | "naver_oauth".
         # main.py가 응답의 고정 문구를 고를 때만 쓴다 (상태 코드·code·로그 줄은 같다).
         self.service = service
         # True면 설정 누락 등으로 호출 자체를 할 수 없는 상태 (503)
@@ -44,6 +44,13 @@ class ProviderError(Exception):
 
 class OAuthCodeError(Exception):
     """유효하지 않거나 만료된 OAuth 인가 코드/토큰."""
+
+
+class OAuthEmailMissing(Exception):
+    """제공자가 이메일을 주지 않았다 (사용자가 이메일 제공에 동의하지 않았거나 계정에 이메일이 없다).
+
+    인가 코드 오류(OAuthCodeError)와 따로 둔다: API가 '이메일 제공 동의가 필요하다'는 고정 문구(400)로 답한다.
+    """
 
 
 @dataclass(frozen=True)
@@ -67,12 +74,14 @@ class OAuthProvider(Protocol):
         code_challenge_method: Optional[str] = None,
     ) -> str: ...
 
+    # state: 인가 요청에 실은 값 그대로. 토큰 요청에 state를 함께 보내야 하는 제공자(Naver)만 쓰고 나머지는 무시한다.
     async def exchange_code(
         self,
         *,
         code: str,
         redirect_uri: str,
         code_verifier: Optional[str] = None,
+        state: Optional[str] = None,
     ) -> OAuthUserInfo: ...
 
 

@@ -17,15 +17,23 @@ import { StatusRingCard } from '@/components/dashboard/StatusRingCard';
 import { Alert } from '@/components/ui/Alert';
 import { type StatusFilter, getStatusGroup } from '@/lib/credentialStatus';
 import { hasUsedPortfolio } from '@/lib/onboarding';
+import { isOAuthProviderId, OAUTH_PROVIDERS } from '@/lib/oauthProviders';
 import { useAuthStore } from '@/store/authStore';
-import type { VerifiedCredential } from '@/types/api';
+import type { OAuthProviderId, VerifiedCredential } from '@/types/api';
 
 /** 로그인/회원가입/발급 화면에서 대시보드로 이동할 때 전달하는 상태 */
 export interface DashboardLocationState {
   welcome?: string;
   newUser?: boolean;
   oauthLinked?: boolean;
+  /** 소셜 로그인 콜백에서 왔을 때 그 제공자 (연동 안내 문구에 이름을 넣는다) */
+  oauthProvider?: OAuthProviderId;
   issued?: string;
+}
+
+/** 라우터 state 는 브라우저 기록에서 오므로 형식을 다시 확인한 뒤 제공자 이름을 고른다. */
+function linkedProviderLabel(provider: unknown): string {
+  return isOAuthProviderId(provider) ? OAUTH_PROVIDERS[provider].label : '소셜';
 }
 
 export function DashboardPage() {
@@ -86,7 +94,7 @@ export function DashboardPage() {
           {banner.newUser
             ? `${banner.welcome} 님의 DID가 발급되었습니다. "새 자격증명 발급받기"로 첫 배지를 받아보세요.`
             : banner.oauthLinked
-              ? '기존 계정에 Google 계정이 연동되어 로그인되었습니다.'
+              ? `기존 계정에 ${linkedProviderLabel(banner.oauthProvider)} 계정이 연동되어 로그인되었습니다.`
               : '로그인되었습니다.'}
         </Alert>
       )}

@@ -149,6 +149,24 @@ class OAuthPasswordAccountConflict(OAuthAccountConflict):
         self.user_id = user_id
 
 
+# FE가 이 문구로 안내를 고른다 (FE/src/lib/apiClient.ts). 바꾸면 FE도 함께 바꾼다.
+OAUTH_OTHER_METHOD_ACCOUNT = "This email is already used by another sign-in method. Log in with that method."
+# 이메일을 인증했다고 알리는 OAuth 제공자 (app/integrations/oauth.py에서 requires_verified_email=True인 어댑터).
+# 이 제공자의 연동은 인증된 이메일로만 만들어지고(api/oauth.py가 인증되지 않은 이메일을 400으로 거절한다) 로그인할 때마다
+# 그 이메일로 갱신된다. 그래서 이 제공자 연동의 이메일이 계정 이메일과 같으면, 그 계정의 이메일은 주인이 확인된 주소다.
+EMAIL_VERIFYING_OAUTH_PROVIDERS = ("google", "kakao")
+
+
+class OAuthUnverifiedLinkConflict(OAuthAccountConflict):
+    """같은 이메일의 비밀번호 없는 계정이 있지만 연동하지 않는다: 이번 제공자가 이메일을 인증하지 않았거나(Naver),
+    그 계정의 이메일이 인증된 제공자 연동(EMAIL_VERIFYING_OAUTH_PROVIDERS)으로 확인된 주소가 아니다 (예: Naver로 만든 계정).
+    user_id: 그 계정 (감사 로그용)."""
+
+    def __init__(self, user_id: str):
+        super().__init__(OAUTH_OTHER_METHOD_ACCOUNT)
+        self.user_id = user_id
+
+
 def _insert_holder_key(cur, user_id: str, holder_key: Optional[StoredHolderKey], now: datetime) -> None:
     if holder_key is None:
         return
@@ -230,12 +248,17 @@ class DatabaseService:
         provider: str,
         provider_user_id: str,
         email: str,
+        email_verified: bool,
         name: str,
         issue_identity: Callable[[str], tuple[str, Optional[StoredHolderKey]]],
     ) -> tuple[dict, bool, bool]:
         """OAuth 사용자를 조회·연동하거나 새로 생성한다. (user, created, linked) 반환.
 
-        비밀번호가 있는 기존 계정에는 연동하지 않는다 (OAuthPasswordAccountConflict, 아래 _once 참고).
+        1. 이 제공자 계정(provider, provider_user_id)이 이미 연동돼 있으면 그 계정으로 로그인한다.
+        2. 같은 이메일의 계정이 있으면 비밀번호 계정(OAuthPasswordAccountConflict)과, 같은 제공자의 다른 계정이 이미
+           연동된 계정(OAuthAccountConflict)에는 붙이지 않는다. 그 밖에는 email_verified가 True이고 그 계정의 이메일이
+           인증된 제공자 연동으로 확인된 주소일 때만 연동한다 (아니면 OAuthUnverifiedLinkConflict).
+        3. 같은 이메일의 계정이 없으면 새 계정을 만든다 (제공자와 관계없이).
         """
         for attempt in range(2):
             try:
@@ -243,12 +266,13 @@ class DatabaseService:
                     provider=provider,
                     provider_user_id=provider_user_id,
                     email=email,
+                    email_verified=email_verified,
                     name=name,
                     issue_identity=issue_identity,
                 )
             except psycopg.errors.UniqueViolation:
                 # 동시에 온 다른 요청이 같은 행(사용자·연동)을 먼저 넣었다. 어느 제약에 걸렸든 한 번만 다시 본다:
-                # 두 번째에는 커밋된 행이 보이므로 같은 Google 계정이면 그 계정으로 로그인하고, 다른 Google 계정이면
+                # 두 번째에는 커밋된 행이 보이므로 같은 제공자 계정이면 그 계정으로 로그인하고, 같은 제공자의 다른 계정이면
                 # 아래의 명시적 검사가 OAuthAccountConflict를 낸다 (자동 생성된 제약 이름에 기대지 않는다).
                 if attempt == 1:
                     raise
@@ -259,6 +283,7 @@ class DatabaseService:
         provider: str,
         provider_user_id: str,
         email: str,
+        email_verified: bool,
         name: str,
         issue_identity: Callable[[str], tuple[str, Optional[StoredHolderKey]]],
     ) -> tuple[dict, bool, bool]:
@@ -295,16 +320,29 @@ class DatabaseService:
                     existing_link = cur.fetchone()
                     if existing_link is not None:
                         if existing_link["provider_user_id"] == provider_user_id:
-                            # 위의 provider·sub 조회와 이 조회 사이에 같은 Google 계정의 다른 요청(다른 탭의 같은 로그인)이
-                            # 연동을 커밋했다. 다른 Google 계정이 아니므로 충돌이 아니라 그 계정의 로그인이다.
+                            # 위의 provider·id 조회와 이 조회 사이에 같은 제공자 계정의 다른 요청(다른 탭의 같은 로그인)이
+                            # 연동을 커밋했다. 다른 계정이 아니므로 충돌이 아니라 그 계정의 로그인이다.
                             return existing_user, False, False
                         raise OAuthAccountConflict("User is already linked to another account for this provider")
                     if existing_user["password_hash"] is not None:
                         # 비밀번호가 있는 계정에는 OAuth 로그인을 붙이지 않는다. 가입은 이메일 소유를 확인하지 않으므로,
-                        # 남의 주소로 먼저 가입해 둔 사람이 있으면 Google로 로그인한 진짜 주인이 그 사람의 비밀번호와
-                        # 세션이 그대로 살아 있는 계정에 들어가게 된다 (계정 선점). 비밀번호 없는 계정과 이미 연동된
-                        # 계정(위의 provider·sub 조회)은 예전과 같다.
+                        # 남의 주소로 먼저 가입해 둔 사람이 있으면 OAuth로 로그인한 진짜 주인이 그 사람의 비밀번호와
+                        # 세션이 그대로 살아 있는 계정에 들어가게 된다 (계정 선점). 이미 연동된 계정(위의 provider·id
+                        # 조회)은 예전과 같다.
                         raise OAuthPasswordAccountConflict(str(existing_user["id"]))
+                    # 비밀번호 없는 계정에 이메일이 같다는 이유로 붙이려면 두 쪽 모두 확인된 주소여야 한다:
+                    # - 이번 제공자가 이메일을 인증했다 (email_verified, Naver는 항상 False).
+                    # - 그 계정의 이메일이 인증된 제공자(Google·Kakao) 연동의 이메일과 같다. Naver로 만든 계정의 이메일은 Naver가
+                    #   인증하지 않은, 사용자가 바꿀 수 있는 주소라 그 계정에는 다른 제공자를 붙이지 않는다 (붙이면 남의 주소로
+                    #   Naver 계정을 만들어 둔 사람의 계정에 진짜 주인이 들어간다).
+                    # Google만 있던 때에는 비밀번호 없는 계정이 모두 Google 연동 계정이었으므로 Google의 동작은 같다.
+                    cur.execute(
+                        "SELECT EXISTS (SELECT 1 FROM oauth_accounts WHERE user_id = %s AND provider = ANY(%s)"
+                        " AND lower(email) = lower(%s)) AS attested",
+                        (existing_user["id"], list(EMAIL_VERIFYING_OAUTH_PROVIDERS), existing_user["email"]),
+                    )
+                    if email_verified is not True or not cur.fetchone()["attested"]:
+                        raise OAuthUnverifiedLinkConflict(str(existing_user["id"]))
                     cur.execute(
                         """
                         INSERT INTO oauth_accounts (user_id, provider, provider_user_id, email, created_at, updated_at)

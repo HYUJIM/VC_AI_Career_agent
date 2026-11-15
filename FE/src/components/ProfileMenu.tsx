@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getMe } from '@/api/auth';
 import { IssuerAvatar } from '@/components/IssuerAvatar';
+import { OAuthProviderBadges } from '@/components/OAuthProviderBadges';
 import { useCopy } from '@/lib/useCopy';
 import type { UserProfile } from '@/types/api';
 
@@ -17,7 +18,6 @@ export function ProfileMenu({ user, onLogout }: { user: UserProfile; onLogout: (
     enabled: open,
     retry: false,
   });
-  const googleLinked = Boolean(me?.oauth_providers?.includes('google'));
 
   useEffect(() => {
     if (!open) return;
@@ -62,11 +62,7 @@ export function ProfileMenu({ user, onLogout }: { user: UserProfile; onLogout: (
           <div className="px-3 py-2">
             <div className="flex items-center justify-between gap-2">
               <p className="truncate text-[15px] font-bold">{user.name}</p>
-              {googleLinked && (
-                <span className="shrink-0 rounded-md bg-[var(--color-primary-weak)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--color-primary)]">
-                  Google 연동됨
-                </span>
-              )}
+              <OAuthProviderBadges providers={me?.oauth_providers} className="shrink-0 justify-end" />
             </div>
             <p className="truncate text-[13px] text-[var(--color-text-muted)]">{user.email}</p>
             <p className="font-mono-did mt-1 truncate text-[12px] text-[var(--color-text-muted)]">{user.did}</p>

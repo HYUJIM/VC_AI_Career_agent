@@ -1,11 +1,9 @@
 import { completeOAuthLogin, getOAuthAuthorization } from '@/api/auth';
+import { isOAuthProviderId, OAUTH_PROVIDERS } from '@/lib/oauthProviders';
 import type { AuthResponse, OAuthProviderId } from '@/types/api';
 
 /** OAuth 인가 요청을 시작한 브라우저 탭에만 잠깐 보관하는 키 (탭을 닫으면 사라지는 sessionStorage 사용) */
 const OAUTH_SESSION_KEY = 'vc-ai-career-agent-oauth-tx';
-
-/** Google 콜백 경로 (BE 기본값 GOOGLE_REDIRECT_URI = http://localhost:5173/auth/google/callback 과 맞춤) */
-export const GOOGLE_CALLBACK_PATH = '/auth/google/callback';
 
 /** BE state 기본 유효기간(10분)과 맞춘 로컬 트랜잭션 최대 보관 시간 */
 const DEFAULT_EXPIRES_IN_SECONDS = 600;
@@ -15,9 +13,6 @@ const PKCE_VERIFIER_BYTES = 32;
 
 /** 콜백 쿼리 파라미터(code, state, error) 최대 허용 길이 (비정상 대용량 쿼리 재전송 방지) */
 const MAX_OAUTH_PARAM_LENGTH = 2048;
-
-/** 허용된 Google 인가 엔드포인트 호스트 (open redirect·javascript: 스킴 방지) */
-const ALLOWED_GOOGLE_AUTH_HOSTS: ReadonlySet<string> = new Set(['accounts.google.com']);
 
 interface StoredOAuthTransaction {
   provider: OAuthProviderId;
@@ -65,23 +60,23 @@ async function createPkcePair(): Promise<{ codeVerifier: string; codeChallenge: 
   return { codeVerifier, codeChallenge };
 }
 
-/** 현재 접속 출처(origin) 기준 Google OAuth 콜백 전체 주소를 돌려준다. */
-export function getGoogleRedirectUri(): string {
-  return `${window.location.origin}${GOOGLE_CALLBACK_PATH}`;
+/** 현재 접속 출처(origin) 기준 제공자별 OAuth 콜백 전체 주소를 돌려준다. */
+export function getOAuthRedirectUri(provider: OAuthProviderId): string {
+  return `${window.location.origin}${OAUTH_PROVIDERS[provider].callbackPath}`;
 }
 
 /**
- * BE가 돌려준 authorization_url 이 안전한 Google https 주소인지 확인한다.
- * javascript:/data: 스킴이나 예상치 못한 호스트로의 오픈 리다이렉트를 막는다.
+ * BE가 돌려준 authorization_url 이 그 제공자의 안전한 https 인가 주소인지 확인한다.
+ * javascript:/data: 스킴이나 예상치 못한 호스트(다른 제공자 포함)로의 오픈 리다이렉트를 막는다.
  */
-function assertSafeAuthorizationUrl(rawUrl: string): string {
+function assertSafeAuthorizationUrl(rawUrl: string, allowedHosts: ReadonlySet<string>): string {
   let parsed: URL;
   try {
     parsed = new URL(rawUrl);
   } catch {
     throw new Error('소셜 로그인 이동 주소가 올바르지 않습니다.');
   }
-  if (parsed.protocol !== 'https:' || !ALLOWED_GOOGLE_AUTH_HOSTS.has(parsed.hostname)) {
+  if (parsed.protocol !== 'https:' || !allowedHosts.has(parsed.hostname)) {
     throw new Error('허용되지 않은 소셜 로그인 이동 주소입니다.');
   }
   return parsed.toString();
@@ -102,7 +97,7 @@ function consumeTransaction(): StoredOAuthTransaction | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<StoredOAuthTransaction>;
     if (
-      parsed.provider !== 'google' ||
+      !isOAuthProviderId(parsed.provider) ||
       typeof parsed.state !== 'string' ||
       !parsed.state ||
       typeof parsed.codeVerifier !== 'string' ||
@@ -120,28 +115,29 @@ function consumeTransaction(): StoredOAuthTransaction | null {
 }
 
 /**
- * Google OAuth 2.0 로그인을 시작한다.
+ * 소셜 로그인(Google·카카오·네이버 OAuth 2.0)을 시작한다.
  * 1) PKCE(S256) verifier/challenge 생성
- * 2) BE `/v1/users/oauth/google/authorize`에서 서명된 state + authorization_url 수령
- * 3) sessionStorage에 state·codeVerifier·redirectUri 보관 (콜백에서 로그인 CSRF 검증에 사용)
- * 4) Google 인증 화면으로 이동
+ *    (네이버는 PKCE를 쓰지 않는다: BE가 code_challenge·code_verifier를 네이버에 보내지 않으므로 요청 형식만 같게 둔다)
+ * 2) BE `/v1/users/oauth/{provider}/authorize`에서 서명된 state + authorization_url 수령
+ * 3) sessionStorage에 provider·state·codeVerifier·redirectUri 보관 (콜백에서 로그인 CSRF 검증에 사용)
+ * 4) 제공자 인증 화면으로 이동 (그 제공자의 https 인가 호스트만 허용)
  */
-export async function startGoogleOAuth(): Promise<void> {
+export async function startOAuth(provider: OAuthProviderId): Promise<void> {
   const { codeVerifier, codeChallenge } = await createPkcePair();
-  const redirectUri = getGoogleRedirectUri();
-  const res = await getOAuthAuthorization('google', { redirectUri, codeChallenge });
+  const redirectUri = getOAuthRedirectUri(provider);
+  const res = await getOAuthAuthorization(provider, { redirectUri, codeChallenge });
   const state = typeof res.state === 'string' ? res.state.trim() : '';
   if (!state || state.length > MAX_OAUTH_PARAM_LENGTH) {
     throw new Error('소셜 로그인 상태값(state)이 올바르지 않습니다.');
   }
-  const targetUrl = assertSafeAuthorizationUrl(res.authorization_url);
+  const targetUrl = assertSafeAuthorizationUrl(res.authorization_url, OAUTH_PROVIDERS[provider].allowedAuthHosts);
   const ttlSeconds =
     typeof res.expires_in === 'number' && Number.isFinite(res.expires_in) && res.expires_in > 0
       ? res.expires_in
       : DEFAULT_EXPIRES_IN_SECONDS;
 
   saveTransaction({
-    provider: 'google',
+    provider,
     state,
     codeVerifier,
     redirectUri,
@@ -154,24 +150,29 @@ export async function startGoogleOAuth(): Promise<void> {
 /**
  * React 19 StrictMode 개발 환경에서는 마운트 직후 이펙트가 두 번 실행된다.
  * 일회성 OAuth 인가 코드(code)와 sessionStorage 트랜잭션이 두 번째 실행에서 실패하지 않도록
- * 같은 콜백(code + state)에 대한 진행 중/완료된 요청 Promise를 메모리에 캐시한다.
+ * 같은 콜백(provider + code + state)에 대한 진행 중/완료된 요청 Promise를 메모리에 캐시한다.
  */
 const inflightCallbacks = new Map<string, Promise<AuthResponse>>();
 
 /**
- * Google이 리다이렉트한 콜백 쿼리(`code`, `state`, `error`)를 검증하고 BE와 코드를 교환한다.
+ * 제공자가 리다이렉트한 콜백 쿼리(`code`, `state`, `error`)를 검증하고 BE와 코드를 교환한다.
+ * 이 탭에서 같은 제공자로 시작한 로그인(sessionStorage 트랜잭션)과 provider·state 가 모두 맞아야 한다.
  */
-export function finishGoogleOAuthCallback(searchParams: URLSearchParams): Promise<AuthResponse> {
+export function finishOAuthCallback(
+  provider: OAuthProviderId,
+  searchParams: URLSearchParams,
+): Promise<AuthResponse> {
+  const { label } = OAUTH_PROVIDERS[provider];
   const errorParam = searchParams.get('error')?.trim();
   if (errorParam) {
     consumeTransaction();
     if (errorParam === 'access_denied') {
       return Promise.reject(
-        new OAuthCallbackClientError('provider_denied', 'Google 로그인이 취소되었습니다. 다시 시도해주세요.'),
+        new OAuthCallbackClientError('provider_denied', `${label} 로그인이 취소되었습니다. 다시 시도해주세요.`),
       );
     }
     return Promise.reject(
-      new OAuthCallbackClientError('provider_denied', 'Google 인증을 완료하지 못했습니다. 다시 시도해주세요.'),
+      new OAuthCallbackClientError('provider_denied', `${label} 인증을 완료하지 못했습니다. 다시 시도해주세요.`),
     );
   }
 
@@ -187,12 +188,12 @@ export function finishGoogleOAuthCallback(searchParams: URLSearchParams): Promis
     );
   }
 
-  const cacheKey = `google:${state}:${code}`;
+  const cacheKey = `${provider}:${state}:${code}`;
   const existing = inflightCallbacks.get(cacheKey);
   if (existing) return existing;
 
   const tx = consumeTransaction();
-  if (!tx || tx.provider !== 'google' || tx.state !== state) {
+  if (!tx || tx.provider !== provider || tx.state !== state) {
     return Promise.reject(
       new OAuthCallbackClientError(
         'state_mismatch',
@@ -210,7 +211,7 @@ export function finishGoogleOAuthCallback(searchParams: URLSearchParams): Promis
     );
   }
 
-  const promise = completeOAuthLogin('google', {
+  const promise = completeOAuthLogin(provider, {
     code,
     state,
     redirect_uri: tx.redirectUri,

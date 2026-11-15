@@ -42,9 +42,8 @@ PUBLIC_ROUTES = {
     ("GET", "/health"),
     ("POST", REGISTER),
     ("POST", LOGIN),
-    ("GET", "/api/v1/users/oauth/google/authorize"),
-    ("GET", "/api/v1/users/oauth/google/callback"),
-    ("POST", "/api/v1/users/oauth/google/callback"),
+    *((method, f"/api/v1/users/oauth/{provider}/{action}") for provider in ("google", "kakao", "naver")
+      for method, action in (("GET", "authorize"), ("GET", "callback"), ("POST", "callback"))),
     ("GET", "/api/v1/public/shares/{token}"),
 }
 DOCS_PATHS = {"/openapi.json", "/docs", "/docs/oauth2-redirect", "/redoc"}  # FastAPI 문서 화면

@@ -19,9 +19,9 @@ BE(FastAPI, `../BE`)가 제공하는 REST API를 소비하는 **SPA(Single Page 
 ```
 src/
 ├── api/            # BE 엔드포인트별 호출 함수 (auth.ts, credentials.ts, career.ts, market.ts, portfolios.ts, shares.ts)
-├── components/     # 공통 UI (Layout, ProtectedRoute, RouteErrorBoundary, StatusBadge, VerificationChecks, MarketTrendsCard, charts/*, dashboard/*, portfolio/*, ui/*)
-├── lib/            # axios 인스턴스, 에러 파싱, PKCE·OAuth 상태 검증, 클립보드, 개발용 미리보기 데이터 등 공용 유틸
-├── pages/          # 라우트 단위 페이지 (Login, Register, GoogleCallback, Dashboard, IssueCredential, CareerPlan, PortfolioBuilder, SharedView)
+├── components/     # 공통 UI (Layout, ProtectedRoute, RouteErrorBoundary, StatusBadge, VerificationChecks, MarketTrendsCard, SocialLoginButton, OAuthProviderBadges, charts/*, dashboard/*, portfolio/*, ui/*)
+├── lib/            # axios 인스턴스, 에러 파싱, 소셜 로그인(oauth.ts: PKCE·state 검증, oauthProviders.ts: 제공자별 이름·콜백 경로·허용 인가 호스트), 클립보드, 개발용 미리보기 데이터 등 공용 유틸
+├── pages/          # 라우트 단위 페이지 (Login, Register, OAuthCallback, Dashboard, IssueCredential, CareerPlan, PortfolioBuilder, SharedView)
 ├── store/          # Zustand 전역 상태 (authStore)
 └── types/          # BE 응답 타입 정의 (api.ts, career.ts, market.ts)
 ```
@@ -68,13 +68,13 @@ npm run dev
 | `/career` | 직무 비교·커리큘럼: 공고 선택 → 실행 시점 재검증 후 AI 비교 → 학습 계획 (로그인 토큰 필요, BE·AI 서버 필요). 위쪽 "직무별 요구 역량 통계" 카드는 BE DB에 통계가 있을 때만 보임 | `GET /api/v1/job-postings`, `GET /api/v1/skills`, `POST /api/v1/career-analyses`, `POST /api/v1/curricula`, `GET /api/v1/market/snapshots`, `GET /api/v1/market/snapshots/{role_id}` |
 | `/portfolio` | AI 포트폴리오 빌더 — 대화(AI 연동 전 모의 응답) + **검증 후 저장(VC_ONLY)** + 저장 목록 + **선택 공개 링크** | `GET /api/v1/subjects/{did}/careers`, `/api/v1/portfolios`, `/api/v1/shares` |
 | `/share/:token` | 기업용 조회 (로그인 불필요, 열 때마다 재검증, 서명 원본 제공) | `GET /api/v1/public/shares/{token}` |
-| `/auth/google/callback` | Google OAuth 2.0 콜백 처리 (state·PKCE S256 검증 후 코드 교환) | `GET /api/v1/users/oauth/google/authorize`, `POST /api/v1/users/oauth/google/callback` |
+| `/auth/google/callback`, `/auth/kakao/callback`, `/auth/naver/callback` | 소셜 로그인(Google·카카오·네이버 OAuth 2.0) 콜백 처리 (state·PKCE S256 검증 후 코드 교환. 세 경로 모두 `pages/OAuthCallbackPage.tsx`) | `GET /api/v1/users/oauth/{provider}/authorize`, `POST /api/v1/users/oauth/{provider}/callback` (`provider` = `google`·`kakao`·`naver`) |
 
 API 계약은 `BE/openapi.yaml`(v0.8.0)을 기준으로 합니다.
 
 - **로그인 토큰:** 로그인·가입·소셜 로그인 응답의 `access_token`을 저장하고 공개 API를 제외한 모든 요청에 `Authorization: Bearer` 헤더로 붙입니다 (`lib/apiClient.ts`). 공개 엔드포인트 이외의 요청에 BE가 401(토큰 만료·무효, 토큰 없는 이전 세션)을 반환하면 응답 인터셉터가 자동으로 로그아웃하고 로그인 화면에 "로그인 시간이 만료되었습니다" 배너를 띄웁니다. 응답의 `expires_in`으로 만료 시각을 저장해 두고, 그 시각이 지나면 요청이 없어도 같은 배너와 함께 로그아웃합니다(만료된 세션으로 앱을 열면 첫 화면 전에 로그아웃).
 - **로그아웃:** 화면에서 로그아웃하면 BE `POST /api/v1/users/logout`(응답을 기다리지 않음. 이 요청이 실패하면 서버의 토큰은 만료 시각까지 유효)으로 이 계정의 토큰을 서버에서도 무효로 하고, 같은 브라우저의 다른 탭도 바로 로그아웃됩니다("로그아웃되었습니다" 배너). 다른 브라우저·기기의 같은 계정은 다음 요청에서 401을 받아 로그아웃됩니다. 한 탭에서 로그인하면, 다른 계정으로 로그인돼 있던 탭은 새 계정으로 새로고침되고 로그아웃돼 로그인·회원가입 화면(주소의 대소문자·끝의 `/`·%인코딩과 관계없이, 예: `/login/`·`/LOGIN`·`/%6Cogin`)에 있던 탭은 새 계정의 대시보드로 이동합니다(같은 계정으로 다시 로그인하면 다른 탭은 화면을 그대로 두고 새 토큰만 씁니다). 로그인한 사용자가 바뀌면(로그아웃·만료·다른 계정 로그인) 그 탭의 조회 캐시(TanStack Query)를 모두 비워, 같은 탭에서 이어서 로그인한 사람에게 이전 사용자의 포트폴리오·공유 링크가 보이지 않게 합니다(`main.tsx`).
-- **Google OAuth 2.0 소셜 로그인 (PKCE S256 + state 검증):** 로그인·회원가입 화면에서 "Google로 계속하기"를 누르면 PKCE `code_verifier`/`code_challenge(S256)`를 생성하고 `GET /api/v1/users/oauth/google/authorize`로 서명된 `state`와 인가 URL을 받아 `sessionStorage`에 저장한 뒤 Google 인증 화면으로 이동합니다. 콜백(`/auth/google/callback`)에서는 저장된 `state`와 일치하는지 먼저 검증(로그인 CSRF 방지)하고 주소창에서 `code`/`state` 쿼리를 즉시 지운 뒤 `POST /api/v1/users/oauth/google/callback`으로 코드를 교환합니다. FE가 BE에 보내는 콜백 주소는 브라우저의 출처 + `/auth/google/callback`이므로, BE `GOOGLE_REDIRECT_URI`(운영은 `https://<FE 도메인>/auth/google/callback`)와 Google Cloud Console의 승인된 리디렉션 URI가 이 주소와 같아야 합니다(다르면 400 `Invalid redirect_uri` → "허용되지 않은 로그인 경로입니다…"). 같은 이메일로 이미 이메일·비밀번호 가입을 한 사용자는 Google로 로그인할 수 없고(409) 이메일과 비밀번호로 로그인합니다.
+- **소셜 로그인 (Google·카카오·네이버 OAuth 2.0, PKCE S256 + state 검증):** 로그인·회원가입 화면의 "또는" 구분선 아래에 버튼 세 개가 있습니다(`components/SocialLoginButton.tsx`의 `SocialLoginButtons`. Google은 예전 버튼 그대로이고 회원가입 화면 문구는 "Google로 가입·시작하기", 카카오는 "카카오 로그인"(배경 `#FEE500`, 검정 말풍선 심볼, 글자 `rgba(0,0,0,0.85)`, 모서리 12px), 네이버는 "네이버 로그인"(배경 `#03A94D`, 흰색 N 로고·글자). 심볼은 인라인 SVG이고 외부 이미지를 쓰지 않습니다. 한 버튼이 시작하는 동안 그 버튼은 "처리 중...", 나머지는 잠김). 버튼을 누르면 PKCE `code_verifier`/`code_challenge(S256)`를 생성하고 `GET /api/v1/users/oauth/{provider}/authorize`로 서명된 `state`와 인가 URL을 받아 `sessionStorage`에 제공자·`state`·`code_verifier`를 저장한 뒤 제공자 인증 화면으로 이동합니다(`lib/oauth.ts`의 `startOAuth(provider)`). 인가 URL은 `https://`이고 호스트가 그 제공자의 것(`accounts.google.com`·`kauth.kakao.com`·`nid.naver.com`, `lib/oauthProviders.ts`)일 때만 따라갑니다(다른 제공자의 호스트도 거절). PKCE 값은 세 제공자 모두에 보내고, 네이버는 BE가 제공자에게 싣지 않습니다. 콜백(`/auth/{provider}/callback`)에서는 저장된 제공자·`state`와 일치하는지 먼저 검증(로그인 CSRF 방지)하고 주소창에서 `code`/`state` 쿼리를 즉시 지운 뒤 `POST /api/v1/users/oauth/{provider}/callback`으로 코드를 교환합니다(`finishOAuthCallback(provider, …)`, StrictMode에서도 요청은 한 번). FE가 BE에 보내는 콜백 주소는 브라우저의 출처 + `/auth/{provider}/callback`이므로, BE `GOOGLE_REDIRECT_URI`·`KAKAO_REDIRECT_URI`·`NAVER_REDIRECT_URI`(운영은 `https://<FE 도메인>/auth/{provider}/callback`)와 각 제공자 콘솔에 등록한 주소가 이 주소와 같아야 합니다(다르면 400 `Invalid redirect_uri` → "허용되지 않은 로그인 경로입니다…"). 같은 이메일로 이미 이메일·비밀번호 가입을 한 사용자는 소셜 로그인으로 로그인할 수 없고(409) 이메일과 비밀번호로 로그인합니다. BE는 Google·카카오가 인증한 이메일로만 같은 이메일의 기존 계정에 연동하므로, 네이버 로그인이나 네이버로 만든 계정에는 다른 방법이 붙지 않습니다(409, 아래 표). 로그인 뒤 프로필 메뉴와 대시보드 프로필 카드에는 `GET /api/v1/users/me`의 `oauth_providers`마다 배지("Google 연동됨"·"카카오 연동됨"·"네이버 연동됨", `components/OAuthProviderBadges.tsx`)가 보이고, 기존 계정에 연동된 로그인이면 대시보드에 "기존 계정에 <제공자> 계정이 연동되어 로그인되었습니다." 배너가 나옵니다.
 - **직무 비교 화면은 미리보기 세션에서 동작하지 않습니다.** 실제 자격증명 재검증과 AI 서버가 필요합니다.
 
 - **협력사 자료 취급:** 템플릿 ID·API 주소 등 협력사에서 받은 값은 FE 코드에 넣지 않습니다. 발급 화면의 Template ID는 비워두면 BE 서버 설정의 기본 템플릿을 씁니다.
@@ -135,12 +135,15 @@ API 계약은 `BE/openapi.yaml`(v0.8.0)을 기준으로 합니다.
 | 선택 공개 | 링크 생성 | 201 | 링크 주소(한 번만 표시) + 복사 버튼, 목록에 열람 수·만료일·철회 버튼 |
 | 기업용 조회 | 없는·철회·만료 링크 | 404 | "열 수 없는 링크입니다" |
 | 전 화면 | BE 서버 미실행 | 연결 실패 (vite 프록시 502) | "서버에 연결할 수 없습니다" (+ 조회 화면은 다시 시도) |
-| 로그인·회원가입·Google 콜백 | 200이지만 인증 응답이 아닌 본문 (`/api/*` 가 `index.html` 로 넘어가는 배포 설정, 이름·DID·토큰이 없는 응답 등) | 200 | "서버 응답이 올바르지 않습니다." (세션을 저장하지 않음) |
+| 로그인·회원가입·소셜 로그인 콜백 | 200이지만 인증 응답이 아닌 본문 (`/api/*` 가 `index.html` 로 넘어가는 배포 설정, 이름·DID·토큰이 없는 응답 등) | 200 | "서버 응답이 올바르지 않습니다." (세션을 저장하지 않음) |
 | 전 화면 | 저장된 세션이 로그인 상태인데 프로필이 올바르지 않음 (`id`·`did`·`name` 이 빈 문자열이 아닌 문자열, `email` 이 문자열이어야 함) | - | 저장된 세션을 쓰지 않고 로그인 화면으로 (빈 화면 대신. `store/authStore.ts` 의 `isUserProfile`) |
-| Google 콜백 | 같은 이메일이 이미 이메일·비밀번호 계정으로 가입돼 있음 (BE는 그 계정에 Google 계정을 붙이지 않음) | 409 `This email is registered with a password. …` | "이 이메일은 Google로 로그인할 수 없습니다" + "이미 이메일·비밀번호로 가입된 계정입니다. 이메일과 비밀번호로 로그인해주세요." |
-| Google 콜백 | Google 쪽 응답 실패 | 502 `Google OAuth error` | "Google 로그인을 완료할 수 없습니다" + "Google 로그인 서비스에 일시적인 문제가 있습니다." |
-| 로그인·회원가입 (Google 버튼) | BE에 Google 설정 없음 / BE가 허용하지 않은 콜백 주소 | 503 `Google OAuth is not configured` / 400 `Invalid redirect_uri` | "Google 로그인을 시작할 수 없습니다" + "Google 로그인을 지금 사용할 수 없습니다." / "허용되지 않은 로그인 경로입니다. 관리자에게 문의해주세요." (개발 서버는 `GOOGLE_*` 설정 안내) |
-| Google 버튼 · Google 콜백 | Google 토큰 교환 한도(BE 태스크마다 분당 300번) 또는 운영 WAF의 IP별 속도 제한 | 429 | "요청이 너무 많습니다." / "로그인 시도가 너무 많습니다." + "보안을 위해 잠시 동안 요청이 제한되었습니다. 잠시 후 다시 시도해주세요." |
+| 소셜 로그인 콜백 | 같은 이메일이 이미 이메일·비밀번호 계정으로 가입돼 있음 (BE는 그 계정에 소셜 계정을 붙이지 않음) | 409 `This email is registered with a password. …` | "이 이메일은 <제공자>로 로그인할 수 없습니다." + "이미 이메일·비밀번호로 가입된 계정입니다. 이메일과 비밀번호로 로그인해주세요." |
+| 소셜 로그인 콜백 | 같은 이메일이 이미 다른 방법으로 가입돼 있는데 이메일이 양쪽에서 확인되지 않음 (네이버 로그인, 또는 네이버로 만든 계정) | 409 `This email is already used by another sign-in method. …` | "이 이메일은 <제공자>로 로그인할 수 없습니다." + "이미 다른 방법(이메일 또는 다른 소셜 로그인)으로 가입한 이메일입니다. 처음 가입한 방법으로 로그인해주세요." |
+| 소셜 로그인 콜백 | 이 이메일 계정에 같은 제공자의 다른 계정이 이미 연동돼 있음 | 409 `User is already linked to another account for this provider` | "다른 <제공자> 계정이 이미 연동되어 있습니다." + "이 이메일 계정에는 이미 다른 <제공자> 계정이 연동되어 있습니다. 연동된 <제공자> 계정으로 로그인해주세요." |
+| 소셜 로그인 콜백 | 제공자가 이메일을 주지 않음 (이메일 제공 동의 거절, 카카오 앱에 이메일 동의 항목 없음 등) / 제공자가 이메일을 인증하지 않음 (Google·카카오) | 400 `OAuth email is required` / 400 `OAuth email is not verified` | "이메일 제공 동의가 필요합니다." + "<제공자> 계정의 이메일 제공에 동의해야 로그인할 수 있어요. 동의 항목을 확인한 뒤 다시 시도해주세요." / "<제공자> 로그인을 완료할 수 없습니다." + "<제공자> 계정의 이메일이 인증되지 않아 로그인할 수 없습니다." |
+| 소셜 로그인 콜백 | 사용자가 제공자 화면에서 취소 / 다른 탭·제공자의 `state` / 제공자 쪽 응답 실패 | `?error=access_denied` / (BE 호출 없음) / 502 `Google OAuth error`·`Kakao OAuth error`·`Naver OAuth error` | "<제공자> 로그인이 취소되었습니다." / "<제공자> 로그인을 완료할 수 없습니다." + 사유 / "<제공자> 로그인을 완료할 수 없습니다" + "<제공자> 로그인 서비스에 일시적인 문제가 있습니다." (모든 실패 화면에 "<제공자>로 다시 시도" 버튼) |
+| 로그인·회원가입 (소셜 로그인 버튼) | BE에 그 제공자 설정 없음 / BE가 허용하지 않은 콜백 주소 / 허용하지 않은 인가 주소 | 503 `Google OAuth is not configured`·`Kakao OAuth is not configured`·`Naver OAuth is not configured` / 400 `Invalid redirect_uri` / (BE 응답의 `authorization_url`이 그 제공자의 `https://` 호스트가 아님) | "<제공자> 로그인을 시작할 수 없습니다." + "<제공자> 로그인을 지금 사용할 수 없습니다." / "허용되지 않은 로그인 경로입니다. 관리자에게 문의해주세요." / "허용되지 않은 소셜 로그인 이동 주소입니다." (개발 서버는 `GOOGLE_*`·`KAKAO_*`·`NAVER_*` 설정 안내) |
+| 소셜 로그인 버튼 · 콜백 | 그 제공자의 토큰 교환 한도(BE 태스크마다 제공자별 분당 300번) 또는 운영 WAF의 IP별 속도 제한 | 429 | "요청이 너무 많습니다." / "로그인 시도가 너무 많습니다." + "보안을 위해 잠시 동안 요청이 제한되었습니다. 잠시 후 다시 시도해주세요." |
 | 전 화면 | 서버 혼잡: DB 연결 한도 / 검증 호출 한도 / AI 동시 호출 한도 | 503 `Service is busy. …` / 429 `Too many verification requests. …` / 503 `code: AI_SERVICE_BUSY` | "요청이 많아 처리가 지연되고 있습니다. …" / "검증 요청이 너무 많습니다. …" / "분석 요청이 많습니다. …" (모두 "잠시 후 다시 시도해주세요."로 끝나며 같은 안내를 덧붙이지 않음) |
 | 지갑 (일괄 재검증) | 한 항목이 연결 실패·5xx·429로 실패 | 응답 없음 / 5xx / 429 | 그 항목은 "오류", 남은 항목은 보내지 않고 "미실행"으로 표시 + 제목 "자격증명 일괄 재검증 중단" + "재검증을 중단했습니다. 나머지 N건은 실행하지 않았어요." (마지막·하나뿐인 항목에서 실패하면 남은 항목 없이 "재검증을 중단했습니다."만. 404 등 그 항목만의 오류는 계속 진행) |
 | 지갑 (일괄 재검증) | 검증 서버가 한 자격증명만 확인하지 못함 / 200이지만 재검증 응답이 아닌 본문 | 200 + `success:false`, `message: Re-verification failed: verifier_error` / 200 | 그 항목은 "실패" + "검증 서버가 확인하지 못함 (지갑 상태는 그대로)" / "오류" + "서버 응답이 올바르지 않습니다." 둘 다 다음 항목을 계속 진행. "N건의 자격증명이 '확인 필요' 탭으로 이동했습니다." 안내는 검증 결과로 상태가 정해진 실패만 셈 (요청 오류·검증 서버가 확인하지 못한 항목은 세지 않음) |
@@ -148,13 +151,13 @@ API 계약은 `BE/openapi.yaml`(v0.8.0)을 기준으로 합니다.
 | 조회 화면 전체 (지갑·포트폴리오·공유 링크·직무 비교·통계·기업용 조회) | BE 응답 없음 (연결 실패) / BE가 답한 오류(혼잡 503·429·404, 본문 없는 5xx 등) | - / 4xx·5xx | 1초 뒤 한 번 자동으로 다시 시도 / 자동 재시도 없이 바로 안내 + 오류 안내의 "다시 시도" 버튼(그 조회만 다시 부름. 그 조회를 다시 부르는 동안에는 버튼이 잠겨 여러 번 눌러도 요청은 한 번). 오류를 화면에 보여 주는 조회에는 모두 이 버튼이 있음: 자격증명 목록(지갑·포트폴리오 만들기), 포트폴리오 목록·상세, 공유 링크 목록, 공고 목록, 직무별 통계 목록·상세, 기업용 조회. 버튼 대신 다른 안내가 나오는 것은 자격증명 목록 403·404("다시 로그인")와 기업용 조회 404("열 수 없는 링크입니다")뿐이고, 다시 불러도 같은 오류(직무별 통계 404·409, 포트폴리오 상세 404 등)에도 버튼이 나옴. 401은 자동 로그아웃되어 로그인 화면으로 감. 오류를 보여 주지 않는 조회(기술 이름 `GET /skills`, 프로필 `GET /users/me`)는 그 화면·메뉴를 다시 열 때 다시 부름. `main.tsx` 의 조회 기본값이고, `retry: false` 로 둔 조회(`GET /users/me`)는 자동으로 다시 시도하지 않음 |
 | 전 화면 | 화면을 그리는 중 예외 (FE가 모르는 응답 값 등) | - | 그 화면 자리에 "화면을 표시하는 중 오류가 발생했습니다" + 새로고침 버튼 (머리글·메뉴·로그아웃은 유지, 다른 화면으로 옮기면 풀림. `components/RouteErrorBoundary.tsx`) |
 
-> 서버 주소(`localhost:3000`)·서버 설정 이름(`DXWORKS_*`, `AI_SERVICE_*`, `GOOGLE_*`, `ai_contract`)·"BE 서버 로그 확인" 같은 운영자용 안내는
+> 서버 주소(`localhost:3000`)·서버 설정 이름(`DXWORKS_*`, `AI_SERVICE_*`, `GOOGLE_*`, `KAKAO_*`, `NAVER_*`, `ai_contract`)·"BE 서버 로그 확인" 같은 운영자용 안내는
 > 개발 서버(`npm run dev`)에서만 보입니다(`import.meta.env.DEV` 분기). 운영 빌드(`npm run build`)에서는 번들에서 빠지고
 > "잠시 후 다시 시도해주세요. 문제가 계속되면 관리자에게 문의해주세요."로 바뀌며, 번역되지 않은 5xx 본문은
 > "서버에서 일시적인 오류가 발생했습니다."로 보여 줍니다. 번역표에 없는 429(운영 WAF·로드밸런서·API 게이트웨이가 보낸 HTML·
 > `{"message": …}`·빈 본문 등)는 개발·운영 빌드 모두 "시도가 너무 많습니다. 잠시 후 다시 시도해주세요."로 보여 주고(`getApiErrorMessage`),
 > BE가 보낸 알려진 429 문구(모의 발급 한도 등)는 그 번역을 그대로 씁니다. 새 안내 문구는 `lib/apiClient.ts`의 `getConnectionHint()`·`RETRY_LATER_MESSAGE`와
-> `KNOWN_ERROR_MESSAGES`의 개발 전용 항목에 둡니다. CI FE 작업은 빌드 후 `dist`에 `localhost:3000`·`AI_SERVICE_TOKEN`·`AI_SERVICE_URL`·`DXWORKS_`·`GOOGLE_`·`ai_contract`가 있으면 실패합니다.
+> `KNOWN_ERROR_MESSAGES`의 개발 전용 항목에 둡니다. CI FE 작업은 빌드 후 `dist`에 `localhost:3000`·`AI_SERVICE_TOKEN`·`AI_SERVICE_URL`·`DXWORKS_`·`GOOGLE_`·`KAKAO_`·`NAVER_`·`ai_contract`가 있으면 실패합니다.
 >
 > 로그인·가입 응답의 사용자 정보(`did` 포함)와 `access_token`, 만료 시각(`expiresAt`)을 Zustand persist(localStorage 키 `vc-ai-career-agent-auth`)로
 > 저장해 로그인 상태를 유지하고, 같은 브라우저의 탭들은 이 값을 함께 따릅니다(`storage` 이벤트). 토큰이 유효한지는 BE가 판단하고(로그아웃한 토큰은 401),
@@ -181,6 +184,7 @@ API 계약은 `BE/openapi.yaml`(v0.8.0)을 기준으로 합니다.
 - [x] 포트폴리오 제목·직무 수정, 게시/초안 전환 (`PATCH /portfolios/{id}`, 저장 목록 → 상세 모달)
 - [x] BE JWT 인증(v0.4.0) 및 토큰 만료·다중 탭 로그아웃 연동
 - [x] Google OAuth 2.0 소셜 로그인 연동 (PKCE S256 + state 검증 + 계정 연동 상태 표시)
+- [x] 카카오·네이버 소셜 로그인 (Google 버튼을 바탕으로 한 공통 버튼 컨테이너, 제공자별 콜백 화면·연동 배지)
 - [ ] Figma 디자인 확정 후 MCP/플러그인 기반 컴포넌트 교체
 - [ ] 자동 테스트 도입 (지금은 테스트 러너가 없어 CI가 lint·타입 검사·빌드·`dist` 검사만 함)
 - [ ] 포트폴리오 화면의 대화를 실제 AI와 연동 (지금은 모의 응답)

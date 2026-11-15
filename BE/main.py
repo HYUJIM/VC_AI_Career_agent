@@ -57,11 +57,13 @@ MAX_DEFAULT_BODY_BYTES = 64 * 1024
 # - 배지·신원 검증(POST /api/v1/verify): 서명 원본이 MAX_TOKEN_CHARS(256 KiB)까지라 기본 상한에 그만큼을 더한다 (320 KiB).
 MAX_VERIFY_BODY_BYTES = verify.MAX_TOKEN_CHARS + MAX_DEFAULT_BODY_BYTES
 VERIFY_BODY_PATHS = frozenset({"/api/v1/verify"})
-# - 로그인 없이 부르는 가입·로그인·Google 콜백(POST): 토큰이 없어도 본문을 끝까지 읽고 검사하므로 정상 본문(6.4 KB 이하:
-#   이메일 255자, 비밀번호 72바이트, 인가 코드·state·redirect_uri 각 2,048자 이하)보다 넉넉한 16 KiB에서 끊는다.
+# - 로그인 없이 부르는 가입·로그인·OAuth 콜백(POST, Google·Kakao·Naver): 토큰이 없어도 본문을 끝까지 읽고 검사하므로
+#   정상 본문(6.4 KB 이하: 이메일 255자, 비밀번호 72바이트, 인가 코드·state·redirect_uri 각 2,048자 이하)보다 넉넉한
+#   16 KiB에서 끊는다.
 MAX_PUBLIC_AUTH_BODY_BYTES = 16 * 1024
 PUBLIC_AUTH_BODY_PATHS = frozenset({
     "/api/v1/users/login", "/api/v1/users/register", "/api/v1/users/oauth/google/callback",
+    "/api/v1/users/oauth/kakao/callback", "/api/v1/users/oauth/naver/callback",
 })
 # POST 경로 → 본문 상한. 여기에 없는 경로와 POST가 아닌 메서드는 기본 상한이다.
 _POST_BODY_LIMITS = {
@@ -82,19 +84,19 @@ MAX_VALIDATION_LOC_CHARS = 64
 
 # 접근 로그(uvicorn.access → stdout → CloudWatch)에 남기지 않는 경로 조각.
 # 공유 링크 토큰은 가진 사람 누구나 링크를 여는 비밀이라(DB에도 해시만 둔다) 그 뒤 경로를 모두 가리고, DID는 그 조각만 가린다.
-# Google 콜백의 쿼리(인가 코드·state·code_verifier)는 통째로 가린다: BE의 GET 콜백(개발용)뿐 아니라 BE로 잘못 들어온
-# FE 콜백 주소(/auth/google/callback?code=…)도 같은 모양이다.
+# OAuth 콜백(Google·Kakao·Naver)의 쿼리(인가 코드·state·code_verifier)는 통째로 가린다: BE의 GET 콜백(개발용)뿐 아니라
+# BE로 잘못 들어온 FE 콜백 주소(/auth/<제공자>/callback?code=…)도 같은 모양이다.
 _ACCESS_LOG_REDACTIONS = (
     (re.compile(r"(/public/+shares/)[^?\s]+", re.IGNORECASE), r"\1[redacted]"),
     (re.compile(r"(/subjects/+)[^/?\s]+", re.IGNORECASE), r"\1[did]"),
-    (re.compile(r"(/google/+callback/*\?)\S*", re.IGNORECASE), r"\1[redacted]"),
+    (re.compile(r"(/(?:google|kakao|naver)/+callback/*\?)\S*", re.IGNORECASE), r"\1[redacted]"),
 )
 
 
 def redact_path(path: str) -> str:
     """로그에 남길 경로에서 공유 링크 토큰은 [redacted], DID는 [did]로 바꾼다.
 
-    쿼리 문자열은 그대로 두되, Google 콜백(…/google/callback?…)의 쿼리만 [redacted]로 바꾼다.
+    쿼리 문자열은 그대로 두되, OAuth 콜백(…/google|kakao|naver/callback?…)의 쿼리만 [redacted]로 바꾼다.
     """
     for pattern, replacement in _ACCESS_LOG_REDACTIONS:
         path = pattern.sub(replacement, path)
@@ -102,7 +104,7 @@ def redact_path(path: str) -> str:
 
 
 class AccessLogRedactionFilter(logging.Filter):
-    """uvicorn 접근 로그 줄의 경로에서 공유 링크 토큰과 DID, Google 콜백의 쿼리를 가린다.
+    """uvicorn 접근 로그 줄의 경로에서 공유 링크 토큰과 DID, OAuth 콜백의 쿼리를 가린다.
 
     uvicorn은 앱을 import하기 전에 로깅을 설정하고(dictConfig는 로거의 필터를 지우지 않음), --reload·워커 프로세스도
     같은 순서라서 import 시점에 붙인 필터가 그대로 유지된다. 인자 순서가 바뀌어도 가리도록 모든 문자열 인자에 적용한다.
@@ -286,7 +288,7 @@ class _AsciiJSONResponse(JSONResponse):
 
 @app.exception_handler(RequestValidationError)
 async def validation_error_handler(_: Request, exc: RequestValidationError):
-    # FastAPI 기본 422는 오류마다 잘못된 입력값(input)을 통째로 되돌려 준다. 로그인 없이 부르는 가입·로그인·Google 콜백에
+    # FastAPI 기본 422는 오류마다 잘못된 입력값(input)을 통째로 되돌려 준다. 로그인 없이 부르는 가입·로그인·OAuth 콜백에
     # 큰 본문을 보내면 걸린 필드 수만큼 곱해진 응답(1.7 MiB → 3~4.5 MiB)을 만드느라 이벤트 루프가 멈추고 메모리가 몇 배로
     # 늘었다. 그래서 모든 422는 위치(loc)·사유(msg)·종류(type)만 싣는다 (input·ctx는 싣지 않는다. FE도 loc·msg만 읽는다).
     # - 오류는 앞에서부터 MAX_VALIDATION_ERRORS개만 싣는다: 모르는 키를 금지한 모델은 키마다 오류를 하나씩 낸다.
@@ -304,6 +306,8 @@ async def validation_error_handler(_: Request, exc: RequestValidationError):
 _PROVIDER_ERROR_DETAILS = {
     "credential": ("Credential service is not configured", "Credential service error"),
     "google_oauth": ("Google OAuth is not configured", "Google OAuth error"),
+    "kakao_oauth": ("Kakao OAuth is not configured", "Kakao OAuth error"),
+    "naver_oauth": ("Naver OAuth is not configured", "Naver OAuth error"),
 }
 
 
@@ -311,7 +315,7 @@ _PROVIDER_ERROR_DETAILS = {
 async def provider_error_handler(_: Request, exc: ProviderError):
     # 협력사 오류 코드·문구와 설정 이름은 운영 로그에만 남긴다 (message의 한 줄·길이 제한은 ProviderError가 한다).
     # 응답에는 고정 문구와 기계용 code만 싣는다. 상태 코드(설정 누락 등으로 호출할 수 없으면 503, 그 밖 502)는 그대로다.
-    # 문구만 서비스(exc.service)에 따라 고른다: Google 로그인 실패를 발급·검증 인프라 문구로 답하지 않는다.
+    # 문구만 서비스(exc.service)에 따라 고른다: Google·Kakao·Naver 로그인 실패를 발급·검증 인프라 문구로 답하지 않는다.
     logger.warning("Provider error: %s (upstream=%s)", exc.message, exc.upstream_status)
     not_configured, failed = _PROVIDER_ERROR_DETAILS.get(exc.service, _PROVIDER_ERROR_DETAILS["credential"])
     if exc.unavailable:

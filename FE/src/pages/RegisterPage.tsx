@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { registerUser } from '@/api/auth';
-import { GoogleOAuthButton } from '@/components/GoogleOAuthButton';
+import { SocialLoginButtons } from '@/components/SocialLoginButton';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -206,7 +206,8 @@ export function RegisterPage() {
             가입하기
           </Button>
         </form>
-        <GoogleOAuthButton disabled={mutation.isPending} label="Google로 가입·시작하기" />
+        {/* Google 은 가입 화면 문구, 카카오·네이버는 각 사 버튼 가이드의 기본 문구를 쓴다 */}
+        <SocialLoginButtons disabled={mutation.isPending} labels={{ google: 'Google로 가입·시작하기' }} />
         <p className="mt-5 text-center text-[15px] text-[var(--color-text-muted)]">
           이미 계정이 있으신가요?{' '}
           <Link to="/login" className="font-semibold text-[var(--color-primary)] hover:underline">
