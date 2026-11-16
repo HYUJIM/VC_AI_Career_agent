@@ -1,6 +1,17 @@
+# 이미지에는 Dockerfile의 COPY 목록(requirements.txt, src/)만 들어간다.
+# 그래도 빌드 컨텍스트에 비밀값·로컬 가상환경·테스트 자료·문서·캐시가 실리지 않게 뺀다 (**/는 하위 폴더까지).
+# data/(시장 통계 스냅샷)는 테스트(tests/career/test_market_statistics.py)만 읽고 AI 서버(src/)는 쓰지 않는다.
+**/.env
+**/.env.*
 .venv
-.env
-**/__pycache__
-.pytest_cache
-.ruff_cache
+.git
+.gitignore
 tests
+docs
+data
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+**/.DS_Store

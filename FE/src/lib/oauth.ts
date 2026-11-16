@@ -115,7 +115,7 @@ function consumeTransaction(): StoredOAuthTransaction | null {
 }
 
 /**
- * 소셜 로그인(Google·카카오·네이버 OAuth 2.0)을 시작한다.
+ * 소셜 로그인(Google·GitHub·네이버 OAuth 2.0)을 시작한다.
  * 1) PKCE(S256) verifier/challenge 생성
  *    (네이버는 PKCE를 쓰지 않는다: BE가 code_challenge·code_verifier를 네이버에 보내지 않으므로 요청 형식만 같게 둔다)
  * 2) BE `/v1/users/oauth/{provider}/authorize`에서 서명된 state + authorization_url 수령

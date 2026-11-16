@@ -1,4 +1,4 @@
-import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig, type Plugin } from 'vite'
@@ -26,7 +26,8 @@ export default defineConfig({
   plugins: [react(), tailwindcss(), ...(process.env.FIGMA_CAPTURE === '1' ? [figmaCaptureDevOnly] : [])],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      // ESM 설정 파일에는 __dirname이 없다 (vite가 경고한다). 이 파일 기준 ./src 의 절대 경로.
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
   server: {

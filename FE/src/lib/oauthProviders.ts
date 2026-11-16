@@ -20,10 +20,10 @@ export const OAUTH_PROVIDERS: Readonly<Record<OAuthProviderId, OAuthProviderConf
     callbackPath: '/auth/google/callback',
     allowedAuthHosts: new Set(['accounts.google.com']),
   },
-  kakao: {
-    label: '카카오',
-    callbackPath: '/auth/kakao/callback',
-    allowedAuthHosts: new Set(['kauth.kakao.com']),
+  github: {
+    label: 'GitHub',
+    callbackPath: '/auth/github/callback',
+    allowedAuthHosts: new Set(['github.com']),
   },
   naver: {
     label: '네이버',
@@ -33,7 +33,7 @@ export const OAUTH_PROVIDERS: Readonly<Record<OAuthProviderId, OAuthProviderConf
 };
 
 /** 로그인·회원가입 화면의 버튼 순서이자 연동 배지 순서 */
-export const OAUTH_PROVIDER_IDS: readonly OAuthProviderId[] = ['google', 'kakao', 'naver'];
+export const OAUTH_PROVIDER_IDS: readonly OAuthProviderId[] = ['google', 'github', 'naver'];
 
 /** 지원하는 제공자 이름인지 (sessionStorage·라우터 state·BE 응답처럼 형식을 믿을 수 없는 값을 거른다) */
 export function isOAuthProviderId(value: unknown): value is OAuthProviderId {

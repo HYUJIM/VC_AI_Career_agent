@@ -1,10 +1,10 @@
 """Google OAuth 2.0 어댑터 및 인증 API 통합 테스트 (MockTransport / FakeOAuthProvider + 실제 PostgreSQL).
 
 Google에는 한 번도 요청하지 않는다: 어댑터는 httpx.MockTransport로, API는 FakeGoogleOAuthProvider(또는 MockTransport를 단
-실제 어댑터)로 시험한다. 값은 모두 가상의 값이다. 카카오·네이버 어댑터와 제공자 사이의 계정 연동 규칙은
-tests/test_oauth_providers.py에서 본다. 경로 시험 중 제공자와 관계없는 것은 세 제공자(google·kakao·naver)로 함께 돈다.
+실제 어댑터)로 시험한다. 값은 모두 가상의 값이다. GitHub·네이버 어댑터와 제공자 사이의 계정 연동 규칙은
+tests/test_oauth_providers.py에서 본다. 경로 시험 중 제공자와 관계없는 것은 세 제공자(google·github·naver)로 함께 돈다.
 - 계정 연동 규칙: 비밀번호가 있는 계정에는 OAuth 로그인을 붙이지 않는다 (409). 이미 연동된 계정은 그대로이고, 비밀번호 없는
-  계정에는 그 계정의 이메일이 인증된 제공자(Google·Kakao) 연동으로 확인된 주소일 때만 붙인다 (아니면 409).
+  계정에는 그 계정의 이메일이 인증된 제공자(Google·GitHub) 연동으로 확인된 주소일 때만 붙인다 (아니면 409).
 - 제공자로 내보내기 전의 입력 한도(code·state·redirect_uri 2,048자, PKCE 형식)와 제공자별 프로세스 전체의 토큰 교환 한도(429).
 - 어댑터: 2xx만 결과, 프록시 환경변수·리다이렉트 사용 안 함, 프로필 값(sub·email·name) 검사·정리, Google 전용 오류 문구.
 - GET 콜백은 development 전용(production 404), 감사 로그(vc-be.audit) event=oauth_login … provider=<제공자>.
@@ -27,7 +27,7 @@ from app.api import oauth as oauth_api
 from app.core.auth import ALGORITHM
 from app.core.config import get_settings
 from app.domain.did_key import is_ed25519_did_key
-from app.integrations import get_google_oauth_provider, get_kakao_oauth_provider, get_naver_oauth_provider
+from app.integrations import get_github_oauth_provider, get_google_oauth_provider, get_naver_oauth_provider
 from app.integrations import oauth as oauth_adapter
 from app.integrations.oauth import GoogleOAuthAdapter
 from app.integrations.ports import OAuthCodeError, OAuthUserInfo, ProviderError
@@ -43,13 +43,13 @@ PKCE_CHALLENGE = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
 TOO_MANY = {"detail": "Too many attempts. Try again later."}
 GOOGLE_NOT_CONFIGURED = {"detail": "Google OAuth is not configured", "code": "PROVIDER_NOT_CONFIGURED"}
 GOOGLE_ERROR = {"detail": "Google OAuth error", "code": "PROVIDER_ERROR"}
-PROVIDERS = ("google", "kakao", "naver")
-LABELS = {"google": "Google", "kakao": "Kakao", "naver": "Naver"}
-DEPENDENCIES = {"google": get_google_oauth_provider, "kakao": get_kakao_oauth_provider,
+PROVIDERS = ("google", "github", "naver")
+LABELS = {"google": "Google", "github": "GitHub", "naver": "Naver"}
+DEPENDENCIES = {"google": get_google_oauth_provider, "github": get_github_oauth_provider,
                 "naver": get_naver_oauth_provider}
 # 가짜 제공자가 만드는 인가 주소 (실제 주소 모양만 흉내 낸다. 요청은 보내지 않는다)
 AUTH_URLS = {"google": "https://accounts.google.com/o/oauth2/v2/auth",
-             "kakao": "https://kauth.kakao.com/oauth/authorize", "naver": "https://nid.naver.com/oauth2.0/authorize"}
+             "github": "https://github.com/login/oauth/authorize", "naver": "https://nid.naver.com/oauth2.0/authorize"}
 CALLBACKS = {name: f"http://localhost:5173/auth/{name}/callback" for name in PROVIDERS}
 # 제공자마다 쓰는 OAuth 설정 (가상 값)
 PROVIDER_ENV = {name: {f"{name.upper()}_CLIENT_ID": f"test-{name}-client-id",
@@ -124,7 +124,7 @@ def fake_google():
 @pytest.fixture
 def fakes(fake_google):
     """제공자 이름 → 가짜 제공자. Google 것은 fake_google과 같은 객체다."""
-    return {"google": fake_google, "kakao": FakeOAuthProvider("kakao"), "naver": FakeOAuthProvider("naver")}
+    return {"google": fake_google, "github": FakeOAuthProvider("github"), "naver": FakeOAuthProvider("naver")}
 
 
 @pytest.fixture
@@ -290,9 +290,9 @@ def test_oauth_authorize_validates_redirect_uri_and_pkce(oauth_client, monkeypat
     assert ok.status_code == 200
 
 
-@pytest.mark.parametrize("provider", ["kakao", "naver"])
-def test_kakao_and_naver_accept_exactly_their_own_redirect_uri(oauth_client, monkeypatch, provider):
-    # 카카오·네이버는 *_REDIRECT_URI 하나만 받는다: Google의 허용 목록·다른 제공자의 콜백 주소는 쓰지 않는다.
+@pytest.mark.parametrize("provider", ["github", "naver"])
+def test_github_and_naver_accept_exactly_their_own_redirect_uri(oauth_client, monkeypatch, provider):
+    # GitHub·네이버는 *_REDIRECT_URI 하나만 받는다: Google의 허용 목록·다른 제공자의 콜백 주소는 쓰지 않는다.
     monkeypatch.setenv("GOOGLE_ALLOWED_REDIRECT_URIS", f"http://localhost:3000/auth/{provider}/callback")
     get_settings.cache_clear()
     base = f"/api/v1/users/oauth/{provider}/authorize"
@@ -370,7 +370,7 @@ def test_oauth_creates_new_user_with_managed_did_and_logs_in(oauth_client, fake_
 def insert_passwordless_user(db, email: str, name: str = "비밀번호없음", *, attested_by: str | None = None) -> dict:
     """비밀번호 없는 기존 계정을 직접 넣는다 (password_hash NULL).
 
-    attested_by가 None이면 어느 OAuth 연동도 없는 계정(API로는 만들 수 없는 예전 사용자)이고, 'kakao' 등을 주면 그 제공자로
+    attested_by가 None이면 어느 OAuth 연동도 없는 계정(API로는 만들 수 없는 예전 사용자)이고, 'github' 등을 주면 그 제공자로
     만든 계정처럼 같은 이메일의 그 제공자 연동 행도 함께 넣는다 (이메일이 그 연동으로 확인된 계정)."""
     user_id = str(uuid.uuid4())
     did = f"did:key:z6MkOAuthTest{uuid.uuid4().hex[:12]}"
@@ -402,9 +402,9 @@ def audit_lines(caplog) -> list[str]:
 
 
 def test_oauth_links_existing_email_user_when_email_verified(oauth_client, fake_google, db):
-    # 같은 (Google이 인증한) 이메일의 기존 계정에 비밀번호가 없고, 그 계정의 이메일이 인증된 제공자 연동(여기서는 카카오로
+    # 같은 (Google이 인증한) 이메일의 기존 계정에 비밀번호가 없고, 그 계정의 이메일이 인증된 제공자 연동(여기서는 GitHub으로
     # 만든 계정)으로 확인된 주소일 때 그 계정에 연동한다.
-    existing = insert_passwordless_user(db, f"legacy-{uuid.uuid4().hex[:8]}@test.com", attested_by="kakao")
+    existing = insert_passwordless_user(db, f"legacy-{uuid.uuid4().hex[:8]}@test.com", attested_by="github")
     sub = f"sub-link-{uuid.uuid4().hex[:8]}"
 
     res = google_login(oauth_client, fake_google, sub=sub, email=existing["email"])
@@ -416,7 +416,7 @@ def test_oauth_links_existing_email_user_when_email_verified(oauth_client, fake_
     assert "연동" in res.json()["message"] and "회원가입" not in res.json()["message"]  # FE가 이 두 낱말로 안내를 고른다
 
     me = oauth_client.get("/api/v1/users/me", headers={"Authorization": f"Bearer {res.json()['access_token']}"}).json()
-    assert me["oauth_providers"] == ["google", "kakao"]
+    assert me["oauth_providers"] == ["github", "google"]  # 제공자 이름 순
     # 다시 로그인하면 연동이 아니라 그냥 로그인이다.
     again = google_login(oauth_client, fake_google, sub=sub, email=existing["email"])
     assert again.status_code == 200 and again.json()["message"] == "Google OAuth 로그인 성공"
@@ -427,7 +427,7 @@ def test_oauth_links_existing_email_user_when_email_verified(oauth_client, fake_
     assert conflict.status_code == 409
     assert conflict.json() == {"detail": "User is already linked to another account for this provider"}
     assert db.execute("SELECT count(*) AS n FROM oauth_accounts WHERE user_id = %s",
-                      (existing["id"],)).fetchone()["n"] == 2  # 카카오 + 처음 연동한 Google
+                      (existing["id"],)).fetchone()["n"] == 2  # GitHub + 처음 연동한 Google
 
 
 def test_google_does_not_link_a_passwordless_account_without_a_verified_provider_link(oauth_client, fake_google, db,
@@ -566,7 +566,7 @@ def test_oauth_login_audit_lines_carry_the_outcome_and_user_id_only(oauth_client
     email = f"audit-{uuid.uuid4().hex[:8]}@gmail.com"
     sub = f"sub-audit-{uuid.uuid4().hex[:8]}"
     legacy = insert_passwordless_user(db, f"audit-legacy-{uuid.uuid4().hex[:8]}@test.com", name="감사로그",
-                                      attested_by="kakao")
+                                      attested_by="github")
     with caplog.at_level(logging.INFO, logger="vc-be.audit"):
         created = google_login(oauth_client, fake_google, sub=sub, email=email, name="감사 대상")
         again = google_login(oauth_client, fake_google, sub=sub, email=email, name="감사 대상")
@@ -639,8 +639,8 @@ def test_concurrent_link_of_the_same_google_account_logs_in_instead_of_409(db):
     """회귀: 유일 제약 위반을 제약 이름의 부분 문자열('user_id'와 'provider')로 가렸는데 oauth_accounts의 두 제약이 모두
     걸렸다(provider_user_id에 user_id가 들어 있다). 그래서 같은 Google 사용자의 동시 요청이 다시 시도되지 않고
     '다른 계정이 이미 연동됨' 409가 됐다."""
-    # 카카오로 만든 계정(이메일이 확인된 주소)에 같은 Google 계정을 두 탭이 동시에 연동한다.
-    existing = insert_passwordless_user(db, f"race-{uuid.uuid4().hex[:8]}@test.com", attested_by="kakao")
+    # GitHub으로 만든 계정(이메일이 확인된 주소)에 같은 Google 계정을 두 탭이 동시에 연동한다.
+    existing = insert_passwordless_user(db, f"race-{uuid.uuid4().hex[:8]}@test.com", attested_by="github")
     sub = f"race-sub-{uuid.uuid4().hex[:8]}"
     outcome = _race(db, [(LINK_ROW, (existing["id"], sub, existing["email"]))],
                     provider="google", provider_user_id=sub, email=existing["email"], email_verified=True, name="n",
@@ -673,7 +673,7 @@ def test_concurrent_first_login_of_a_new_google_user_creates_one_account(db):
 
 def test_concurrent_link_of_a_different_google_account_is_still_a_conflict(db):
     # 제약 이름을 보지 않아도, 다시 볼 때의 명시적 검사가 '다른 Google 계정이 이미 연동됨'을 가려낸다.
-    existing = insert_passwordless_user(db, f"race-other-{uuid.uuid4().hex[:8]}@test.com", attested_by="kakao")
+    existing = insert_passwordless_user(db, f"race-other-{uuid.uuid4().hex[:8]}@test.com", attested_by="github")
     sub = f"race-a-{uuid.uuid4().hex[:8]}"
     outcome = _race(db, [(LINK_ROW, (existing["id"], sub, existing["email"]))],
                     provider="google", provider_user_id=f"race-b-{uuid.uuid4().hex[:8]}", email=existing["email"],
@@ -809,7 +809,7 @@ OUT_OF_BOUNDS = {
 @pytest.mark.parametrize("field,value", OUT_OF_BOUNDS.values(), ids=OUT_OF_BOUNDS.keys())
 def test_callback_rejects_out_of_bounds_input_before_calling_google(oauth_client, fakes, field, value, provider):
     # 회귀: 길이·형식 제한이 없어 1.9 MB짜리 code와 5만 자 code_verifier가 그대로 Google 토큰 엔드포인트로 나갔다.
-    # 카카오·네이버 콜백도 같은 모델(OAuthCallbackRequest)로 받는다.
+    # GitHub·네이버 콜백도 같은 모델(OAuthCallbackRequest)로 받는다.
     body = {"code": "code-1", "state": _state(oauth_client, provider), field: value}
     res = oauth_client.post(f"/api/v1/users/oauth/{provider}/callback", json=body)
     assert res.status_code == 422, res.text
@@ -953,7 +953,7 @@ def test_exchange_budget_is_a_token_bucket():
     assert oauth_api.EXCHANGES_PER_MINUTE == 300 and oauth_api.oauth_exchange_budget.capacity == 300.0
 
 
-BUDGET_NAMES = {"google": "oauth_exchange_budget", "kakao": "kakao_exchange_budget", "naver": "naver_exchange_budget"}
+BUDGET_NAMES = {"google": "oauth_exchange_budget", "github": "github_exchange_budget", "naver": "naver_exchange_budget"}
 
 
 @pytest.mark.parametrize("provider", PROVIDERS)
@@ -1414,7 +1414,7 @@ async def test_provider_error_wording_is_chosen_by_service_and_defaults_to_crede
         503, {"detail": "Credential service is not configured", "code": "PROVIDER_NOT_CONFIGURED"})
     assert await body(ProviderError("x", service="google_oauth")) == (502, GOOGLE_ERROR)
     assert await body(ProviderError("x", service="google_oauth", unavailable=True)) == (503, GOOGLE_NOT_CONFIGURED)
-    for name, label in (("kakao", "Kakao"), ("naver", "Naver")):
+    for name, label in (("github", "GitHub"), ("naver", "Naver")):
         assert await body(ProviderError("x", service=f"{name}_oauth")) == (
             502, {"detail": f"{label} OAuth error", "code": "PROVIDER_ERROR"})
         assert await body(ProviderError("x", service=f"{name}_oauth", unavailable=True)) == (

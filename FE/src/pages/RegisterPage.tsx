@@ -206,7 +206,7 @@ export function RegisterPage() {
             가입하기
           </Button>
         </form>
-        {/* Google 은 가입 화면 문구, 카카오·네이버는 각 사 버튼 가이드의 기본 문구를 쓴다 */}
+        {/* Google 은 가입 화면 문구, GitHub·네이버는 버튼의 기본 문구("GitHub로 로그인"·"네이버 로그인")를 쓴다 */}
         <SocialLoginButtons disabled={mutation.isPending} labels={{ google: 'Google로 가입·시작하기' }} />
         <p className="mt-5 text-center text-[15px] text-[var(--color-text-muted)]">
           이미 계정이 있으신가요?{' '}

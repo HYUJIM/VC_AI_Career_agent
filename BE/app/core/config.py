@@ -1,7 +1,7 @@
 """환경변수 기반 설정. 앱 모듈은 os.getenv 대신 get_settings()를 쓴다.
 
 앱 비밀값 없이 도는 진입점(마이그레이션 실행기·시장 통계 배치)도 쓰는 값은 get_settings()와 따로 읽는다: DB 접속값
-(app/services/database.py의 DB_*, 아래 db_password·db_max_connections)과 로그 수준(log_level).
+(app/services/database.py의 DB_*, 아래 db_password·db_tls_options·db_max_connections)과 로그 수준(log_level).
 """
 import logging
 import math
@@ -44,6 +44,17 @@ PUBLISHED_SECRETS = frozenset({
 DEV_DB_PASSWORD = "password"
 _RANDOM_NOT_PUBLISHED = "random, not a test/example value from this repository"
 _DB_PASSWORD_RULE = "DB_PASSWORD (not empty and not the local development default)"
+# production DB 연결의 TLS 규칙 (libpq 변수 PGSSLMODE·PGSSLROOTCERT를 앱이 읽어 검사한다. 넘기는 방법은 db_tls_options).
+# RDS for PostgreSQL 15 이상은 rds.force_ssl=1이 기본이라 암호화는 되지만, libpq 기본값(prefer)·require는 서버 인증서와
+# 호스트 이름을 확인하지 않는다. 그래서 production은 인증서를 확인하는 두 값만 받고, 확인에 쓰는 CA 묶음 파일(이미지 기본값
+# /app/certs/rds-global-bundle.pem, BE/certs/README.md)을 읽을 수 있어야 한다. 값은 앞뒤 공백만 떼고 libpq가 받는 글자
+# 그대로 비교한다 (대소문자를 바꾸지 않는다: libpq는 `VERIFY-FULL`을 받지 않는다).
+VERIFYING_SSLMODES = ("verify-full", "verify-ca")
+_PGSSLMODE_RULE = "PGSSLMODE (verify-full or verify-ca in production)"
+_PGSSLROOTCERT_RULE = "PGSSLROOTCERT (readable CA bundle file)"
+# PGSSLMODE를 비워 둔 줄(`PGSSLMODE=`)은 없는 것으로 보고 이 libpq 기본값을 넘긴다. 빈 값을 libpq에 그대로 두면
+# 모든 접속이 `invalid sslmode value: ""`로 실패한다 (서버는 뜨고 /health도 200인데 DB를 쓰는 요청마다 500).
+LIBPQ_DEFAULT_SSLMODE = "prefer"
 
 
 def _weak_secret(value: bytes) -> bool:
@@ -68,6 +79,53 @@ def db_password() -> str:
     if _app_env() == "production" and password.strip() in ("", DEV_DB_PASSWORD):
         raise RuntimeError(f"APP_ENV=production requires {_DB_PASSWORD_RULE}")
     return password
+
+
+def _readable_file(path: str) -> bool:
+    """path가 읽을 수 있는 일반 파일인지 (비었거나 없거나 디렉터리이거나 읽기 권한이 없으면 False)."""
+    if not path or not os.path.isfile(path):
+        return False
+    try:
+        with open(path, "rb"):
+            return True
+    except OSError:
+        return False
+
+
+def _db_tls_problems() -> list[str]:
+    """production DB 연결의 TLS 설정 문제 (변수 이름만, 값은 넣지 않는다). get_settings()와 db_tls_options()가 같이 쓴다.
+
+    PGSSLROOTCERT는 libpq가 환경변수에서 읽는 값 그대로(공백을 떼지 않고) 파일인지 본다 (db_tls_options 참고).
+    """
+    problems = []
+    if os.getenv("PGSSLMODE", "").strip() not in VERIFYING_SSLMODES:
+        problems.append(_PGSSLMODE_RULE)
+    if not _readable_file(os.getenv("PGSSLROOTCERT", "")):
+        problems.append(_PGSSLROOTCERT_RULE)
+    return problems
+
+
+def db_tls_options() -> dict[str, str]:
+    """libpq에 넘기는 TLS 접속 인자. get_db_connection(앱 요청·시작 점검·마이그레이션 실행기·시장 통계 배치 공통)이
+    접속할 때마다 읽는다 (접속 인자가 libpq 환경변수보다 우선한다).
+
+    - sslmode: 앞뒤 공백을 뗀 PGSSLMODE. 비워 둔 값(공백만 있는 값 포함)은 없는 것으로 보고 libpq 기본값(prefer)을 넘긴다.
+    - sslrootcert: 지금처럼 libpq가 PGSSLROOTCERT 환경변수를 직접 읽는다 (접속 인자로 넘기지 않는다: 한글처럼 ASCII가 아닌
+      글자가 든 경로는 macOS의 UTF-8 로캘에서 libpq가 접속 문자열을 잘못 나눠 접속이 실패한다). 공백만 있는 값만 빈 경로로
+      덮는다 (libpq는 빈 경로를 설정하지 않은 것으로 본다).
+    - development는 그 밖에 검사하지 않는다 (로컬 Compose·테스트 DB는 TLS가 없어 PGSSLMODE를 넣지 않으면 지금처럼 prefer).
+    - production은 db_password()처럼 규칙(verify-full·verify-ca + 읽을 수 있는 CA 묶음 파일)에 맞지 않으면 접속하지 않고
+      RuntimeError를 낸다 (변수 이름만). 서버는 시작할 때 get_settings()가 같은 규칙으로 먼저 거부한다.
+    """
+    if _app_env() == "production":
+        problems = _db_tls_problems()
+        if problems:
+            raise RuntimeError("APP_ENV=production requires " + ", ".join(problems))
+    options = {"sslmode": os.getenv("PGSSLMODE", "").strip() or LIBPQ_DEFAULT_SSLMODE}
+    root_cert = os.getenv("PGSSLROOTCERT")
+    if root_cert is not None and not root_cert.strip():
+        options["sslrootcert"] = ""
+    return options
 
 
 def log_level() -> str:
@@ -152,7 +210,7 @@ def _env_float(name: str, default: float, *, minimum: float, maximum: float) -> 
 
 
 def _oauth_timeout_seconds() -> float:
-    """OAuth 제공자(Google·Kakao·Naver) 호출 제한 시간(초, 1~120, 기본 10). 세 제공자가 같이 쓴다.
+    """OAuth 제공자(Google·GitHub·Naver) 호출 제한 시간(초, 1~120, 기본 10). 세 제공자가 같이 쓴다.
 
     OAUTH_TIMEOUT_SECONDS가 없거나 비었으면 예전 이름 GOOGLE_OAUTH_TIMEOUT_SECONDS를 읽는다 (예전 .env·작업 정의도 그대로
     뜨게). 오류 메시지에는 실제로 읽은 변수 이름을 넣는다.
@@ -200,12 +258,12 @@ class Settings:
     # 기본 콜백 주소. 변수가 없으면 development만 FE 개발 서버 주소로 대신한다 (production은 대신하지 않는다).
     google_redirect_uri: str
     google_allowed_redirect_uris: list[str]
-    # 카카오·네이버 로그인 설정 (Google과 같은 규칙: production에서 켜려면 ID·시크릿을 함께 넣고 https 콜백 주소를 명시한다).
-    # 콜백 주소는 *_REDIRECT_URI 하나만 받는다 (Google의 허용 목록 같은 추가 주소는 없다). 변수가 없으면 development만
-    # FE 개발 서버 주소로 대신한다.
-    kakao_client_id: str
-    kakao_client_secret: str = field(repr=False)
-    kakao_redirect_uri: str
+    # GitHub(OAuth App)·네이버 로그인 설정 (Google과 같은 규칙: production에서 켜려면 ID·시크릿을 함께 넣고 https 콜백 주소를
+    # 명시한다). 콜백 주소는 *_REDIRECT_URI 하나만 받는다 (Google의 허용 목록 같은 추가 주소는 없다). 변수가 없으면
+    # development만 FE 개발 서버 주소로 대신한다.
+    github_client_id: str
+    github_client_secret: str = field(repr=False)
+    github_redirect_uri: str
     naver_client_id: str
     naver_client_secret: str = field(repr=False)
     naver_redirect_uri: str
@@ -274,11 +332,11 @@ def get_settings() -> Settings:
     allowed_redirects = list(
         dict.fromkeys(([google_redirect_uri] if google_redirect_uri else []) + raw_allowed_redirects)
     )
-    # 카카오·네이버도 같은 이유로 FE 개발 서버 콜백 주소는 development에서만 기본값으로 쓴다.
-    kakao_client_id = os.getenv("KAKAO_CLIENT_ID", "").strip()
-    kakao_client_secret = os.getenv("KAKAO_CLIENT_SECRET", "").strip()
-    kakao_redirect_uri = os.getenv(
-        "KAKAO_REDIRECT_URI", "" if production else "http://localhost:5173/auth/kakao/callback"
+    # GitHub·네이버도 같은 이유로 FE 개발 서버 콜백 주소는 development에서만 기본값으로 쓴다.
+    github_client_id = os.getenv("GITHUB_CLIENT_ID", "").strip()
+    github_client_secret = os.getenv("GITHUB_CLIENT_SECRET", "").strip()
+    github_redirect_uri = os.getenv(
+        "GITHUB_REDIRECT_URI", "" if production else "http://localhost:5173/auth/github/callback"
     ).strip()
     naver_client_id = os.getenv("NAVER_CLIENT_ID", "").strip()
     naver_client_secret = os.getenv("NAVER_CLIENT_SECRET", "").strip()
@@ -300,10 +358,10 @@ def get_settings() -> Settings:
         # (협력사가 발급한 키, 바꾸면 기존 홀더 키를 복호화할 수 없는 마스터 키, 바꾸면 모두 로그아웃되는 JWT_SECRET 순),
         # 같은 쌍은 뒤쪽(바꿀 값)의 이름을 앞에 써서 알린다. GOOGLE_CLIENT_SECRET도 교환할 때마다 Google로 보내고
         # Google Cloud 프로젝트 관리자가 볼 수 있는 값이라 함께 비교한다 (Google이 발급하므로 앞쪽에 둔다).
-        # KAKAO_CLIENT_SECRET·NAVER_CLIENT_SECRET도 같은 이유로 비교한다 (각 제공자가 발급한다).
+        # GITHUB_CLIENT_SECRET·NAVER_CLIENT_SECRET도 같은 이유로 비교한다 (각 제공자가 발급한다).
         values = {"DXWORKS_API_KEY": os.getenv("DXWORKS_API_KEY", "").strip(),
                   "GOOGLE_CLIENT_SECRET": google_client_secret,
-                  "KAKAO_CLIENT_SECRET": kakao_client_secret, "NAVER_CLIENT_SECRET": naver_client_secret,
+                  "GITHUB_CLIENT_SECRET": github_client_secret, "NAVER_CLIENT_SECRET": naver_client_secret,
                   "HOLDER_KEY_ENCRYPTION_KEY": raw_master_key, "JWT_SECRET": jwt_secret,
                   "SERVICE_API_KEY": service_api_key, "AI_SERVICE_TOKEN": os.getenv("AI_SERVICE_TOKEN", "").strip()}
         for other, name in combinations(values, 2):
@@ -316,6 +374,8 @@ def get_settings() -> Settings:
         if os.getenv("DB_PASSWORD", "").strip() in ("", DEV_DB_PASSWORD):
             # 시작할 때 바로 알린다. 접속할 때도 db_password()가 다시 막는다 (마이그레이션 실행기 포함).
             missing.append(_DB_PASSWORD_RULE)
+        # DB TLS(PGSSLMODE·PGSSLROOTCERT)도 시작할 때 알린다. 접속할 때도 db_tls_options()가 다시 막는다.
+        missing += _db_tls_problems()
 
     if production and (google_client_id or google_client_secret):
         # Google 로그인을 켠 운영 설정. 한쪽만 넣으면 요청마다 503이 되고, 콜백 주소를 빼면 FE의 운영 콜백이 400이 되며,
@@ -327,9 +387,9 @@ def get_settings() -> Settings:
         if any(not _is_https_url(uri) for uri in allowed_redirects):
             missing.append("GOOGLE_REDIRECT_URI and GOOGLE_ALLOWED_REDIRECT_URIS (https:// addresses only)")
 
-    # 카카오·네이버 로그인을 켠 운영 설정도 Google과 같은 규칙이다 (이름만, 값은 넣지 않는다).
+    # GitHub·네이버 로그인을 켠 운영 설정도 Google과 같은 규칙이다 (이름만, 값은 넣지 않는다).
     for prefix, label, client_id, client_secret, redirect_uri in (
-            ("KAKAO", "Kakao", kakao_client_id, kakao_client_secret, kakao_redirect_uri),
+            ("GITHUB", "GitHub", github_client_id, github_client_secret, github_redirect_uri),
             ("NAVER", "Naver", naver_client_id, naver_client_secret, naver_redirect_uri)):
         if not (production and (client_id or client_secret)):
             continue
@@ -391,9 +451,9 @@ def get_settings() -> Settings:
         google_client_secret=google_client_secret,
         google_redirect_uri=google_redirect_uri,
         google_allowed_redirect_uris=allowed_redirects,
-        kakao_client_id=kakao_client_id,
-        kakao_client_secret=kakao_client_secret,
-        kakao_redirect_uri=kakao_redirect_uri,
+        github_client_id=github_client_id,
+        github_client_secret=github_client_secret,
+        github_redirect_uri=github_redirect_uri,
         naver_client_id=naver_client_id,
         naver_client_secret=naver_client_secret,
         naver_redirect_uri=naver_redirect_uri,
@@ -419,4 +479,7 @@ def get_settings() -> Settings:
     if not _env_bool("AUTH_REQUIRED", True):
         # 예전 전환 기간 설정이 남은 .env·작업 정의. 인증을 끄는 설정은 없어졌다 (README "인증").
         logger.warning("AUTH_REQUIRED=false 설정은 더 이상 쓰지 않습니다: 토큰 없는 요청은 이 값과 관계없이 항상 401로 거절합니다.")
+    if os.getenv("KAKAO_CLIENT_ID", "").strip() or os.getenv("KAKAO_CLIENT_SECRET", "").strip():
+        # 카카오 로그인을 없앤 뒤에도 값이 남은 .env·작업 정의 (AUTH_REQUIRED와 같은 방식). 값은 쓰지도 로그에 남기지도 않는다.
+        logger.warning("KAKAO_* 설정은 더 이상 쓰지 않습니다 (카카오 로그인 제거). .env에서 지웁니다.")
     return settings

@@ -26,6 +26,10 @@ AI_DIR = BE_DIR.parent / "ai"
 TEST_DB_NAME = os.getenv("TEST_DB_NAME", "vc_career_agent_test")
 # 테스트 DB의 실제 비밀번호 (로컬 기본값). production_env가 DB_PASSWORD 환경변수를 바꿔도 테스트 DB 접속에는 이 값을 쓴다.
 TEST_DB_PASSWORD = os.getenv("TEST_DB_PASSWORD", "password")
+# 운영 이미지가 PGSSLROOTCERT 기본값으로 쓰는 RDS CA 묶음 (BE/certs/README.md). production 검사를 통과하는 값으로 쓴다.
+RDS_CA_BUNDLE = BE_DIR / "certs" / "rds-global-bundle.pem"
+# production DB TLS 검사를 통과하는 값 (실제 접속에는 쓰지 않는다: 테스트 DB는 TLS가 없다).
+PRODUCTION_DB_TLS_ENV = {"PGSSLMODE": "verify-full", "PGSSLROOTCERT": str(RDS_CA_BUNDLE)}
 
 # app 모듈을 import하기 전에 환경을 고정한다 (.env보다 우선).
 # 아래 비밀값은 이 공개 저장소에 들어 있는 테스트 전용 값이라 APP_ENV=production에서는 거부된다 (production_env 참고).
@@ -77,11 +81,11 @@ def test_database():
 @pytest.fixture(autouse=True)
 def reset_call_budgets():
     """프로세스 메모리에 두는 호출 한도(검증기 호출 몫, 거절된 배지 검증 창, 모의 발급 시도 수·실패 차단기, 기업용 조회
-    몫·응답, OAuth 제공자(Google·Kakao·Naver)별 토큰 교환 몫)를 테스트마다 비운다.
+    몫·응답, OAuth 제공자(Google·GitHub·Naver)별 토큰 교환 몫)를 테스트마다 비운다.
 
     한 테스트가 쓴 몫이 다음 테스트의 429/503이 되지 않게 한다 (로그인 실패 제한을 test_auth_security가 비우는 것과 같다).
     """
-    from app.api.oauth import kakao_exchange_budget, naver_exchange_budget, oauth_exchange_budget
+    from app.api.oauth import github_exchange_budget, naver_exchange_budget, oauth_exchange_budget
     from app.services.public_view_gate import public_view_gate
     from app.services.verifier_budget import (
         mock_issue_attempts, mock_issue_breaker, rejected_verifications, verifier_budget,
@@ -94,7 +98,7 @@ def reset_call_budgets():
         mock_issue_breaker.clear()
         public_view_gate.clear()
         oauth_exchange_budget.clear()
-        kakao_exchange_budget.clear()
+        github_exchange_budget.clear()
         naver_exchange_budget.clear()
 
     clear()
@@ -254,9 +258,12 @@ def production_env(monkeypatch):
     위의 고정 테스트 비밀값과 로컬 기본 DB 비밀번호는 공개된 값이라 production에서 거부되므로(app.core.config),
     운영 검사를 통과하는 값을 실행할 때마다 새로 만든다. 테스트 DB에는 실제 비밀번호(TEST_DB_PASSWORD)로 접속하도록
     접속 비밀번호만 바꿔 끼운다. 이 픽스처보다 먼저 받은 토큰은 JWT_SECRET이 바뀌므로 쓸 수 없다.
+    DB TLS도 같은 방식이다: 검사는 운영 값(verify-full + RDS CA 묶음)으로 통과하고, TLS가 없는 테스트 DB에는 libpq 기본값
+    (prefer)으로 접속하도록 접속 인자만 바꿔 끼운다. 운영 시작 DB 점검(app.services.db_startup_check)은 끈다: 이 픽스처 뒤에
+    TestClient를 열면 lifespan이 점검을 부른다 (점검 자체는 tests/test_db_startup_check.py가 켜고 본다).
     """
     from app.core.config import get_settings
-    from app.services import database
+    from app.services import database, db_startup_check
 
     values = {
         "APP_ENV": "production",
@@ -264,10 +271,13 @@ def production_env(monkeypatch):
         "HOLDER_KEY_ENCRYPTION_KEY": base64.b64encode(os.urandom(32)).decode(),
         "SERVICE_API_KEY": secrets.token_urlsafe(32),
         "DB_PASSWORD": secrets.token_urlsafe(24),  # get_settings() 검사용 값 (접속에는 쓰지 않는다)
+        **PRODUCTION_DB_TLS_ENV,  # get_settings() 검사용 값 (접속에는 쓰지 않는다)
     }
     for name, value in values.items():
         monkeypatch.setenv(name, value)
     monkeypatch.setattr(database, "db_password", lambda: TEST_DB_PASSWORD)
+    monkeypatch.setattr(database, "db_tls_options", lambda: {"sslmode": "prefer"})
+    monkeypatch.setattr(db_startup_check, "ENABLED", False)
     get_settings.cache_clear()
     yield values
     get_settings.cache_clear()

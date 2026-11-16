@@ -9,7 +9,7 @@ from typing import Callable, Iterator, Optional
 import psycopg
 from psycopg.rows import dict_row
 
-from app.core.config import db_max_connections, db_password
+from app.core.config import db_max_connections, db_password, db_tls_options
 from app.domain.credential import BadgeEvaluation
 from app.services.key_custody import StoredHolderKey
 
@@ -18,6 +18,8 @@ def get_db_connection(**extra):
     """상한·시간 제한 없이 바로 여는 연결. 마이그레이션 실행기(app.migrate)와 테스트가 인자 없이 쓴다.
 
     앱 요청은 이 함수 대신 아래 app_db_connection()을 쓴다 (extra는 그 접근자가 세션 options를 더할 때만 준다).
+    TLS 인자는 db_tls_options()가 만든다: sslmode는 앞뒤 공백을 뗀 PGSSLMODE(비우면 libpq 기본값), CA 묶음은 libpq가
+    PGSSLROOTCERT에서 읽는다. production은 인증서를 확인하는 설정이 아니면 접속하지 않는다 (db_password()와 같은 방식).
     """
     return psycopg.connect(
         host=os.getenv("DB_HOST", "localhost"),
@@ -30,6 +32,7 @@ def get_db_connection(**extra):
         connect_timeout=int(os.getenv("DB_CONNECT_TIMEOUT") or os.getenv("PGCONNECT_TIMEOUT") or 10),
         row_factory=dict_row,
         autocommit=True,
+        **db_tls_options(),
         **extra,
     )
 
@@ -154,7 +157,7 @@ OAUTH_OTHER_METHOD_ACCOUNT = "This email is already used by another sign-in meth
 # 이메일을 인증했다고 알리는 OAuth 제공자 (app/integrations/oauth.py에서 requires_verified_email=True인 어댑터).
 # 이 제공자의 연동은 인증된 이메일로만 만들어지고(api/oauth.py가 인증되지 않은 이메일을 400으로 거절한다) 로그인할 때마다
 # 그 이메일로 갱신된다. 그래서 이 제공자 연동의 이메일이 계정 이메일과 같으면, 그 계정의 이메일은 주인이 확인된 주소다.
-EMAIL_VERIFYING_OAUTH_PROVIDERS = ("google", "kakao")
+EMAIL_VERIFYING_OAUTH_PROVIDERS = ("google", "github")
 
 
 class OAuthUnverifiedLinkConflict(OAuthAccountConflict):
@@ -332,7 +335,7 @@ class DatabaseService:
                         raise OAuthPasswordAccountConflict(str(existing_user["id"]))
                     # 비밀번호 없는 계정에 이메일이 같다는 이유로 붙이려면 두 쪽 모두 확인된 주소여야 한다:
                     # - 이번 제공자가 이메일을 인증했다 (email_verified, Naver는 항상 False).
-                    # - 그 계정의 이메일이 인증된 제공자(Google·Kakao) 연동의 이메일과 같다. Naver로 만든 계정의 이메일은 Naver가
+                    # - 그 계정의 이메일이 인증된 제공자(Google·GitHub) 연동의 이메일과 같다. Naver로 만든 계정의 이메일은 Naver가
                     #   인증하지 않은, 사용자가 바꿀 수 있는 주소라 그 계정에는 다른 제공자를 붙이지 않는다 (붙이면 남의 주소로
                     #   Naver 계정을 만들어 둔 사람의 계정에 진짜 주인이 들어간다).
                     # Google만 있던 때에는 비밀번호 없는 계정이 모두 Google 연동 계정이었으므로 Google의 동작은 같다.

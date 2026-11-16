@@ -43,13 +43,17 @@ function GoogleMark() {
   );
 }
 
-/** 카카오 말풍선 심볼 (카카오 로그인 디자인 가이드: 검정 #000000, 모양·비율 그대로, 외부 이미지 없이 인라인 SVG) */
-function KakaoMark() {
+/**
+ * GitHub 마크 (Invertocat). Primer Octicons `mark-github` 16px 공개 SVG path 를 그대로 인라인한다
+ * (https://primer.style/octicons/icon/mark-github-16/). GitHub 로고 가이드: 흰색·검정만, 모양·비율 변경 금지, 외부 이미지 없이.
+ * 크기만 Google 마크와 같은 20px 로 키운다 (viewBox 그대로라 모양은 바뀌지 않는다).
+ */
+function GitHubMark() {
   return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 shrink-0">
+    <svg aria-hidden="true" viewBox="0 0 16 16" className="h-5 w-5 shrink-0">
       <path
-        fill="#000000"
-        d="M12 3.6c-5.08 0-9.2 3.24-9.2 7.23 0 2.58 1.72 4.84 4.3 6.12l-.88 3.23c-.08.29.25.52.5.35l3.86-2.56c.47.05.94.08 1.42.08 5.08 0 9.2-3.24 9.2-7.22S17.08 3.6 12 3.6Z"
+        fill="#FFFFFF"
+        d="M6.766 11.328c-2.063-.25-3.516-1.734-3.516-3.656 0-.781.281-1.625.75-2.188-.203-.515-.172-1.609.063-2.062.625-.078 1.468.25 1.968.703.594-.187 1.219-.281 1.985-.281.765 0 1.39.094 1.953.265.484-.437 1.344-.765 1.969-.687.218.422.25 1.515.046 2.047.5.593.766 1.39.766 2.203 0 1.922-1.453 3.375-3.547 3.64.531.344.89 1.094.89 1.954v1.625c0 .468.391.734.86.547C13.781 14.359 16 11.53 16 8.03 16 3.61 12.406 0 7.984 0 3.563 0 0 3.61 0 8.031a7.88 7.88 0 0 0 5.172 7.422c.422.156.828-.125.828-.547v-1.25c-.219.094-.5.156-.75.156-1.031 0-1.64-.562-2.078-1.609-.172-.422-.36-.672-.719-.719-.187-.015-.25-.093-.25-.187 0-.188.313-.328.625-.328.453 0 .844.281 1.25.86.313.452.64.655 1.031.655s.641-.14 1-.5c.266-.265.47-.5.657-.656"
       />
     </svg>
   );
@@ -82,7 +86,9 @@ const BASE_CLASS =
 /**
  * 제공자별 버튼 모양.
  * - Google: 기존 버튼 그대로 (ui/Button variant="outline" size="lg" 와 같은 클래스)
- * - 카카오: 카카오 로그인 디자인 가이드 (배경 #FEE500, 검정 말풍선 심볼, 문구 rgba(0,0,0,0.85), 모서리 12px)
+ * - GitHub: 공식 버튼 규격이 없어 GitHub 로고 가이드(흰색 마크, 높은 대비)에 맞춘 어두운 버튼
+ *   (배경 #24292F, hover #32383F, 흰색 마크·문구, Google 과 같은 높이·모서리). 키보드 포커스 링을 직접 그린다
+ *   (어두운 배경 위에서도 보이도록 2px 띄운 포인트 색 테두리). 앱에 다크 모드가 없어 색은 항상 같다.
  * - 네이버: 네이버 로그인 버튼 가이드 완성형 (배경 #03A94D, 흰색 N 로고·문구, 로고와 문구 사이 8px)
  */
 const SKINS: Record<OAuthProviderId, SocialButtonSkin> = {
@@ -92,10 +98,11 @@ const SKINS: Record<OAuthProviderId, SocialButtonSkin> = {
     className:
       'gap-1.5 rounded-2xl border border-[var(--color-border)] bg-white text-[var(--color-text)] hover:bg-[var(--color-card-hover)]',
   },
-  kakao: {
-    Mark: KakaoMark,
-    defaultLabel: '카카오 로그인',
-    className: 'gap-2 rounded-[12px] bg-[#FEE500] text-[rgba(0,0,0,0.85)] hover:brightness-95',
+  github: {
+    Mark: GitHubMark,
+    defaultLabel: 'GitHub로 로그인',
+    className:
+      'gap-2 rounded-2xl bg-[#24292F] text-white hover:bg-[#32383F] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]',
   },
   naver: {
     Mark: NaverMark,
@@ -137,7 +144,7 @@ export function SocialLoginButton({
 const DEFAULT_LABELS: Partial<Record<OAuthProviderId, string>> = {};
 
 /**
- * 로그인·회원가입 화면에서 공통으로 쓰는 소셜 로그인(Google·카카오·네이버 OAuth 2.0) 버튼 묶음.
+ * 로그인·회원가입 화면에서 공통으로 쓰는 소셜 로그인(Google·GitHub·네이버 OAuth 2.0) 버튼 묶음.
  * "또는" 구분선 하나 아래에 제공자 버튼을 OAUTH_PROVIDER_IDS 순서로 그린다.
  * 누른 제공자로 PKCE S256과 서명된 state를 준비해 그 제공자의 인증 화면으로 이동한다.
  * 한 제공자를 시작하는 동안에는 다른 버튼을 잠근다 (sessionStorage 의 로그인 트랜잭션은 탭마다 하나뿐이다).

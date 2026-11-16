@@ -3,8 +3,11 @@
     python -m app.migrate           # 빈 DB면 기본 스키마부터, 아니면 아직 적용하지 않은 마이그레이션만 적용
     python -m app.migrate --seed    # 빈 DB를 처음 만들 때만 시드(테스트 계정)도 넣는다. 운영(RDS)에서는 쓰지 않는다.
 
-- 접속 정보는 앱과 같은 DB_HOST·DB_PORT·DB_USER·DB_PASSWORD·DB_NAME 환경변수다 (PGSSLMODE 등 libpq 변수도 그대로 적용).
-  APP_ENV=production(운영 이미지 기본값)에서 DB_PASSWORD가 비었거나 로컬 기본값이면 접속하지 않고 실패한다 (종료 코드 1).
+- 접속 정보는 앱과 같은 DB_HOST·DB_PORT·DB_USER·DB_PASSWORD·DB_NAME 환경변수다 (그 밖의 libpq 변수도 그대로 적용).
+  TLS(PGSSLMODE·PGSSLROOTCERT)도 앱과 같다: 비워 둔 값은 없는 것으로 보고 PGSSLMODE는 앞뒤 공백을 뗀다
+  (app.core.config.db_tls_options).
+  APP_ENV=production(운영 이미지 기본값)에서 DB_PASSWORD가 비었거나 로컬 기본값이면, 또는 PGSSLMODE가 verify-full·verify-ca가
+  아니거나 PGSSLROOTCERT가 읽을 수 있는 파일이 아니면 접속하지 않고 오류 한 줄(변수 이름만)을 남기고 실패한다 (종료 코드 1).
 - 원장 public.schema_migrations(filename, checksum, applied_at)에 적용한 DB/migrations 파일을 남기고 다시 실행하지 않는다.
   적용한 뒤 SQL이 바뀐 파일이 있으면 아무것도 적용하지 않고 실패한다 (CLI 종료 코드 1). 바꿀 내용은 다음 번호 파일로 추가한다.
 - 빈 DB(public.users 없음): DB/schema의 기본 스키마(--seed면 DB/seeds/03_seed_data.sql까지)와 원장을 한 트랜잭션으로 만든다.
@@ -662,7 +665,8 @@ def main(argv: list[str] | None = None) -> int:
         # APP_ENV·DB_APP_ROLE은 .env를 읽은 뒤에 본다 (로컬 BE/.env는 development, 운영 이미지·ECS 태스크는 production).
         done = migrate(seed=args.seed, production=_production(), wait_seconds=60,
                        app_role=os.getenv("DB_APP_ROLE", "").strip() or None)
-    # RuntimeError: MigrationError와 APP_ENV·DB_PASSWORD 설정 오류(app.core.config, 변수 이름만 담는다)
+    # RuntimeError: MigrationError와 APP_ENV·DB_PASSWORD·PGSSLMODE·PGSSLROOTCERT 설정 오류(app.core.config, 변수 이름만
+    # 담는다). 설정 오류는 접속 전에 나므로 60초 접속 대기 없이 바로 이 한 줄과 종료 코드 1로 끝난다.
     except (RuntimeError, psycopg.Error, OSError) as exc:
         logger.error("마이그레이션 실패: %s", exc)
         return 1

@@ -5,11 +5,15 @@
   이 저장소에 공개된 값·자리표시 값(DB_PASSWORD는 로컬 기본값)이면 서버가 시작하지 않는다.
   SERVICE_API_KEY는 비우거나 32바이트 이상의 임의 값이어야 한다.
   JWT_SECRET·HOLDER_KEY_ENCRYPTION_KEY·SERVICE_API_KEY·AI_SERVICE_TOKEN·DXWORKS_API_KEY·GOOGLE_CLIENT_SECRET·
-  KAKAO_CLIENT_SECRET·NAVER_CLIENT_SECRET은 (설정한 경우) 모두 서로 다른 값이어야 한다.
+  GITHUB_CLIENT_SECRET·NAVER_CLIENT_SECRET은 (설정한 경우) 모두 서로 다른 값이어야 한다.
   Google 로그인을 켜려면 GOOGLE_CLIENT_ID·GOOGLE_CLIENT_SECRET을 함께 넣고 GOOGLE_REDIRECT_URI를 명시해야 하며 허용하는
-  콜백 주소는 모두 https여야 한다 (localhost 기본값은 development에서만 쓴다). 카카오·네이버도 같은 규칙이다
-  (KAKAO_*·NAVER_*, 콜백 주소는 *_REDIRECT_URI 하나).
+  콜백 주소는 모두 https여야 한다 (localhost 기본값은 development에서만 쓴다). GitHub·네이버도 같은 규칙이다
+  (GITHUB_*·NAVER_*, 콜백 주소는 *_REDIRECT_URI 하나). 카카오 로그인은 없앴다: 남은 카카오 설정 값은 쓰지 않고 경고 한 줄만
+  남긴다.
   CORS_ORIGINS는 비우면 빈 목록이고, 넣었으면 모든 항목이 scheme://host[:port] 꼴이어야 한다 (`*`·`null`·경로·끝의 `/` 거부).
+  DB TLS: PGSSLMODE는 verify-full·verify-ca(앞뒤 공백만 떼고 글자 그대로)여야 하고 PGSSLROOTCERT는 읽을 수 있는 파일이어야
+  한다 (서버 시작과 get_db_connection 모두. 마이그레이션 실행기 쪽은 tests/test_migrate.py).
+  설정 오류는 uvicorn·`import main`에서 traceback 없이 메시지 원문 한 줄 + 종료 코드 1이다.
 - 공통: JWT_EXPIRES_MINUTES는 1~1440, 모의 발급 기본값(development 켬·production 끔)·템플릿 허용 목록·사용자별 한도·
   전체 한도, 예전 AUTH_REQUIRED 설정은 경고만 남기고 인증을 끄지 못한다, 설정 객체의 repr에 비밀값이 나오지 않는다.
   DXWorks 접속값(DXWORKS_API_HOST·DXWORKS_API_KEY·DXWORKS_TIMEOUT_SECONDS)은 넣었으면 형식·범위가 맞아야 시작한다
@@ -17,6 +21,7 @@
   OAuth·AI 시간 제한도 비우면 기본값이고 범위를 벗어나면 변수 이름을 알리며 시작하지 않는다 (OAUTH_TIMEOUT_SECONDS가
   없으면 예전 이름 GOOGLE_OAUTH_TIMEOUT_SECONDS를 읽는다).
   비워 둔 LOG_LEVEL은 INFO, 비워 둔 DB_PORT는 5432다 (traceback이나 요청마다 500이 아니다).
+  비워 둔 PGSSLMODE·PGSSLROOTCERT는 없는 것과 같다 (PGSSLMODE는 libpq 기본값 prefer, 앞뒤 공백은 뗀다).
 production에서 받아들이는 값은 실행할 때마다 새로 만든다 (저장소에 고정해 두면 그 자체가 공개된 값이 된다).
 오류 메시지·로그에 비밀값이 들어가지 않는지도 확인한다.
 """
@@ -34,6 +39,7 @@ from pathlib import Path
 import pytest
 
 from app.core.config import Settings, get_settings
+from tests.conftest import PRODUCTION_DB_TLS_ENV, RDS_CA_BUNDLE
 
 BE_DIR = Path(__file__).resolve().parents[1]
 TEST_JWT_SECRET = secrets.token_urlsafe(48)
@@ -76,6 +82,9 @@ def production(monkeypatch, *, jwt_secret: str = TEST_JWT_SECRET, master_key: st
     # DB_HOST·DB_NAME·DB_USER는 conftest가 넣은 값을 그대로 쓴다.
     monkeypatch.setenv("DB_PASSWORD", TEST_DB_PASSWORD)
     monkeypatch.setenv("SERVICE_API_KEY", "")
+    # DB TLS: 운영 작업 정의와 같은 값 (verify-full + 이미지의 RDS CA 묶음). 이 파일의 테스트는 DB에 접속하지 않는다.
+    for name, value in PRODUCTION_DB_TLS_ENV.items():
+        monkeypatch.setenv(name, value)
 
 
 def test_development_is_default_and_keeps_fallbacks(monkeypatch, caplog):
@@ -219,30 +228,70 @@ def test_development_keeps_accepting_test_values(monkeypatch):
         assert get_settings().app_env == "development"
 
 
+def _one_error_line(result: subprocess.CompletedProcess) -> str:
+    """설정 오류로 끝난 프로세스: 종료 코드 1, stdout 없음, stderr는 traceback 없이 오류 한 줄. 그 줄을 돌려준다."""
+    assert result.returncode == 1, result.stderr[-2000:]
+    assert result.stdout == "" and "Traceback" not in result.stderr, result.stderr[-2000:]
+    lines = result.stderr.splitlines()
+    assert len(lines) == 1, result.stderr[-2000:]
+    return lines[0]
+
+
 def test_server_refuses_to_start_in_production_without_secrets():
     # main.py는 import 시점(CORS 설정)에 설정을 읽으므로 uvicorn이 앱을 불러오는 순간 실패한다.
     # 빈 값을 명시해 .env가 있어도 채워 넣지 못하게 한다.
+    # 회귀: 예전에는 41줄 traceback(RuntimeError: ...)이었다. 이제 메시지 원문 한 줄 + 종료 코드 1이다.
     env = {**os.environ, "APP_ENV": "production", "JWT_SECRET": "short-secret-value",
-           "HOLDER_KEY_ENCRYPTION_KEY": "", "PYTHONDONTWRITEBYTECODE": "1"}
+           "HOLDER_KEY_ENCRYPTION_KEY": "", "PYTHONDONTWRITEBYTECODE": "1", **PRODUCTION_DB_TLS_ENV}
     result = subprocess.run([sys.executable, "-c", "import main"], cwd=BE_DIR, env=env,
                             capture_output=True, text=True, timeout=120)
-    assert result.returncode != 0
-    assert "RuntimeError: APP_ENV=production requires" in result.stderr
-    assert "JWT_SECRET" in result.stderr and "HOLDER_KEY_ENCRYPTION_KEY" in result.stderr
+    line = _one_error_line(result)
+    assert line.startswith("APP_ENV=production requires JWT_SECRET (>= 32 bytes), HOLDER_KEY_ENCRYPTION_KEY, ")
+    assert line.endswith("; set the same values on every task/worker (e.g. AWS Secrets Manager or SSM)")
     assert "short-secret-value" not in result.stderr
 
 
 def test_server_refuses_to_start_in_production_with_the_test_environment():
     # 테스트·로컬 환경 값(conftest 비밀값, 로컬 기본 DB 비밀번호)을 그대로 쓴 운영 작업 정의는 시작하지 않는다.
-    env = {**os.environ, "APP_ENV": "production", "DB_PASSWORD": "password", "PYTHONDONTWRITEBYTECODE": "1"}
+    # DB TLS 변수(PGSSLMODE·PGSSLROOTCERT)도 없으므로 함께 알린다.
+    env = {name: value for name, value in os.environ.items() if not name.startswith("PGSSL")}
+    env.update({"APP_ENV": "production", "DB_PASSWORD": "password", "PYTHONDONTWRITEBYTECODE": "1"})
     published = [env[name] for name in ("JWT_SECRET", "HOLDER_KEY_ENCRYPTION_KEY", "SERVICE_API_KEY")]
     result = subprocess.run([sys.executable, "-c", "import main"], cwd=BE_DIR, env=env,
                             capture_output=True, text=True, timeout=120)
-    assert result.returncode != 0
-    assert "RuntimeError: APP_ENV=production requires" in result.stderr
-    for name in ("JWT_SECRET", "HOLDER_KEY_ENCRYPTION_KEY", "SERVICE_API_KEY", "DB_PASSWORD"):
-        assert name in result.stderr
+    line = _one_error_line(result)
+    assert line.startswith("APP_ENV=production requires ")
+    for name in ("JWT_SECRET", "HOLDER_KEY_ENCRYPTION_KEY", "SERVICE_API_KEY", "DB_PASSWORD",
+                 "PGSSLMODE (verify-full or verify-ca in production)", "PGSSLROOTCERT (readable CA bundle file)"):
+        assert name in line
     for value in published:
+        assert value not in result.stderr
+
+
+@pytest.mark.parametrize("case,expected", [
+    ("missing-secrets", "APP_ENV=production requires JWT_SECRET (>= 32 bytes), HOLDER_KEY_ENCRYPTION_KEY, "
+                        "PGSSLMODE (verify-full or verify-ca in production), PGSSLROOTCERT (readable CA bundle file); "
+                        "set the same values on every task/worker (e.g. AWS Secrets Manager or SSM)"),
+    ("unknown-app-env", "APP_ENV must be one of: development, production (empty means development)"),
+    ("range-error", "JWT_EXPIRES_MINUTES must be an integer between 1 and 1440"),
+])
+def test_uvicorn_ends_a_config_error_with_one_stderr_line_and_exit_code_1(case, expected):
+    # 운영 이미지의 CMD와 같은 uvicorn CLI. 설정 오류(RuntimeError)는 import 중에 끝나므로 서버를 띄우지 않고(포트를 열지
+    # 않음) 메시지 원문 한 줄만 남긴다: CloudWatch 이벤트 하나, 메트릭 필터는 `APP_ENV=production requires`·`must be`.
+    env = {name: value for name, value in os.environ.items()
+           if not name.startswith(("PGSSL", "GOOGLE_", "GITHUB_", "NAVER_", "OAUTH_", "CORS_"))}
+    env.update({"PYTHONDONTWRITEBYTECODE": "1", "DB_PASSWORD": secrets.token_urlsafe(24), "SERVICE_API_KEY": ""})
+    secret_values = [env["DB_PASSWORD"]]
+    if case == "missing-secrets":
+        env.update({"APP_ENV": "production", "JWT_SECRET": "", "HOLDER_KEY_ENCRYPTION_KEY": ""})
+    elif case == "unknown-app-env":
+        env.update({"APP_ENV": "prod"})
+    else:
+        env.update({"APP_ENV": "development", "JWT_EXPIRES_MINUTES": "0"})
+    result = subprocess.run([sys.executable, "-B", "-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", "0"],
+                            cwd=BE_DIR, env=env, capture_output=True, text=True, timeout=60)
+    assert _one_error_line(result) == expected
+    for value in secret_values:
         assert value not in result.stderr
 
 
@@ -586,14 +635,14 @@ def test_production_names_all_fifteen_reused_pairs_with_the_google_secret(monkey
     assert settings.google_client_secret == settings.jwt_secret == shared
 
 
-# ── 카카오·네이버 OAuth 설정 ─────────────────────────────────────────
+# ── GitHub·네이버 OAuth 설정 ─────────────────────────────────────────
 
-KAKAO_NAVER = [("KAKAO", "Kakao", "kakao"), ("NAVER", "Naver", "naver")]
+GITHUB_NAVER = [("GITHUB", "GitHub", "github"), ("NAVER", "Naver", "naver")]
 
 
 def provider_configured(monkeypatch, prefix: str, **overrides) -> dict:
-    """production 검사를 통과하는 카카오·네이버 설정 (시크릿은 실행할 때마다 새로 만든다). 값이 None인 변수는 지운다."""
-    values = {f"{prefix}_CLIENT_ID": f"{prefix.lower()}-rest-api-key-0123",
+    """production 검사를 통과하는 GitHub·네이버 설정 (시크릿은 실행할 때마다 새로 만든다). 값이 None인 변수는 지운다."""
+    values = {f"{prefix}_CLIENT_ID": f"{prefix.lower()}-client-id-0123",
               f"{prefix}_CLIENT_SECRET": base64.b64encode(os.urandom(32)).decode(),
               f"{prefix}_REDIRECT_URI": f"https://app.example.com/auth/{prefix.lower()}/callback", **overrides}
     for name, value in values.items():
@@ -605,8 +654,8 @@ def provider_configured(monkeypatch, prefix: str, **overrides) -> dict:
     return values
 
 
-@pytest.mark.parametrize("prefix,label,name", KAKAO_NAVER)
-def test_kakao_and_naver_redirect_default_is_for_development_only(monkeypatch, prefix, label, name):
+@pytest.mark.parametrize("prefix,label,name", GITHUB_NAVER)
+def test_github_and_naver_redirect_default_is_for_development_only(monkeypatch, prefix, label, name):
     monkeypatch.delenv("APP_ENV", raising=False)
     provider_configured(monkeypatch, prefix, **{f"{prefix}_CLIENT_ID": None, f"{prefix}_CLIENT_SECRET": None,
                                                 f"{prefix}_REDIRECT_URI": None})
@@ -624,8 +673,8 @@ def test_kakao_and_naver_redirect_default_is_for_development_only(monkeypatch, p
     assert getattr(get_settings(), f"{name}_redirect_uri") == ""  # production은 localhost 기본값을 쓰지 않는다
 
 
-@pytest.mark.parametrize("prefix,label,name", KAKAO_NAVER)
-def test_production_accepts_a_complete_kakao_or_naver_configuration(monkeypatch, prefix, label, name):
+@pytest.mark.parametrize("prefix,label,name", GITHUB_NAVER)
+def test_production_accepts_a_complete_github_or_naver_configuration(monkeypatch, prefix, label, name):
     production(monkeypatch)
     values = provider_configured(monkeypatch, prefix, **{f"{prefix}_REDIRECT_URI": "HTTPS://app.example.com/cb"})
     settings = get_settings()
@@ -634,9 +683,9 @@ def test_production_accepts_a_complete_kakao_or_naver_configuration(monkeypatch,
     assert getattr(settings, f"{name}_redirect_uri") == "HTTPS://app.example.com/cb"  # 주소로 읽고, 값은 적은 그대로
 
 
-@pytest.mark.parametrize("prefix,label,name", KAKAO_NAVER)
-def test_production_kakao_or_naver_needs_id_secret_together_and_an_explicit_https_redirect(monkeypatch, prefix, label,
-                                                                                            name):
+@pytest.mark.parametrize("prefix,label,name", GITHUB_NAVER)
+def test_production_github_or_naver_needs_id_secret_together_and_an_explicit_https_redirect(monkeypatch, prefix, label,
+                                                                                             name):
     production(monkeypatch)
     head = "^APP_ENV=production requires "
     both = rf"{head}{prefix}_CLIENT_ID and {prefix}_CLIENT_SECRET \(set both, or leave both empty\); "
@@ -678,26 +727,26 @@ def test_production_kakao_or_naver_needs_id_secret_together_and_an_explicit_http
     assert get_settings().app_env == "development"
 
 
-# 카카오·네이버 시크릿도 각 제공자로 보내고 그 콘솔 관리자가 볼 수 있는 값이라 다른 비밀값과 달라야 한다.
-REUSED_WITH_KAKAO_OR_NAVER = [
-    ("KAKAO_CLIENT_SECRET", "DXWORKS_API_KEY"), ("KAKAO_CLIENT_SECRET", "GOOGLE_CLIENT_SECRET"),
-    ("NAVER_CLIENT_SECRET", "KAKAO_CLIENT_SECRET"), ("HOLDER_KEY_ENCRYPTION_KEY", "NAVER_CLIENT_SECRET"),
-    ("JWT_SECRET", "KAKAO_CLIENT_SECRET"), ("SERVICE_API_KEY", "NAVER_CLIENT_SECRET"),
-    ("AI_SERVICE_TOKEN", "KAKAO_CLIENT_SECRET"), ("NAVER_CLIENT_SECRET", "DXWORKS_API_KEY"),
+# GitHub·네이버 시크릿도 각 제공자로 보내고 그 콘솔(OAuth App 설정) 관리자가 볼 수 있는 값이라 다른 비밀값과 달라야 한다.
+REUSED_WITH_GITHUB_OR_NAVER = [
+    ("GITHUB_CLIENT_SECRET", "DXWORKS_API_KEY"), ("GITHUB_CLIENT_SECRET", "GOOGLE_CLIENT_SECRET"),
+    ("NAVER_CLIENT_SECRET", "GITHUB_CLIENT_SECRET"), ("HOLDER_KEY_ENCRYPTION_KEY", "NAVER_CLIENT_SECRET"),
+    ("JWT_SECRET", "GITHUB_CLIENT_SECRET"), ("SERVICE_API_KEY", "NAVER_CLIENT_SECRET"),
+    ("AI_SERVICE_TOKEN", "GITHUB_CLIENT_SECRET"), ("NAVER_CLIENT_SECRET", "DXWORKS_API_KEY"),
 ]
 
 
-@pytest.mark.parametrize(("name", "other"), REUSED_WITH_KAKAO_OR_NAVER,
-                         ids=[f"{name}-{other}" for name, other in REUSED_WITH_KAKAO_OR_NAVER])
-def test_production_refuses_a_secret_shared_with_a_kakao_or_naver_secret(monkeypatch, name, other):
+@pytest.mark.parametrize(("name", "other"), REUSED_WITH_GITHUB_OR_NAVER,
+                         ids=[f"{name}-{other}" for name, other in REUSED_WITH_GITHUB_OR_NAVER])
+def test_production_refuses_a_secret_shared_with_a_github_or_naver_secret(monkeypatch, name, other):
     production(monkeypatch)
     values = distinct_five_secrets(monkeypatch)
     values["GOOGLE_CLIENT_SECRET"] = google_configured(monkeypatch)["GOOGLE_CLIENT_SECRET"]
-    for prefix in ("KAKAO", "NAVER"):
+    for prefix in ("GITHUB", "NAVER"):
         values[f"{prefix}_CLIENT_SECRET"] = provider_configured(monkeypatch, prefix)[f"{prefix}_CLIENT_SECRET"]
     assert get_settings().app_env == "production"  # 대조: 모두 다르면 시작한다
     expected = rf"^APP_ENV=production requires {name} \(not the same value as {other}\); "
-    names = (*FIVE_SECRETS, "GOOGLE_CLIENT_SECRET", "KAKAO_CLIENT_SECRET", "NAVER_CLIENT_SECRET", "DB_PASSWORD")
+    names = (*FIVE_SECRETS, "GOOGLE_CLIENT_SECRET", "GITHUB_CLIENT_SECRET", "NAVER_CLIENT_SECRET", "DB_PASSWORD")
     others = [n for n in names if n not in (name, other)]
     for target, source in ((name, other), (other, name)):
         for reused in (values[source], f" {values[source]}\n"):  # 앞뒤 공백만 다른 값도 같은 비밀이다
@@ -714,13 +763,13 @@ def test_production_names_all_twenty_eight_reused_pairs(monkeypatch):
     production(monkeypatch)
     shared = base64.b64encode(os.urandom(32)).decode()  # 여덟 변수 어디에나 넣을 수 있는 값 (마스터 키 형식)
     google_configured(monkeypatch, GOOGLE_CLIENT_SECRET=shared)
-    for prefix in ("KAKAO", "NAVER"):
+    for prefix in ("GITHUB", "NAVER"):
         provider_configured(monkeypatch, prefix, **{f"{prefix}_CLIENT_SECRET": shared})
     for name in FIVE_SECRETS:
         monkeypatch.setenv(name, shared)
     with pytest.raises(RuntimeError) as error:
         get_settings()
-    order = ["DXWORKS_API_KEY", "GOOGLE_CLIENT_SECRET", "KAKAO_CLIENT_SECRET", "NAVER_CLIENT_SECRET",
+    order = ["DXWORKS_API_KEY", "GOOGLE_CLIENT_SECRET", "GITHUB_CLIENT_SECRET", "NAVER_CLIENT_SECRET",
              "HOLDER_KEY_ENCRYPTION_KEY", "JWT_SECRET", "SERVICE_API_KEY", "AI_SERVICE_TOKEN"]
     pairs = ", ".join(f"{order[j]} (not the same value as {order[i]})"
                       for i in range(len(order)) for j in range(i + 1, len(order)))
@@ -859,6 +908,42 @@ def test_legacy_auth_required_false_cannot_disable_auth(monkeypatch, caplog, app
         with caplog.at_level(logging.WARNING, logger="app.core.config"):
             get_settings()
         assert "AUTH_REQUIRED" not in caplog.text
+
+
+# ── 없앤 카카오 로그인 설정이 남은 경우 ────────────────────────────────
+
+LEFTOVER_KAKAO_WARNING = "KAKAO_* 설정은 더 이상 쓰지 않습니다 (카카오 로그인 제거). .env에서 지웁니다."
+
+
+@pytest.mark.parametrize("app_env", ["development", "production"])
+@pytest.mark.parametrize("name", ["KAKAO_CLIENT_ID", "KAKAO_CLIENT_SECRET"])
+def test_leftover_kakao_settings_are_ignored_with_one_warning(monkeypatch, caplog, app_env, name):
+    # 카카오 로그인을 없앤 뒤에도 값이 남은 .env·작업 정의: 서버는 그대로 시작하고, 값은 쓰지도 로그에 남기지도 않으며
+    # 지우라는 경고만 한 번 남긴다 (AUTH_REQUIRED 남은 줄과 같은 방식).
+    production(monkeypatch)
+    monkeypatch.setenv("APP_ENV", app_env)
+    monkeypatch.delenv("MOCK_ISSUER_ENABLED", raising=False)  # production의 모의 발급 경고가 섞이지 않게 기본값(끔)으로 둔다
+    value = secrets.token_urlsafe(24)  # 실행할 때마다 새로 만든 값 (로그에 나오면 안 된다)
+    monkeypatch.setenv(name, f" {value} ")
+    monkeypatch.setenv("KAKAO_REDIRECT_URI", "http://app.example.com/auth/kakao/callback")  # production 검사도 하지 않는다
+    with caplog.at_level(logging.WARNING, logger="app.core.config"):
+        settings = get_settings()
+        get_settings()  # 캐시된 설정: 경고를 다시 남기지 않는다
+    assert settings.app_env == app_env
+    assert [r.getMessage() for r in caplog.records if r.name == "app.core.config"] == [LEFTOVER_KAKAO_WARNING]
+    assert value not in caplog.text and value not in repr(settings)
+    assert not [f.name for f in dataclasses.fields(Settings) if "kakao" in f.name]  # 설정 객체에 카카오 필드가 없다
+
+    for blank in (None, "", "   "):  # 없거나 비었으면 조용하다 (콜백 주소만 남은 줄도 조용하다)
+        if blank is None:
+            monkeypatch.delenv(name)
+        else:
+            monkeypatch.setenv(name, blank)
+        get_settings.cache_clear()
+        caplog.clear()
+        with caplog.at_level(logging.WARNING, logger="app.core.config"):
+            get_settings()
+        assert "KAKAO" not in caplog.text
 
 
 # ── 모의 발급 ─────────────────────────────────────────────────────
@@ -1094,7 +1179,7 @@ def test_secret_like_settings_fields_are_hidden_from_repr():
     # 새 비밀값 필드를 추가하면서 field(repr=False)를 빠뜨리지 않게 이름(…_secret/_key/_token/_password)으로도 확인한다.
     hidden = {f.name for f in dataclasses.fields(Settings) if not f.repr}
     assert hidden == {"dxworks_api_key", "jwt_secret", "service_api_key", "holder_key_encryption_key",
-                      "google_client_secret", "kakao_client_secret", "naver_client_secret", "ai_service_token"}
+                      "google_client_secret", "github_client_secret", "naver_client_secret", "ai_service_token"}
     assert {f.name for f in dataclasses.fields(Settings)
             if re.search(r"(secret|key|token|password)$", f.name)} <= hidden
 
@@ -1110,14 +1195,14 @@ def test_settings_repr_never_contains_secret_values(monkeypatch, app_env):
         "SERVICE_API_KEY": secrets.token_urlsafe(32),
         "AI_SERVICE_TOKEN": secrets.token_urlsafe(40),
         "GOOGLE_CLIENT_SECRET": secrets.token_urlsafe(24),
-        "KAKAO_CLIENT_SECRET": secrets.token_urlsafe(24),
+        "GITHUB_CLIENT_SECRET": secrets.token_urlsafe(24),
         "NAVER_CLIENT_SECRET": secrets.token_urlsafe(24),
     }
     master = os.urandom(32)
     for name, value in fake.items():
         monkeypatch.setenv(name, value)
     # production은 시크릿만 넣은 OAuth 설정을 받지 않는다: ID와 https 콜백 주소도 함께 넣는다.
-    for provider in ("google", "kakao", "naver"):
+    for provider in ("google", "github", "naver"):
         monkeypatch.setenv(f"{provider.upper()}_CLIENT_ID", f"1234-test-{provider}-client-id")
         monkeypatch.setenv(f"{provider.upper()}_REDIRECT_URI", f"https://app.example.com/auth/{provider}/callback")
     monkeypatch.setenv("HOLDER_KEY_ENCRYPTION_KEY", base64.b64encode(master).decode())
@@ -1191,6 +1276,8 @@ def test_production_db_connection_refuses_missing_or_default_password(monkeypatc
     assert not seen  # 공개된 기본 비밀번호로는 접속을 시도하지도 않는다
 
     monkeypatch.setenv("DB_PASSWORD", TEST_DB_PASSWORD)
+    for name, value in PRODUCTION_DB_TLS_ENV.items():  # production은 DB TLS도 검사한다 (아래 DB TLS 테스트)
+        monkeypatch.setenv(name, value)
     database.get_db_connection()
     assert seen["password"] == TEST_DB_PASSWORD
 
@@ -1207,6 +1294,130 @@ def test_production_db_connection_refuses_missing_or_default_password(monkeypatc
     monkeypatch.setenv("DB_PASSWORD", " spaced ")
     database.get_db_connection()
     assert seen["password"] == " spaced "
+
+
+# ── DB TLS (PGSSLMODE·PGSSLROOTCERT) ─────────────────────────────────
+
+PGSSLMODE_RULE = "PGSSLMODE (verify-full or verify-ca in production)"
+PGSSLROOTCERT_RULE = "PGSSLROOTCERT (readable CA bundle file)"
+SETTINGS_TAIL = "; set the same values on every task/worker (e.g. AWS Secrets Manager or SSM)"
+
+
+def _set_or_delete(monkeypatch, name: str, value) -> None:
+    if value is None:
+        monkeypatch.delenv(name, raising=False)
+    else:
+        monkeypatch.setenv(name, value)
+
+
+@pytest.mark.parametrize("value", [None, "", "  ", "prefer", "require", "disable", "allow", "VERIFY-FULL", "Verify-CA",
+                                   "verify_full", "verify-full verify-ca", "system"],
+                         ids=lambda value: repr(value))
+def test_production_refuses_a_pgsslmode_that_does_not_verify_the_server(monkeypatch, value):
+    # 없거나 비었거나 서버 인증서를 확인하지 않는 값(libpq 기본값 prefer·require 등)이면 시작하지 않는다. 값은 libpq가 받는
+    # 글자 그대로 비교한다 (대문자는 libpq도 받지 않는다). 메시지에는 이름만 있고 값은 없다 (메시지 전체를 비교한다).
+    production(monkeypatch)
+    _set_or_delete(monkeypatch, "PGSSLMODE", value)
+    with pytest.raises(RuntimeError) as error:
+        get_settings()
+    assert str(error.value) == f"APP_ENV=production requires {PGSSLMODE_RULE}{SETTINGS_TAIL}"
+
+
+@pytest.mark.parametrize("value,expected", [("verify-full", "verify-full"), ("verify-ca", "verify-ca"),
+                                            (" verify-full\n", "verify-full"), ("\tverify-ca ", "verify-ca")])
+def test_production_accepts_verifying_sslmodes_and_passes_them_trimmed_to_libpq(monkeypatch, value, expected):
+    from app.services import database
+
+    production(monkeypatch)
+    monkeypatch.setenv("PGSSLMODE", value)
+    assert get_settings().app_env == "production"
+    seen: dict = {}
+    monkeypatch.setattr(database.psycopg, "connect", lambda **kwargs: seen.update(kwargs))
+    database.get_db_connection()
+    assert seen["sslmode"] == expected
+    # CA 묶음 경로는 접속 인자로 넘기지 않고 libpq가 PGSSLROOTCERT를 그대로 읽는다 (한글 경로도 접속 문자열에 들어가지 않는다).
+    assert "sslrootcert" not in seen and os.environ["PGSSLROOTCERT"] == str(RDS_CA_BUNDLE)
+
+
+def test_production_refuses_a_pgsslrootcert_that_is_not_a_readable_file(monkeypatch, tmp_path):
+    # 이미지 기본값(/app/certs/rds-global-bundle.pem)을 작업 정의에서 비우거나 틀린 경로·디렉터리·읽을 수 없는 파일로 바꾸면
+    # verify-full 접속이 모두 실패하므로(서버는 뜨고 /health 200, DB 요청마다 500) 시작할 때 거부한다. 경로는 메시지에 없다.
+    # libpq가 읽는 값 그대로 본다: 끝 줄바꿈·앞뒤 공백이 붙은 경로도 libpq는 열지 못하므로 거부한다.
+    production(monkeypatch)
+    unreadable = tmp_path / "unreadable-ca.pem"
+    unreadable.write_bytes(RDS_CA_BUNDLE.read_bytes())
+    unreadable.chmod(0)
+    values = [None, "", "   ", "system", str(tmp_path / "missing-ca.pem"), str(tmp_path), f"{RDS_CA_BUNDLE}\n",
+              f" {RDS_CA_BUNDLE}"]
+    if os.geteuid() != 0:  # root는 권한과 관계없이 읽는다
+        values.append(str(unreadable))
+    for value in values:
+        _set_or_delete(monkeypatch, "PGSSLROOTCERT", value)
+        get_settings.cache_clear()
+        with pytest.raises(RuntimeError) as error:
+            get_settings()
+        assert str(error.value) == f"APP_ENV=production requires {PGSSLROOTCERT_RULE}{SETTINGS_TAIL}", value
+    unreadable.chmod(0o600)
+
+
+def test_production_names_both_db_tls_problems_after_the_db_password_and_development_ignores_them(monkeypatch):
+    production(monkeypatch)
+    monkeypatch.setenv("DB_PASSWORD", "password")
+    monkeypatch.setenv("PGSSLMODE", "require")
+    monkeypatch.setenv("PGSSLROOTCERT", "/nonexistent/rds-ca.pem")
+    with pytest.raises(RuntimeError) as error:
+        get_settings()
+    assert str(error.value) == ("APP_ENV=production requires DB_PASSWORD (not empty and not the local development "
+                                f"default), {PGSSLMODE_RULE}, {PGSSLROOTCERT_RULE}{SETTINGS_TAIL}")
+    assert "/nonexistent" not in str(error.value)
+    # development는 DB TLS를 검사하지 않는다 (로컬 Compose·테스트 DB는 TLS가 없다).
+    for value in (None, "", "disable", "VERIFY-FULL"):
+        monkeypatch.setenv("APP_ENV", "development")
+        _set_or_delete(monkeypatch, "PGSSLMODE", value)
+        monkeypatch.delenv("PGSSLROOTCERT", raising=False)
+        get_settings.cache_clear()
+        assert get_settings().app_env == "development"
+
+
+def test_production_db_connection_refuses_db_tls_settings_before_connecting(monkeypatch):
+    # get_settings()를 거치지 않는 경로(마이그레이션 실행기·시장 통계 배치·시작 점검)도 접속 전에 막는다. 이름만 알린다.
+    from app.services import database
+
+    seen: dict = {}
+    monkeypatch.setattr(database.psycopg, "connect", lambda **kwargs: seen.update(kwargs))
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("DB_PASSWORD", TEST_DB_PASSWORD)
+    for mode, root, expected in ((None, str(RDS_CA_BUNDLE), PGSSLMODE_RULE),
+                                 ("prefer", str(RDS_CA_BUNDLE), PGSSLMODE_RULE),
+                                 ("verify-full", "/nonexistent/rds-ca.pem", PGSSLROOTCERT_RULE),
+                                 ("", "", f"{PGSSLMODE_RULE}, {PGSSLROOTCERT_RULE}")):
+        _set_or_delete(monkeypatch, "PGSSLMODE", mode)
+        monkeypatch.setenv("PGSSLROOTCERT", root)
+        with pytest.raises(RuntimeError) as error:
+            database.get_db_connection()
+        assert str(error.value) == f"APP_ENV=production requires {expected}"
+    assert not seen  # 인증서를 확인하지 않는 설정으로는 접속을 시도하지도 않는다
+
+
+@pytest.mark.parametrize("mode,root,expected", [
+    (None, None, {"sslmode": "prefer"}),  # 로컬 Compose·테스트: libpq 기본값 그대로
+    # 회귀: 빈 값이 libpq에 그대로 가서 모든 접속이 'invalid sslmode value: ""'였다. 빈 경로는 libpq도 없는 것으로 본다.
+    ("", "", {"sslmode": "prefer", "sslrootcert": ""}),
+    ("  ", "  ", {"sslmode": "prefer", "sslrootcert": ""}),  # 공백 경로를 libpq가 환경변수에서 대신 읽지 않게 덮는다
+    (" require ", None, {"sslmode": "require"}),  # 회귀: 앞뒤 공백 때문에 'invalid sslmode value'였다
+    ("disable", "/certs/ca.pem", {"sslmode": "disable"}),  # 경로는 libpq가 환경변수에서 읽는다
+    (None, str(RDS_CA_BUNDLE), {"sslmode": "prefer"}),  # 이미지 기본값 + PGSSLMODE 없음 (로컬 Compose)
+], ids=["unset", "blank", "spaces", "require-trimmed", "disable-with-root", "image-default-root"])
+def test_development_db_connection_ignores_blank_tls_variables(monkeypatch, mode, root, expected):
+    from app.services import database
+
+    seen: dict = {}
+    monkeypatch.setattr(database.psycopg, "connect", lambda **kwargs: seen.update(kwargs))
+    monkeypatch.delenv("APP_ENV", raising=False)
+    _set_or_delete(monkeypatch, "PGSSLMODE", mode)
+    _set_or_delete(monkeypatch, "PGSSLROOTCERT", root)
+    database.get_db_connection()
+    assert {name: seen[name] for name in ("sslmode", "sslrootcert") if name in seen} == expected
 
 
 def test_tests_never_read_a_developer_dotenv(tmp_path, monkeypatch):

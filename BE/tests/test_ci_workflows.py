@@ -217,7 +217,7 @@ def test_fe_job_checks_dist_after_build():
         r"\bgrep\b[^\n]*src[^\n]*\(https\?:\|//\)", after
     ), "FE job: dist/index.html의 외부 <script src> 검사가 없다"
     assert re.search(
-        r"\bgrep\b[^\n]*'localhost:3000\|AI_SERVICE_\(TOKEN\|URL\)\|DXWORKS_\|GOOGLE_\|KAKAO_\|NAVER_\|ai_contract'"
+        r"\bgrep\b[^\n]*'localhost:3000\|AI_SERVICE_\(TOKEN\|URL\)\|DXWORKS_\|GOOGLE_\|GITHUB_\|NAVER_\|ai_contract'"
         r"\s+dist\b", after
     ), "FE job: 개발 전용 안내 검사가 없다"
 

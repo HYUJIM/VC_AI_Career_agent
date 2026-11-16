@@ -137,7 +137,7 @@ export const OAUTH_PASSWORD_ACCOUNT_DETAIL =
 
 /**
  * 소셜 로그인 콜백의 409 detail 중 "같은 이메일이 이미 다른 방법(다른 소셜 로그인 등)으로 가입돼 있음".
- * BE는 이메일 인증을 보장하는 제공자(Google·카카오)의 인증된 이메일로만 기존 계정에 연동한다 (네이버 이메일은 연동하지 않음).
+ * BE는 이메일 인증을 보장하는 제공자(Google·GitHub)의 인증된 이메일로만 기존 계정에 연동한다 (네이버 이메일은 연동하지 않음).
  */
 export const OAUTH_OTHER_METHOD_ACCOUNT_DETAIL =
   'This email is already used by another sign-in method. Log in with that method.';
@@ -148,7 +148,7 @@ export const OAUTH_ALREADY_LINKED_DETAIL = 'User is already linked to another ac
 /** 소셜 로그인 콜백의 400 detail: 제공자가 이메일을 주지 않음 (사용자가 이메일 제공에 동의하지 않음 등) */
 export const OAUTH_EMAIL_REQUIRED_DETAIL = 'OAuth email is required';
 
-/** 소셜 로그인 콜백의 400 detail: 제공자가 이메일을 인증되지 않았다고 알림 (Google·카카오) */
+/** 소셜 로그인 콜백의 400 detail: 제공자가 이메일을 인증되지 않았다고 알림 (Google·GitHub) */
 export const OAUTH_EMAIL_NOT_VERIFIED_DETAIL = 'OAuth email is not verified';
 
 /** BE가 반환하는 알려진 영문 에러 메시지 → 사용자용 한국어 메시지 */
@@ -202,13 +202,14 @@ const KNOWN_ERROR_MESSAGES: Record<string, string> = {
   'Share link limit reached. Revoke unused links first.':
     '공유 링크를 더 만들 수 없습니다. 사용하지 않는 링크를 먼저 폐기해주세요.',
   'Portfolio limit reached.': '포트폴리오를 더 만들 수 없습니다.',
-  // 소셜 로그인 (Google·카카오·네이버 OAuth 2.0). 400 / 409 / 502 / 503
+  // 소셜 로그인 (Google·GitHub·네이버 OAuth 2.0). 400 / 409 / 502 / 503
   // 콜백 화면은 아래 이메일·연동 안내 중 일부를 제공자 이름을 넣은 문구로 바꿔 보여 준다 (pages/OAuthCallbackPage.tsx).
   'Invalid or expired OAuth state': '로그인 요청이 만료되었거나 올바르지 않습니다. 처음부터 다시 시도해주세요.',
   'Invalid or expired OAuth authorization code': '로그인 인증이 만료되었습니다. 처음부터 다시 시도해주세요.',
   'Invalid OAuth access token': '소셜 계정 정보를 확인하지 못했습니다. 처음부터 다시 시도해주세요.',
   [OAUTH_EMAIL_NOT_VERIFIED_DETAIL]: '소셜 계정의 이메일이 인증되지 않아 로그인할 수 없습니다.',
-  // 제공자가 이메일을 주지 않음 (400). 카카오·네이버는 사용자가 이메일 제공 동의를 거절할 수 있다
+  // 제공자가 이메일을 주지 않음 (400). 네이버는 사용자가 이메일 제공 동의를 거절할 수 있고,
+  // GitHub 은 이메일 권한(user:email)을 주지 않았거나 기본(primary) 이메일을 찾지 못한 경우다
   [OAUTH_EMAIL_REQUIRED_DETAIL]:
     '소셜 계정의 이메일 제공에 동의해야 로그인할 수 있어요. 동의 항목을 확인한 뒤 다시 시도해주세요.',
   'Missing OAuth code or state': '로그인 응답이 올바르지 않습니다. 처음부터 다시 시도해주세요.',
@@ -225,13 +226,13 @@ const KNOWN_ERROR_MESSAGES: Record<string, string> = {
     '이미 다른 방법(이메일 또는 다른 소셜 로그인)으로 가입한 이메일입니다. 처음 가입한 방법으로 로그인해주세요.',
   'Google OAuth is not configured': 'Google 로그인을 지금 사용할 수 없습니다.',
   'Google OAuth redirect_uri is not configured': 'Google 로그인을 지금 사용할 수 없습니다.',
-  'Kakao OAuth is not configured': '카카오 로그인을 지금 사용할 수 없습니다.',
-  'Kakao OAuth redirect_uri is not configured': '카카오 로그인을 지금 사용할 수 없습니다.',
+  'GitHub OAuth is not configured': 'GitHub 로그인을 지금 사용할 수 없습니다.',
+  'GitHub OAuth redirect_uri is not configured': 'GitHub 로그인을 지금 사용할 수 없습니다.',
   'Naver OAuth is not configured': '네이버 로그인을 지금 사용할 수 없습니다.',
   'Naver OAuth redirect_uri is not configured': '네이버 로그인을 지금 사용할 수 없습니다.',
   // 제공자 쪽 응답 실패 (502). 원인은 BE 로그의 "Provider error" 줄에만 남는다
   'Google OAuth error': 'Google 로그인 서비스에 일시적인 문제가 있습니다.',
-  'Kakao OAuth error': '카카오 로그인 서비스에 일시적인 문제가 있습니다.',
+  'GitHub OAuth error': 'GitHub 로그인 서비스에 일시적인 문제가 있습니다.',
   'Naver OAuth error': '네이버 로그인 서비스에 일시적인 문제가 있습니다.',
   // 직무별 요구 역량 통계 (404 / 409)
   'Market snapshot not found': '이 직무의 통계가 아직 없습니다.',
@@ -307,12 +308,12 @@ const KNOWN_ERROR_MESSAGES: Record<string, string> = {
           'BE에 발급·검증 설정이 없습니다 (DXWORKS_API_HOST, DXWORKS_API_KEY, DXWORKS_BADGE_TEMPLATE_ID).',
         'Google OAuth is not configured': 'BE에 Google OAuth 설정이 없습니다 (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET).',
         'Google OAuth redirect_uri is not configured': 'BE에 GOOGLE_REDIRECT_URI가 설정되지 않았습니다.',
-        'Kakao OAuth is not configured': 'BE에 카카오 OAuth 설정이 없습니다 (KAKAO_CLIENT_ID, KAKAO_CLIENT_SECRET).',
-        'Kakao OAuth redirect_uri is not configured': 'BE에 KAKAO_REDIRECT_URI가 설정되지 않았습니다.',
+        'GitHub OAuth is not configured': 'BE에 GitHub OAuth 설정이 없습니다 (GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET).',
+        'GitHub OAuth redirect_uri is not configured': 'BE에 GITHUB_REDIRECT_URI가 설정되지 않았습니다.',
         'Naver OAuth is not configured': 'BE에 네이버 OAuth 설정이 없습니다 (NAVER_CLIENT_ID, NAVER_CLIENT_SECRET).',
         'Naver OAuth redirect_uri is not configured': 'BE에 NAVER_REDIRECT_URI가 설정되지 않았습니다.',
         'Invalid redirect_uri':
-          'BE가 허용하지 않은 콜백 주소입니다. FE 콜백 주소를 Google은 GOOGLE_REDIRECT_URI / GOOGLE_ALLOWED_REDIRECT_URIS에 넣고, 카카오·네이버는 KAKAO_REDIRECT_URI / NAVER_REDIRECT_URI와 똑같이 맞춰주세요.',
+          'BE가 허용하지 않은 콜백 주소입니다. FE 콜백 주소를 Google은 GOOGLE_REDIRECT_URI / GOOGLE_ALLOWED_REDIRECT_URIS에 넣고, GitHub·네이버는 GITHUB_REDIRECT_URI / NAVER_REDIRECT_URI와 똑같이 맞춰주세요.',
       }
     : {}),
 };

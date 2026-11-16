@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import re
+import sys
 from urllib.parse import quote
 
 from dotenv import load_dotenv
@@ -24,6 +25,7 @@ from app.core.text import UNSTORABLE_TEXT_MESSAGE  # noqa: E402
 from app.integrations.ai_service import AIServiceError  # noqa: E402
 from app.integrations.ports import ProviderError  # noqa: E402
 from app.services.database import DB_BUSY, DB_BUSY_RETRY_AFTER_SECONDS, DatabaseBusy  # noqa: E402
+from app.services.db_startup_check import DBStartupCheckMiddleware  # noqa: E402
 from app.services.verifier_budget import TOO_MANY_VERIFICATIONS, VerifierBudgetExceeded  # noqa: E402
 
 LOG_LEVEL = log_level()  # 없거나 비우면 INFO
@@ -57,13 +59,13 @@ MAX_DEFAULT_BODY_BYTES = 64 * 1024
 # - 배지·신원 검증(POST /api/v1/verify): 서명 원본이 MAX_TOKEN_CHARS(256 KiB)까지라 기본 상한에 그만큼을 더한다 (320 KiB).
 MAX_VERIFY_BODY_BYTES = verify.MAX_TOKEN_CHARS + MAX_DEFAULT_BODY_BYTES
 VERIFY_BODY_PATHS = frozenset({"/api/v1/verify"})
-# - 로그인 없이 부르는 가입·로그인·OAuth 콜백(POST, Google·Kakao·Naver): 토큰이 없어도 본문을 끝까지 읽고 검사하므로
+# - 로그인 없이 부르는 가입·로그인·OAuth 콜백(POST, Google·GitHub·Naver): 토큰이 없어도 본문을 끝까지 읽고 검사하므로
 #   정상 본문(6.4 KB 이하: 이메일 255자, 비밀번호 72바이트, 인가 코드·state·redirect_uri 각 2,048자 이하)보다 넉넉한
 #   16 KiB에서 끊는다.
 MAX_PUBLIC_AUTH_BODY_BYTES = 16 * 1024
 PUBLIC_AUTH_BODY_PATHS = frozenset({
     "/api/v1/users/login", "/api/v1/users/register", "/api/v1/users/oauth/google/callback",
-    "/api/v1/users/oauth/kakao/callback", "/api/v1/users/oauth/naver/callback",
+    "/api/v1/users/oauth/github/callback", "/api/v1/users/oauth/naver/callback",
 })
 # POST 경로 → 본문 상한. 여기에 없는 경로와 POST가 아닌 메서드는 기본 상한이다.
 _POST_BODY_LIMITS = {
@@ -84,19 +86,19 @@ MAX_VALIDATION_LOC_CHARS = 64
 
 # 접근 로그(uvicorn.access → stdout → CloudWatch)에 남기지 않는 경로 조각.
 # 공유 링크 토큰은 가진 사람 누구나 링크를 여는 비밀이라(DB에도 해시만 둔다) 그 뒤 경로를 모두 가리고, DID는 그 조각만 가린다.
-# OAuth 콜백(Google·Kakao·Naver)의 쿼리(인가 코드·state·code_verifier)는 통째로 가린다: BE의 GET 콜백(개발용)뿐 아니라
+# OAuth 콜백(Google·GitHub·Naver)의 쿼리(인가 코드·state·code_verifier)는 통째로 가린다: BE의 GET 콜백(개발용)뿐 아니라
 # BE로 잘못 들어온 FE 콜백 주소(/auth/<제공자>/callback?code=…)도 같은 모양이다.
 _ACCESS_LOG_REDACTIONS = (
     (re.compile(r"(/public/+shares/)[^?\s]+", re.IGNORECASE), r"\1[redacted]"),
     (re.compile(r"(/subjects/+)[^/?\s]+", re.IGNORECASE), r"\1[did]"),
-    (re.compile(r"(/(?:google|kakao|naver)/+callback/*\?)\S*", re.IGNORECASE), r"\1[redacted]"),
+    (re.compile(r"(/(?:google|github|naver)/+callback[^?\s]*\?)\S*", re.IGNORECASE), r"\1[redacted]"),
 )
 
 
 def redact_path(path: str) -> str:
     """로그에 남길 경로에서 공유 링크 토큰은 [redacted], DID는 [did]로 바꾼다.
 
-    쿼리 문자열은 그대로 두되, OAuth 콜백(…/google|kakao|naver/callback?…)의 쿼리만 [redacted]로 바꾼다.
+    쿼리 문자열은 그대로 두되, OAuth 콜백(…/google|github|naver/callback?…)의 쿼리만 [redacted]로 바꾼다.
     """
     for pattern, replacement in _ACCESS_LOG_REDACTIONS:
         path = pattern.sub(replacement, path)
@@ -253,6 +255,15 @@ class RouteBodyLimitMiddleware:
         await self.limited[body_limit(scope.get("method", ""), path)](scope, receive, send)
 
 
+# 설정 검사(app.core.config.get_settings)는 uvicorn이 이 모듈을 불러올 때 한 번 한다 (아래 문서 경로·CORS 설정이 쓴다).
+# 설정 오류(RuntimeError: 운영 설정 검사·범위 검사. 메시지에는 변수 이름만 있고 값은 없다)는 수십 줄 traceback(CloudWatch
+# 이벤트 수십 개) 대신 그 메시지 한 줄만 stderr에 남기고 종료 코드 1로 끝낸다 (uvicorn은 import 중의 SystemExit를 그대로 둔다).
+try:
+    get_settings()
+except RuntimeError as exc:
+    print(exc, file=sys.stderr)
+    sys.exit(1)
+
 # - redirect_slashes=False: 끝에 /가 붙은 경로를 307로 돌려보내지 않는다. 그 Location은 요청의 Host 헤더로 만들어져
 #   CloudFront 뒤에서는 ALB 주소가 http://로 드러난다. FE는 끝에 /가 붙은 경로를 부르지 않으며, 그런 경로는 이제 404다.
 # - API 문서(/docs·/redoc·/openapi.json)는 APP_ENV=production에서는 만들지 않는다 (development는 그대로).
@@ -260,11 +271,14 @@ _DOCS_OFF = {"docs_url": None, "redoc_url": None, "openapi_url": None} if get_se
 app = FastAPI(title="VC AI Career Agent BE", redirect_slashes=False, **_DOCS_OFF)
 
 # add_middleware는 나중에 추가한 것이 바깥이 된다.
-# 바깥 → 안쪽: CORS → 보안 헤더 → 처리되지 않은 예외 → 본문 상한 → 경로별 본문 상한 → 앱.
+# 바깥 → 안쪽: CORS → 보안 헤더 → 처리되지 않은 예외 → 본문 상한 → 경로별 본문 상한 → (운영 시작 DB 점검) → 앱.
 # - CORS는 항상 마지막(가장 바깥)에 추가해 500·413·422 응답에도 CORS 헤더가 붙게 한다.
 # - 보안 헤더는 오류 미들웨어 바깥에 두어 500 응답에도 붙게 한다.
 # - 본문 상한은 오류 미들웨어 안쪽에 둔다 (바깥에 두면 413을 보낼 때 쓰는 내부 예외가 "Unhandled error"로 기록된다).
 #   본문을 읽는 미들웨어를 새로 넣으면 본문 상한보다 안쪽에 둔다.
+# - 운영 시작 때 DB 자체 점검(DBStartupCheckMiddleware)은 lifespan 메시지만 보고 HTTP 요청은 그대로 넘기므로 순서와 상관없다
+#   (가장 안쪽에 둔다). /health는 그대로 DB를 보지 않는다 (app/services/db_startup_check.py).
+app.add_middleware(DBStartupCheckMiddleware)
 app.add_middleware(RouteBodyLimitMiddleware)
 app.add_middleware(RequestBodyLimitMiddleware, max_body_size=MAX_REQUEST_BODY_BYTES)
 app.add_middleware(UnhandledErrorMiddleware)
@@ -306,7 +320,7 @@ async def validation_error_handler(_: Request, exc: RequestValidationError):
 _PROVIDER_ERROR_DETAILS = {
     "credential": ("Credential service is not configured", "Credential service error"),
     "google_oauth": ("Google OAuth is not configured", "Google OAuth error"),
-    "kakao_oauth": ("Kakao OAuth is not configured", "Kakao OAuth error"),
+    "github_oauth": ("GitHub OAuth is not configured", "GitHub OAuth error"),
     "naver_oauth": ("Naver OAuth is not configured", "Naver OAuth error"),
 }
 
@@ -315,7 +329,7 @@ _PROVIDER_ERROR_DETAILS = {
 async def provider_error_handler(_: Request, exc: ProviderError):
     # 협력사 오류 코드·문구와 설정 이름은 운영 로그에만 남긴다 (message의 한 줄·길이 제한은 ProviderError가 한다).
     # 응답에는 고정 문구와 기계용 code만 싣는다. 상태 코드(설정 누락 등으로 호출할 수 없으면 503, 그 밖 502)는 그대로다.
-    # 문구만 서비스(exc.service)에 따라 고른다: Google·Kakao·Naver 로그인 실패를 발급·검증 인프라 문구로 답하지 않는다.
+    # 문구만 서비스(exc.service)에 따라 고른다: Google·GitHub·Naver 로그인 실패를 발급·검증 인프라 문구로 답하지 않는다.
     logger.warning("Provider error: %s (upstream=%s)", exc.message, exc.upstream_status)
     not_configured, failed = _PROVIDER_ERROR_DETAILS.get(exc.service, _PROVIDER_ERROR_DETAILS["credential"])
     if exc.unavailable:
@@ -366,6 +380,7 @@ async def ai_service_error_handler(request: Request, exc: AIServiceError):
 
 # async: I/O가 없으므로 이벤트 루프에서 바로 답한다. 동기 함수면 워커 스레드를 하나 써야 해서, DB 자리·잠금을 기다리는
 # 요청이 스레드를 모두 잡고 있는 동안(각 최대 5초) 상태 확인(ALB·ECS, 제한 4~5초)이 함께 밀려 실패한다.
+# DB는 보지 않는다 (DB 장애로 태스크가 줄줄이 교체되지 않게). DB 설정은 운영 시작 때 한 번 확인한다 (DBStartupCheckMiddleware).
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "message": "VC AI Career Agent BE (FastAPI) is running"}

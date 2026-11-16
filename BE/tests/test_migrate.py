@@ -261,6 +261,86 @@ def test_migration_cli_refuses_default_db_password_in_production(monkeypatch, ca
     assert "APP_ENV must be one of" in caplog.text
 
 
+PGSSLMODE_RULE = "PGSSLMODE (verify-full or verify-ca in production)"
+PGSSLROOTCERT_RULE = "PGSSLROOTCERT (readable CA bundle file)"
+
+
+def test_migration_cli_refuses_db_tls_settings_that_do_not_verify_in_production(monkeypatch, caplog, tmp_path):
+    # 마이그레이션 태스크도 서비스와 같은 DB TLS 규칙이다 (app.core.config.db_tls_options): 인증서를 확인하지 않는 설정이면
+    # 접속하지 않고(60초 접속 대기도 없이) 이름만 담은 오류 한 줄 + 종료 코드 1이다.
+    import app.migrate as runner
+
+    monkeypatch.setattr(runner, "load_dotenv", lambda *args, **kwargs: False)
+    monkeypatch.setattr(runner.psycopg, "connect", lambda *args, **kwargs: pytest.fail("must not connect"))
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("DB_PASSWORD", secrets.token_urlsafe(24))
+    bundle = str(BE_DIR / "certs" / "rds-global-bundle.pem")
+    missing = str(tmp_path / "missing-rds-ca.pem")
+    for mode, root, expected in ((None, bundle, PGSSLMODE_RULE), ("", bundle, PGSSLMODE_RULE),
+                                 ("require", bundle, PGSSLMODE_RULE), ("verify-full", None, PGSSLROOTCERT_RULE),
+                                 ("verify-ca", missing, PGSSLROOTCERT_RULE), (" ", " ", f"{PGSSLMODE_RULE}, {PGSSLROOTCERT_RULE}")):
+        for name, value in (("PGSSLMODE", mode), ("PGSSLROOTCERT", root)):
+            if value is None:
+                monkeypatch.delenv(name, raising=False)
+            else:
+                monkeypatch.setenv(name, value)
+        caplog.clear()
+        started = time.monotonic()
+        with caplog.at_level(logging.ERROR, logger="app.migrate"):
+            assert runner.main([]) == 1
+        assert time.monotonic() - started < 5  # 접속 대기(60초) 없이 바로
+        assert [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR] == [
+            f"마이그레이션 실패: APP_ENV=production requires {expected}"], (mode, root)
+        assert missing not in caplog.text
+
+    # 규칙에 맞으면 그 값(PGSSLMODE는 앞뒤 공백을 뗀 값)으로 접속한다. CA 묶음 경로는 libpq가 환경변수에서 읽는다.
+    seen: dict = {}
+
+    def stop(**kwargs):
+        seen.update(kwargs)
+        raise psycopg.ProgrammingError("stop before touching the database")  # 다시 시도하지 않는 오류
+
+    monkeypatch.setattr(runner.psycopg, "connect", stop)
+    monkeypatch.setenv("PGSSLMODE", " verify-full ")
+    monkeypatch.setenv("PGSSLROOTCERT", bundle)
+    with caplog.at_level(logging.ERROR, logger="app.migrate"):
+        assert runner.main([]) == 1
+    assert seen["sslmode"] == "verify-full" and "sslrootcert" not in seen
+
+
+def _cli_env(**overrides) -> dict:
+    env = {name: value for name, value in os.environ.items() if not name.startswith("PGSSL")}
+    env.update({"PYTHONDONTWRITEBYTECODE": "1", **overrides})
+    return env
+
+
+def test_migration_cli_ends_a_production_db_tls_error_with_one_stderr_line_and_exit_code_1(tmp_path):
+    # 운영 이미지의 마이그레이션 태스크 명령 그대로(`python -m app.migrate`). traceback 없이 한 줄, 경로·비밀번호 없이.
+    password = secrets.token_urlsafe(24)
+    missing = str(tmp_path / "missing-rds-ca.pem")
+    env = _cli_env(APP_ENV="production", DB_PASSWORD=password, PGSSLMODE="require", PGSSLROOTCERT=missing)
+    started = time.monotonic()
+    result = subprocess.run([sys.executable, "-B", "-m", "app.migrate"], cwd=BE_DIR, env=env, capture_output=True,
+                            text=True, timeout=120)
+    assert time.monotonic() - started < 30  # 60초 접속 대기 없이
+    assert result.returncode == 1 and result.stdout == "", result.stderr[-2000:]
+    assert result.stderr.splitlines() == [
+        f"ERROR:app.migrate:마이그레이션 실패: APP_ENV=production requires {PGSSLMODE_RULE}, {PGSSLROOTCERT_RULE}"]
+    assert password not in result.stderr and missing not in result.stderr
+
+
+@pytest.mark.parametrize("blank", ["", "  "], ids=["empty", "spaces"])
+def test_migration_cli_treats_blank_db_tls_variables_as_unset_in_development(blank):
+    # 회귀: `PGSSLMODE=`처럼 비워 둔 줄(.env·작업 정의)이 libpq에 그대로 가서 'invalid sslmode value: ""'로 60초 동안
+    # 접속을 다시 시도한 뒤 종료 코드 1이었다. 이제 없는 것과 같다 (TLS 없는 테스트 DB에 libpq 기본값 prefer로 접속).
+    env = _cli_env(APP_ENV="development", PGSSLMODE=blank, PGSSLROOTCERT=blank)
+    result = subprocess.run([sys.executable, "-B", "-m", "app.migrate"], cwd=BE_DIR, env=env, capture_output=True,
+                            text=True, timeout=120)
+    assert result.returncode == 0, result.stderr[-2000:]
+    assert "INFO:app.migrate:완료: 새로 적용한 마이그레이션 없음" in result.stderr.splitlines()
+    assert "sslmode" not in result.stderr
+
+
 # ── 서비스 계정(DB_APP_ROLE) 권한 ────────────────────────────────────
 
 @pytest.fixture

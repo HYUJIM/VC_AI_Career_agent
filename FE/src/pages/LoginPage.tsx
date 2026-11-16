@@ -129,7 +129,7 @@ export function LoginPage() {
           >
             <ul className="list-inside list-disc">
               <li>비밀번호를 다시 확인해주세요. (대소문자 구분)</li>
-              <li>Google·카카오·네이버 계정으로 가입했다면 아래 소셜 로그인 버튼을 이용해주세요.</li>
+              <li>Google·GitHub·네이버 계정으로 가입했다면 아래 소셜 로그인 버튼을 이용해주세요.</li>
               <li>
                 <span className="font-mono-did">{err.email}</span> 로 가입한 적이 없다면 먼저
                 회원가입을 해주세요.

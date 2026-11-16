@@ -42,7 +42,7 @@ PUBLIC_ROUTES = {
     ("GET", "/health"),
     ("POST", REGISTER),
     ("POST", LOGIN),
-    *((method, f"/api/v1/users/oauth/{provider}/{action}") for provider in ("google", "kakao", "naver")
+    *((method, f"/api/v1/users/oauth/{provider}/{action}") for provider in ("google", "github", "naver")
       for method, action in (("GET", "authorize"), ("GET", "callback"), ("POST", "callback"))),
     ("GET", "/api/v1/public/shares/{token}"),
 }

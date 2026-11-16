@@ -32,7 +32,7 @@ function App() {
             </GuestRoute>
           }
         />
-        {/* 소셜 로그인 콜백 (/auth/google/callback, /auth/kakao/callback, /auth/naver/callback).
+        {/* 소셜 로그인 콜백 (/auth/google/callback, /auth/github/callback, /auth/naver/callback).
             key: 다른 제공자의 콜백으로 바로 옮겨 가도 화면 상태를 새로 시작한다 */}
         {OAUTH_PROVIDER_IDS.map((provider) => (
           <Route

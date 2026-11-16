@@ -1,7 +1,7 @@
 import { OAUTH_PROVIDER_IDS, OAUTH_PROVIDERS } from '@/lib/oauthProviders';
 
 /**
- * 연동된 소셜 로그인 배지 ("Google 연동됨", "카카오 연동됨", "네이버 연동됨").
+ * 연동된 소셜 로그인 배지 ("Google 연동됨", "GitHub 연동됨", "네이버 연동됨").
  * `GET /users/me` 의 oauth_providers 항목마다 하나씩, 알려진 제공자만 OAUTH_PROVIDER_IDS 순서로 그린다 (중복·모르는 값은 뺀다).
  * 연동된 제공자가 없거나 아직 /me 를 받지 못했으면 아무것도 그리지 않는다.
  */

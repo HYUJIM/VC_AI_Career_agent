@@ -15,7 +15,7 @@ info:
       `{ success, message, ... }` 봉투(envelope)를 쓴다. 조회 계열(`careers`)은 봉투 없이 본문을 바로 반환한다.
     - 에러는 FastAPI 기본 형식 `{ "detail": "..." }` 으로 반환한다.
       FE는 `detail → message → error` 순서로 메시지를 읽는다 (`FE/src/lib/apiClient.ts`).
-    - AI 서비스 연동 오류(직무 비교·커리큘럼 API)와 발급·검증 인프라(DXWorks)·소셜 로그인(Google·카카오·네이버) 오류에만 기계용 사유 코드
+    - AI 서비스 연동 오류(직무 비교·커리큘럼 API)와 발급·검증 인프라(DXWorks)·소셜 로그인(Google·GitHub·네이버) 오류에만 기계용 사유 코드
       `code`가 더 붙는다: `{ "detail": "...", "code": "..." }`. AI 연동 오류의 상태 코드와 `detail`은 그대로다.
     - 요청 검증 실패는 422 `{ "detail": [ { "type", "loc", "msg" } ] }`다. FastAPI 기본 형식에서 입력값(`input`)과 `ctx`를
       뺀 것이다: 받은 값을 되돌려 주지 않는다. 오류는 앞에서부터 20개까지만 싣고, `loc`에 들어가는 키 이름이 64자를 넘으면
@@ -31,7 +31,7 @@ info:
     - 요청 본문 상한은 경로에 따라 네 가지다 (v0.8.0에서 기본 상한을 2 MiB에서 64 KiB로 낮췄다).
       기본 64 KiB(65,536바이트): 아래에 없는 모든 경로·메서드.
       16 KiB(16,384바이트): 토큰 없이 부르는 `POST /api/v1/users/register`, `POST /api/v1/users/login`,
-      `POST /api/v1/users/oauth/google/callback`, `POST /api/v1/users/oauth/kakao/callback`, `POST /api/v1/users/oauth/naver/callback`.
+      `POST /api/v1/users/oauth/google/callback`, `POST /api/v1/users/oauth/github/callback`, `POST /api/v1/users/oauth/naver/callback`.
       320 KiB(327,680바이트): `POST /api/v1/verify` (`token`이 256 KiB까지).
       2 MiB(2,097,152바이트): `POST /api/v1/research/job-postings/preview`, `POST /api/v1/research/job-postings`,
       `POST /api/v1/research/learning-resources`.
@@ -46,9 +46,9 @@ info:
       (`DXWORKS_API_HOST`가 없거나 `https://` 주소가 아님, API 키·기본 템플릿 ID 없음)는 503
       `{ "detail": "Credential service is not configured", "code": "PROVIDER_NOT_CONFIGURED" }`이다.
       협력사 오류 코드·메시지와 빠진 설정 이름은 응답에 싣지 않고 BE 로그(`Provider error: ...`)에만 남긴다.
-      소셜 로그인 API(`/api/v1/users/oauth/{google,kakao,naver}/*`)의 같은 경우는 상태 코드와 `code`는 같고 문구만 다르다:
+      소셜 로그인 API(`/api/v1/users/oauth/{google,github,naver}/*`)의 같은 경우는 상태 코드와 `code`는 같고 문구만 다르다:
       502 `{ "detail": "<Label> OAuth error", "code": "PROVIDER_ERROR" }`,
-      503 `{ "detail": "<Label> OAuth is not configured", "code": "PROVIDER_NOT_CONFIGURED" }` (`<Label>`은 `Google`·`Kakao`·`Naver`).
+      503 `{ "detail": "<Label> OAuth is not configured", "code": "PROVIDER_NOT_CONFIGURED" }` (`<Label>`은 `Google`·`GitHub`·`Naver`).
       그 외 내부 오류는 500 `Internal server error` (내부 예외 메시지는 응답에 싣지 않는다).
     - 직무 비교·포트폴리오 생성 중 재검증에서 검증기 장애(설정 누락·연결 실패·시간 초과·5xx·408·429·401·403·3xx)가 나면
       결과를 저장하지 않고 502/503으로 답한다. 특정 자격증명에 대한 거절(400·404·422 등)과 형식이 틀린 2xx는 그 자격증명만
@@ -101,24 +101,25 @@ info:
     `ver`가 없는 예전 토큰은 0으로 본다. 토큰 수명은 서버 `JWT_EXPIRES_MINUTES`(1~1440분, 기본 1440)다.
     같은 이메일로 15분 안에 10번 로그인에 실패하면 그 이메일의 로그인은 429(`Retry-After`)다 (`POST /api/v1/users/login` 참고).
 
-    ## 소셜 로그인 (Google·카카오·네이버 OAuth 2.0)
-    제공자(`google`·`kakao`·`naver`)마다 고정 경로 세 개가 있다: `GET /api/v1/users/oauth/<제공자>/authorize`,
+    ## 소셜 로그인 (Google·GitHub·네이버 OAuth 2.0)
+    제공자(`google`·`github`·`naver`)마다 고정 경로 세 개가 있다: `GET /api/v1/users/oauth/<제공자>/authorize`,
     `POST /api/v1/users/oauth/<제공자>/callback`(SPA용), `GET /api/v1/users/oauth/<제공자>/callback`(development 전용, production 404).
     모두 토큰 없이 부르고 요청·응답 형식(`OAuthAuthorizeResponse`, `OAuthCallbackRequest`, `AuthResponse`)이 같다.
-    제공자 설정(`<GOOGLE|KAKAO|NAVER>_CLIENT_ID`·`_CLIENT_SECRET`)이 없으면 그 제공자만 503 `<Label> OAuth is not configured`다
-    (`<Label>`은 `Google`·`Kakao`·`Naver`).
-    - 이메일: 제공자가 이메일을 주지 않으면(동의 거절 등) 400 `OAuth email is required`다. Google·카카오는 제공자가 인증한 이메일만
-      받는다(아니면 400 `OAuth email is not verified`). 네이버는 인증 여부를 알리지 않으므로 막지 않고 인증되지 않은 이메일로 본다.
+    제공자 설정(`<GOOGLE|GITHUB|NAVER>_CLIENT_ID`·`_CLIENT_SECRET`)이 없으면 그 제공자만 503 `<Label> OAuth is not configured`다
+    (`<Label>`은 `Google`·`GitHub`·`Naver`).
+    - 이메일: 제공자가 이메일을 주지 않으면(동의 거절, GitHub 이메일 권한 `user:email` 거절 등) 400 `OAuth email is required`다.
+      Google·GitHub는 제공자가 인증한 이메일만 받는다(아니면 400 `OAuth email is not verified`. GitHub는 기본(primary) 이메일만 쓰고
+      그 이메일이 인증돼 있어야 한다). 네이버는 인증 여부를 알리지 않으므로 막지 않고 인증되지 않은 이메일로 본다.
     - 계정 규칙 (계정은 이메일 하나에 하나, 이메일은 대소문자를 구분하지 않는다):
-      1. 이 제공자 계정(Google `sub`, 카카오 회원번호, 네이버 `id`)이 이미 연동된 계정이 있으면 그 계정으로 로그인한다
+      1. 이 제공자 계정(Google `sub`, GitHub 사용자 `id`, 네이버 `id`)이 이미 연동된 계정이 있으면 그 계정으로 로그인한다
          (제공자 쪽 이메일이 바뀌어도 같은 계정).
       2. 같은 이메일의 계정이 없으면 관리형 `did:key`(또는 임시 DID)를 발급해 비밀번호 없는 계정으로 가입시킨다(제공자와 관계없이).
       3. 같은 이메일의 계정이 있으면 차례로: 같은 제공자의 다른 계정이 이미 연동되어 있으면 409
          `User is already linked to another account for this provider`(같은 제공자 계정의 로그인이 동시에 들어와 한쪽이 먼저
          연동을 마친 경우는 409가 아니라 그 계정의 로그인), 비밀번호가 있으면 연동하지 않고 409
          `This email is registered with a password. Log in with your email and password.`(가입은 이메일 소유를 확인하지 않으므로,
-         남의 주소로 먼저 가입해 둔 계정에 그 주소의 주인을 넣지 않는다). 그 밖에는 이번 이메일이 인증됐고(Google·카카오) 그 계정에
-         같은 이메일의 Google 또는 카카오 연동이 있을 때만 연동하고, 아니면 409
+         남의 주소로 먼저 가입해 둔 계정에 그 주소의 주인을 넣지 않는다). 그 밖에는 이번 이메일이 인증됐고(Google·GitHub) 그 계정에
+         같은 이메일의 Google 또는 GitHub 연동이 있을 때만 연동하고, 아니면 409
          `This email is already used by another sign-in method. Log in with that method.`다 (네이버 로그인은 같은 이메일의 기존
          계정에 붙지 않고, 네이버로 만든 계정에는 다른 제공자가 붙지 않는다).
     - 콜백은 `state`(서명·만료·제공자)와 `redirect_uri` 일치를 확인한 요청만 제공자의 토큰 엔드포인트로 보낸다. 그 호출은 서버
@@ -385,8 +386,9 @@ paths:
                     type: array
                     items:
                       type: string
-                    description: "연동된 소셜 로그인 제공자 목록 (`google`·`kakao`·`naver`, 이름순. 예: `[\"google\", \"kakao\"]`)"
-                    example: [google, kakao]
+                    description: "연동된 소셜 로그인 제공자 목록 (`google`·`github`·`naver`, 이름순. 예: `[\"github\", \"google\"]`).
+                      DB에 지금은 로그인 경로가 없는 예전 제공자의 연동 행이 남아 있으면 그 이름도 그대로 들어간다 (FE는 모르는 이름을 무시한다)"
+                    example: [github, google]
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -511,21 +513,22 @@ paths:
         "503":
           $ref: "#/components/responses/OAuthNotConfigured"
 
-  /api/v1/users/oauth/kakao/authorize:
+  /api/v1/users/oauth/github/authorize:
     get:
       tags: [users]
-      summary: 카카오 로그인 인가 URL 발급 (또는 리다이렉트)
+      summary: GitHub 로그인 인가 URL 발급 (또는 리다이렉트)
       description: |
-        카카오 로그인(REST API, OAuth 2.0) 시작 URL과 서명된 `state`를 발급한다. 요청·응답 형식은 Google과 같다
+        GitHub 로그인(OAuth App, OAuth 2.0) 시작 URL과 서명된 `state`를 발급한다. 요청·응답 형식은 Google과 같다
         (공통 규칙은 info.description "소셜 로그인").
-        - 인가 주소는 `https://kauth.kakao.com/oauth/authorize`이고 `client_id`(REST API 키)·`redirect_uri`·`response_type=code`·
-          `state`를 싣는다. `scope`·`prompt`는 싣지 않는다(동의 항목은 카카오 개발자 콘솔 설정을 따른다. 이메일 동의 항목은 비즈 앱만).
+        - 인가 주소는 `https://github.com/login/oauth/authorize`이고 `client_id`·`redirect_uri`·`scope=user:email`·`state`를 싣는다.
+          `allow_signup`·`prompt`·`login`은 싣지 않는다.
         - PKCE: `code_challenge`(S256 43자, 형식이 틀리면 400 `Invalid code_challenge`)를 보내면 `code_challenge_method=S256`과 함께 싣는다.
-        - `redirect_uri`를 생략하면 `KAKAO_REDIRECT_URI`를 쓰고, 지정하면 그 값과 글자 그대로 같아야 한다(추가 허용 목록은 없다).
-          `APP_ENV=production`은 localhost 기본값을 대신 쓰지 않고 `https://` 주소만 받는다.
-        - `redirect=true`면 JSON 대신 302 Redirect로 카카오 로그인 페이지로 보낸다.
-        - `KAKAO_CLIENT_ID` 또는 `KAKAO_CLIENT_SECRET`이 없으면 503 `Kakao OAuth is not configured`를 반환한다.
-      operationId: kakaoOAuthAuthorize
+        - `redirect_uri`를 생략하면 `GITHUB_REDIRECT_URI`를 쓰고, 지정하면 그 값과 글자 그대로 같아야 한다(추가 허용 목록은 없다).
+          `APP_ENV=production`은 localhost 기본값을 대신 쓰지 않고 `https://` 주소만 받는다. 이 주소는 GitHub OAuth App에 등록한
+          Authorization callback URL과도 글자 그대로 같아야 한다.
+        - `redirect=true`면 JSON 대신 302 Redirect로 GitHub 로그인 페이지로 보낸다.
+        - `GITHUB_CLIENT_ID` 또는 `GITHUB_CLIENT_SECRET`이 없으면 503 `GitHub OAuth is not configured`를 반환한다.
+      operationId: githubOAuthAuthorize
       security: []
       parameters:
         - $ref: "#/components/parameters/OAuthRedirectUri"
@@ -536,32 +539,32 @@ paths:
         "200":
           $ref: "#/components/responses/OAuthAuthorized"
         "302":
-          description: "`redirect=true`일 때 카카오 로그인 페이지로 리다이렉트"
+          description: "`redirect=true`일 때 GitHub 로그인 페이지로 리다이렉트"
         "400":
           $ref: "#/components/responses/OAuthAuthorizeBadRequest"
         "503":
-          description: 카카오 로그인 설정 누락 (`KAKAO_CLIENT_ID`/`KAKAO_CLIENT_SECRET`), 또는 기본 콜백 주소(`KAKAO_REDIRECT_URI`) 없음
+          description: GitHub 로그인 설정 누락 (`GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`), 또는 기본 콜백 주소(`GITHUB_REDIRECT_URI`) 없음
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
               examples:
                 notConfigured:
-                  value: { detail: Kakao OAuth is not configured, code: PROVIDER_NOT_CONFIGURED }
+                  value: { detail: GitHub OAuth is not configured, code: PROVIDER_NOT_CONFIGURED }
                 noRedirectUri:
-                  value: { detail: Kakao OAuth redirect_uri is not configured }
+                  value: { detail: GitHub OAuth redirect_uri is not configured }
 
-  /api/v1/users/oauth/kakao/callback:
+  /api/v1/users/oauth/github/callback:
     get:
       tags: [users]
-      summary: 카카오 로그인 콜백 처리 (GET, development 전용)
+      summary: GitHub 로그인 콜백 처리 (GET, development 전용)
       description: |
         BE 단독 테스트용이다 (FE는 아래 POST만 쓴다). **`APP_ENV=production`에서는 쿼리와 관계없이 404 `Not Found`다.**
-        (BE 접근 로그는 이 경로의 쿼리를 `[redacted]`로 가린다.) 카카오는 콜백 주소를 `KAKAO_REDIRECT_URI` 하나만 받으므로,
-        이 경로로 시험하려면 그 값을 이 BE 주소로 바꾸고 카카오 콘솔에도 등록한다.
+        (BE 접근 로그는 이 경로의 쿼리를 `[redacted]`로 가린다.) BE는 GitHub 콜백 주소를 `GITHUB_REDIRECT_URI` 하나만 받으므로,
+        이 경로로 시험하려면 그 값을 이 BE 주소로 바꾸고 GitHub OAuth App의 Authorization callback URL에도 등록한다.
         입력 한도·계정 연동 규칙·오류는 POST와 같다. `error`가 있으면 400 `OAuth authorization failed: <error의 앞 200자>`,
         `code`나 `state`가 없으면 400 `Missing OAuth code or state`다.
-      operationId: kakaoOAuthCallbackGet
+      operationId: githubOAuthCallbackGet
       security: []
       parameters:
         - $ref: "#/components/parameters/OAuthCode"
@@ -587,20 +590,33 @@ paths:
           $ref: "#/components/responses/OAuthNotConfigured"
     post:
       tags: [users]
-      summary: 카카오 로그인 콜백 코드 교환 (POST, SPA용)
+      summary: GitHub 로그인 콜백 코드 교환 (POST, SPA용)
       description: |
-        FE 콜백 페이지(`/auth/kakao/callback`)가 카카오로부터 받은 `code`와 `state`를 전달해 로그인/회원가입을 완료하고
-        JWT(`AuthResponse`)를 반환한다. `message`는 `Kakao OAuth 회원가입 및 로그인 완료` / `기존 계정에 Kakao 계정 연동 및 로그인 성공` /
-        `Kakao OAuth 로그인 성공`이다. 입력 검사·`state` 확인·본문 상한(16 KiB)·계정 규칙은 Google과 같다.
+        FE 콜백 페이지(`/auth/github/callback`)가 GitHub으로부터 받은 `code`와 `state`를 전달해 로그인/회원가입을 완료하고
+        JWT(`AuthResponse`)를 반환한다. `message`는 `GitHub OAuth 회원가입 및 로그인 완료` / `기존 계정에 GitHub 계정 연동 및 로그인 성공` /
+        `GitHub OAuth 로그인 성공`이다. 입력 검사·`state` 확인·본문 상한(16 KiB)·계정 규칙은 Google과 같다.
 
-        - 토큰 요청(`https://kauth.kakao.com/oauth/token`)은 본문에 `client_id`·`client_secret`·`redirect_uri`(state에 든 값)·`code`와
-          (보냈으면) `code_verifier`를 싣는다. 사용자 정보는 `https://kapi.kakao.com/v2/user/me`에서 읽는다.
-        - 카카오 `invalid_grant`(KOE320 다시 쓴·만료된 코드, KOE303 redirect_uri 불일치)는 400
-          `Invalid or expired OAuth authorization code`, 그 밖의 토큰 오류(`invalid_client` 등)는 502다.
-        - 회원번호 `id`는 1~2^63-1의 JSON 정수여야 한다(아니면 502). `kakao_account.email`이 없으면 400 `OAuth email is required`,
-          `is_email_valid`와 `is_email_verified`가 모두 `true`가 아니면 400 `OAuth email is not verified`다.
-        - 토큰 교환은 서버 프로세스(태스크)마다 카카오 로그인끼리 분당 300번까지다(다른 제공자와 따로 센다).
-      operationId: kakaoOAuthCallbackPost
+        - 토큰 요청(`https://github.com/login/oauth/access_token`)은 `Accept: application/json` 헤더를 붙이고 본문
+          (`application/x-www-form-urlencoded`)에 `client_id`·`client_secret`·`code`·`redirect_uri`(state에 든 값)와 (보냈으면)
+          `code_verifier`를 싣는다(주소에는 싣지 않는다. `grant_type`은 싣지 않는다).
+        - GitHub은 실패한 토큰 요청에도 HTTP 200에 `error`를 담아 답할 수 있어 상태 코드와 관계없이 `error`가 있으면 오류로 본다
+          (함께 온 `access_token`은 쓰지 않는다). 2xx·4xx 응답의 `bad_verification_code`(만료·재사용된 코드)·`redirect_uri_mismatch`·
+          `invalid_grant`는 400 `Invalid or expired OAuth authorization code`, `unverified_user_email`(기본 이메일이 인증되지 않은 계정)은
+          400 `OAuth email is not verified`이고, 그 밖의 오류(`incorrect_client_credentials` 등, 3xx·5xx 응답의 `error` 포함)는 502다.
+        - 사용자 정보는 두 번 읽는다: `https://api.github.com/user`(`id`·`login`·`name`)와
+          `https://api.github.com/user/emails?per_page=100`(이메일 목록). 헤더는 `Authorization: Bearer <토큰>`,
+          `Accept: application/vnd.github+json`, `X-GitHub-Api-Version: 2022-11-28`, `User-Agent: vc-career-agent-be`다.
+          `/user`의 `email`(공개 프로필 이메일일 수 있다)은 쓰지 않는다.
+        - `id`는 1~2^63-1의 JSON 정수여야 한다(아니면 502이고 이메일 목록은 읽지 않는다). 두 요청 중 하나라도 401이면 400
+          `Invalid OAuth access token`이고, `/user`의 그 밖의 2xx가 아닌 응답(403 포함)은 502다.
+        - 이메일은 목록에서 `primary`가 `true`인 첫 항목만 쓴다. 그런 항목이 첫 100개 안에 없거나(빈 목록 포함) 그 항목에 이메일이 없으면
+          400 `OAuth email is required`, 그 항목의 `verified`가 `true`가 아니면 400 `OAuth email is not verified`다. 이메일 목록이
+          403·404(사용자가 `user:email` 권한을 주지 않음)면 400 `OAuth email is required`, 그 밖의 2xx가 아닌 응답이나 JSON 배열이
+          아닌 본문은 502다. `users.noreply.github.com` 주소도 기본·인증 이메일이면 그대로 쓴다.
+        - 이름은 `name` → `login` → 이메일의 `@` 앞부분 순으로 쓴다. GitHub 액세스 토큰은 이 두 요청에만 쓰고 저장·로그하지 않으며
+          폐기 API는 부르지 않는다.
+        - 토큰 교환은 서버 프로세스(태스크)마다 GitHub 로그인끼리 분당 300번까지다(다른 제공자와 따로 센다).
+      operationId: githubOAuthCallbackPost
       security: []
       requestBody:
         $ref: "#/components/requestBodies/OAuthCallback"
@@ -2274,7 +2290,8 @@ components:
     OAuthCallbackBadRequest:
       description: |
         잘못되거나 만료된 `state`(다른 제공자의 `state` 포함), `redirect_uri`가 `state`와 다름, 만료·재사용된 인가 코드,
-        제공자 액세스 토큰 거절(사용자 정보 조회 401), 이메일 없음(동의 거절 등), 제공자가 인증하지 않은 이메일(Google·카카오).
+        제공자 액세스 토큰 거절(사용자 정보 조회 401), 이메일 없음(동의 거절, GitHub 이메일 권한 거절·기본 이메일 없음 등),
+        제공자가 인증하지 않은 이메일(Google, GitHub 기본 이메일 미인증·토큰 오류 `unverified_user_email`).
         GET 콜백은 `error` 쿼리(사용자 취소 등)나 빠진 `code`·`state`도 400이다.
       content:
         application/json:
@@ -2305,7 +2322,7 @@ components:
       description: |
         소셜 로그인을 같은 이메일의 기존 계정에 붙일 수 없음 (info.description "소셜 로그인"의 계정 규칙).
         같은 제공자의 다른 계정이 이미 연동되어 있거나, 그 계정에 비밀번호가 있거나(그 계정에는 연동하지 않는다),
-        이메일이 양쪽에서 확인되지 않았다(이번 로그인이 네이버이거나, 그 계정에 같은 이메일의 Google·카카오 연동이 없음).
+        이메일이 양쪽에서 확인되지 않았다(이번 로그인이 네이버이거나, 그 계정에 같은 이메일의 Google·GitHub 연동이 없음).
       content:
         application/json:
           schema:
@@ -2337,10 +2354,11 @@ components:
             detail: Too many attempts. Try again later.
     OAuthProviderError:
       description: |
-        제공자(Google·카카오·네이버) 호출 실패 (연결 실패·시간 초과, 2xx가 아닌 응답(리디렉션 포함), JSON이 아니거나 너무 깊게
-        중첩된 본문, 쓸 수 있는 `access_token` 없음, 인가 코드 문제가 아닌 토큰 오류(예: 카카오 `invalid_client`), 사용자 정보의
-        식별자·이메일이 문자열이 아니거나 255자를 넘거나 한 줄이 아님, 카카오 `id`가 1~2^63-1의 JSON 정수가 아님, 네이버
-        `resultcode`가 `"00"`이 아님). 응답은 제공자 이름이 든 고정 문구와 `code`뿐이고 원인은 BE 로그(`Provider error: ...`)에만 남는다.
+        제공자(Google·GitHub·네이버) 호출 실패 (연결 실패·시간 초과, 2xx가 아닌 응답(리디렉션 포함), JSON이 아니거나 너무 깊게
+        중첩된 본문, 쓸 수 있는 `access_token` 없음, 인가 코드 문제가 아닌 토큰 오류(예: GitHub `incorrect_client_credentials`),
+        사용자 정보의 식별자·이메일이 문자열이 아니거나 255자를 넘거나 한 줄이 아님, GitHub `id`가 1~2^63-1의 JSON 정수가 아님,
+        GitHub 이메일 목록이 JSON 배열이 아님, 네이버 `resultcode`가 `"00"`이 아님). 응답은 제공자 이름이 든 고정 문구와 `code`뿐이고
+        원인은 BE 로그(`Provider error: ...`)에만 남는다.
       content:
         application/json:
           schema:
@@ -2348,12 +2366,12 @@ components:
           examples:
             google:
               value: { detail: Google OAuth error, code: PROVIDER_ERROR }
-            kakao:
-              value: { detail: Kakao OAuth error, code: PROVIDER_ERROR }
+            github:
+              value: { detail: GitHub OAuth error, code: PROVIDER_ERROR }
             naver:
               value: { detail: Naver OAuth error, code: PROVIDER_ERROR }
     OAuthNotConfigured:
-      description: 그 제공자의 설정 누락 (`<GOOGLE|KAKAO|NAVER>_CLIENT_ID`/`_CLIENT_SECRET`)
+      description: 그 제공자의 설정 누락 (`<GOOGLE|GITHUB|NAVER>_CLIENT_ID`/`_CLIENT_SECRET`)
       content:
         application/json:
           schema:
@@ -2361,8 +2379,8 @@ components:
           examples:
             google:
               value: { detail: Google OAuth is not configured, code: PROVIDER_NOT_CONFIGURED }
-            kakao:
-              value: { detail: Kakao OAuth is not configured, code: PROVIDER_NOT_CONFIGURED }
+            github:
+              value: { detail: GitHub OAuth is not configured, code: PROVIDER_NOT_CONFIGURED }
             naver:
               value: { detail: Naver OAuth is not configured, code: PROVIDER_NOT_CONFIGURED }
     TooManyVerifications:
@@ -2466,7 +2484,7 @@ components:
             기계용 사유 코드. AI 연동 오류(예: AI_SERVICE_UNAVAILABLE, AI_CONTRACT_MISMATCH, NO_ELIGIBLE_JOB_SOURCES,
             TEXT_EXPANDS_TOO_MUCH_WHEN_NORMALIZED)와 발급·검증 인프라 오류(PROVIDER_ERROR: 502 `Credential service error`,
             PROVIDER_NOT_CONFIGURED: 503 `Credential service is not configured`), 소셜 로그인 오류(같은 두 코드,
-            `detail`은 `<Label> OAuth error` / `<Label> OAuth is not configured`, `<Label>`은 `Google`·`Kakao`·`Naver`)에만 붙고, 그 밖의 에러에는 없다.
+            `detail`은 `<Label> OAuth error` / `<Label> OAuth is not configured`, `<Label>`은 `Google`·`GitHub`·`Naver`)에만 붙고, 그 밖의 에러에는 없다.
 
     ValidationErrorResponse:
       type: object
@@ -2585,7 +2603,7 @@ components:
           type: boolean
         provider:
           type: string
-          enum: [google, kakao, naver]
+          enum: [google, github, naver]
           example: google
         authorization_url:
           type: string
@@ -2605,7 +2623,7 @@ components:
           type: string
           minLength: 1
           maxLength: 2048
-          description: 제공자(Google·카카오·네이버)가 돌려준 인가 코드 (앞뒤 공백은 잘라 낸다)
+          description: 제공자(Google·GitHub·네이버)가 돌려준 인가 코드 (앞뒤 공백은 잘라 낸다)
         state:
           type: string
           minLength: 1

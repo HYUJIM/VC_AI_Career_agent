@@ -1,13 +1,13 @@
 """BE 앱 공통 보안 처리 (main.py).
 
 - 요청 본문 상한(경로별): 넘으면 인증·JSON 파싱 전에 413. 오류 미들웨어 안쪽이라 'Unhandled error'로 기록하지 않는다.
-  기본 64 KiB, 로그인 없이 부르는 가입·로그인·OAuth 콜백(POST, Google·Kakao·Naver) 16 KiB, 검증(POST /verify) 320 KiB,
+  기본 64 KiB, 로그인 없이 부르는 가입·로그인·OAuth 콜백(POST, Google·GitHub·Naver) 16 KiB, 검증(POST /verify) 320 KiB,
   연구자 반입 2 MiB.
   본문을 받는 라우트 목록과 라우트별 가장 큰 정상 본문을 함께 고정한다 (새 라우트는 상한을 정해야 통과한다).
 - 요청 검증 실패(422)는 위치·사유·종류만 싣는다 (입력값을 되돌려 주지 않는다. 오류 20개, loc 항목 64자까지).
 - 끝에 /가 붙은 경로를 리다이렉트하지 않고(404), API 문서는 APP_ENV=production에서 만들지 않는다.
 - 보안 응답 헤더(SecurityHeadersMiddleware): no-store·nosniff·no-referrer·프레임 금지, HSTS는 APP_ENV=production에서만.
-- 접근 로그(uvicorn.access)에서 공유 링크 토큰·DID·OAuth 콜백(Google·Kakao·Naver) 쿼리 가리기.
+- 접근 로그(uvicorn.access)에서 공유 링크 토큰·DID·OAuth 콜백(Google·GitHub·Naver) 쿼리 가리기.
 - 발급·검증 인프라 오류(ProviderError)는 고정 문구와 code로만 답하고 협력사 문구는 로그에만 남긴다.
   httpx 요청 줄(비공개 DXWorks 호스트 URL)과 httpcore 디버그 줄(접속 호스트·응답 헤더)은 LOG_LEVEL=DEBUG일 때만 남긴다.
 - 저장할 수 없는 문자(NUL·짝 없는 서로게이트): 422 응답은 항상 ASCII, 요청 검사를 지나친 경우의 422 안전망.
@@ -32,7 +32,7 @@ import psycopg
 import pytest
 
 from app.integrations.ports import ProviderError
-from tests.conftest import make_vc_jwt, make_vp_jwt
+from tests.conftest import PRODUCTION_DB_TLS_ENV, make_vc_jwt, make_vp_jwt
 
 BE_DIR = Path(__file__).resolve().parents[1]
 SECURITY_HEADERS = {
@@ -147,15 +147,16 @@ def test_middleware_order_and_body_limit_configuration():
     from fastapi.middleware.cors import CORSMiddleware
     from starlette.middleware.body_limit import RequestBodyLimitMiddleware
 
-    from main import (MAX_REQUEST_BODY_BYTES, RouteBodyLimitMiddleware, SecurityHeadersMiddleware,
-                      UnhandledErrorMiddleware, app)
+    from main import (MAX_REQUEST_BODY_BYTES, DBStartupCheckMiddleware, RouteBodyLimitMiddleware,
+                      SecurityHeadersMiddleware, UnhandledErrorMiddleware, app)
 
     # 바깥 → 안쪽. CORS가 가장 바깥이라 500·413·422에도 CORS 헤더가 붙고, 보안 헤더는 오류 미들웨어가 만든 500에도
     # 붙고, 본문 상한은 오류 미들웨어 안쪽이라 413을 보낼 때 쓰는 내부 예외가 'Unhandled error'로 기록되지 않는다.
-    # 경로별 상한은 전체 상한(가장 큰 값) 안쪽에서 그 요청의 상한만 바꾼다.
+    # 경로별 상한은 전체 상한(가장 큰 값) 안쪽에서 그 요청의 상한만 바꾼다. 운영 시작 DB 점검은 lifespan만 보므로 가장 안쪽이다.
     assert [m.cls for m in app.user_middleware] == [CORSMiddleware, SecurityHeadersMiddleware, UnhandledErrorMiddleware,
-                                                    RequestBodyLimitMiddleware, RouteBodyLimitMiddleware]
-    assert app.user_middleware[-2].kwargs == {"max_body_size": MAX_REQUEST_BODY_BYTES}
+                                                    RequestBodyLimitMiddleware, RouteBodyLimitMiddleware,
+                                                    DBStartupCheckMiddleware]
+    assert app.user_middleware[-3].kwargs == {"max_body_size": MAX_REQUEST_BODY_BYTES}
 
 
 # ── 경로별 본문 상한: 기본 64 KiB, 연구자 반입 2 MiB, 검증 320 KiB ─────────────────────
@@ -195,7 +196,7 @@ def largest_bodies() -> dict[tuple[str, str], dict]:
         ("POST", "/api/v1/users/login"): {"email": "가" * 250 + "@a.kr", "password": "가" * 24},
         **{("POST", f"/api/v1/users/oauth/{provider}/callback"): {
             "code": "c" * 2048, "state": "s" * 2048, "redirect_uri": "r" * 2048, "code_verifier": "v" * 128}
-           for provider in ("google", "kakao", "naver")},
+           for provider in ("google", "github", "naver")},
         ("POST", "/api/v1/verify"): {"type": "identity", "token": "a" * (256 * 1024)},
         ("POST", "/api/mock-issuer/issue"): {"templateId": "t" * 255, "holderDid": "d" * 255},
         ("POST", "/api/v1/portfolios"): {"title": "가" * 255, "target_role": "가" * 100, "record_ids": ids(50),
@@ -356,7 +357,7 @@ TRAILING_NEWLINE_CASES = [
     ("POST", "/api/v1/users/login%0A", {"email": "a@test.com", "password": "password1234"}),
     ("POST", "/api/v1/users/register%0A", {"name": "가", "email": "a@test.com", "password": "password1234"}),
     ("POST", "/api/v1/users/oauth/google/callback%0A", {"code": "c", "state": "s"}),
-    ("POST", "/api/v1/users/oauth/kakao/callback%0A", {"code": "c", "state": "s"}),
+    ("POST", "/api/v1/users/oauth/github/callback%0A", {"code": "c", "state": "s"}),
     ("POST", "/api/v1/users/oauth/naver/callback%0A", {"code": "c", "state": "s"}),
     ("POST", "/api/v1/verify%0A", {"type": "badge", "token": "a.b.c"}),
     ("GET", "/health%0A", None),
@@ -423,7 +424,7 @@ def test_body_limits_apply_when_the_app_is_served_under_a_root_path():
 
     cases = [("/api/v1/users/login", MAX_PUBLIC_AUTH_BODY_BYTES), ("/api/v1/users/register", MAX_PUBLIC_AUTH_BODY_BYTES),
              ("/api/v1/users/oauth/google/callback", MAX_PUBLIC_AUTH_BODY_BYTES),
-             ("/api/v1/users/oauth/kakao/callback", MAX_PUBLIC_AUTH_BODY_BYTES),
+             ("/api/v1/users/oauth/github/callback", MAX_PUBLIC_AUTH_BODY_BYTES),
              ("/api/v1/users/oauth/naver/callback", MAX_PUBLIC_AUTH_BODY_BYTES),
              ("/api/v1/shares", MAX_DEFAULT_BODY_BYTES), ("/api/v1/verify", MAX_VERIFY_BODY_BYTES),
              ("/api/v1/research/job-postings", MAX_REQUEST_BODY_BYTES)]
@@ -487,10 +488,10 @@ def test_largest_normal_requests_of_the_default_class_are_processed(client, regi
     assert curriculum.status_code == 404 and curriculum.json() == {"detail": "Analysis not found"}, curriculum.text
 
 
-# ── 로그인 없이 부르는 가입·로그인·OAuth 콜백(Google·Kakao·Naver)의 본문 상한 (16 KiB) ──────────────
+# ── 로그인 없이 부르는 가입·로그인·OAuth 콜백(Google·GitHub·Naver)의 본문 상한 (16 KiB) ──────────────
 
 PUBLIC_AUTH_PATHS = ["/api/v1/users/login", "/api/v1/users/register", "/api/v1/users/oauth/google/callback",
-                     "/api/v1/users/oauth/kakao/callback", "/api/v1/users/oauth/naver/callback"]
+                     "/api/v1/users/oauth/github/callback", "/api/v1/users/oauth/naver/callback"]
 
 
 def test_public_auth_body_limit_covers_exactly_the_anonymous_post_routes():
@@ -544,7 +545,7 @@ def test_public_auth_body_at_16_kib_is_processed_normally(client, register):
         MAX_PUBLIC_AUTH_BODY_BYTES))
     assert signup.status_code == 200 and signup.json()["access_token"]
     # 가장 긴 정상 콜백 본문(code·state·redirect_uri 각 2,048자 + code_verifier 128자)도 상한 안이다: 본문 검사까지 간다.
-    for provider in ("google", "kakao", "naver"):
+    for provider in ("google", "github", "naver"):
         callback = client.post(f"/api/v1/users/oauth/{provider}/callback", headers={"Content-Type": "application/json"},
                                content=padded_json({"code": "c" * 2048, "state": "s" * 2048, "redirect_uri": "r" * 2048,
                                                     "code_verifier": "v" * 128}, MAX_PUBLIC_AUTH_BODY_BYTES))
@@ -597,12 +598,12 @@ print(json.dumps({"status": {path: client.get(path).status_code for path in path
 @pytest.mark.parametrize("app_env", ["development", "production"])
 def test_api_docs_are_served_in_development_only(app_env):
     env = {name: value for name, value in os.environ.items() if not name.startswith(
-        ("GOOGLE_", "KAKAO_", "NAVER_", "OAUTH_", "CORS_"))}
+        ("GOOGLE_", "GITHUB_", "NAVER_", "OAUTH_", "CORS_"))}
     env.update({"APP_ENV": app_env, "PYTHONDONTWRITEBYTECODE": "1"})
     if app_env == "production":  # 운영 검사를 통과하는 값 (실행할 때마다 새로 만든다)
         env.update({"JWT_SECRET": secrets.token_urlsafe(48), "SERVICE_API_KEY": "",
                     "HOLDER_KEY_ENCRYPTION_KEY": base64.b64encode(os.urandom(32)).decode(),
-                    "DB_PASSWORD": secrets.token_urlsafe(24)})
+                    "DB_PASSWORD": secrets.token_urlsafe(24), **PRODUCTION_DB_TLS_ENV})
     result = subprocess.run([sys.executable, "-B", "-W", "ignore", "-c", _DOCS_PROBE], cwd=BE_DIR, env=env,
                             capture_output=True, text=True, timeout=120)
     assert result.returncode == 0, result.stderr[-2000:]
@@ -769,11 +770,12 @@ print(json.dumps({"origins": main.get_settings().cors_origins, "seen": seen}))
 
 def test_cors_preflight_in_production_with_explicit_origins():
     env = {name: value for name, value in os.environ.items() if not name.startswith(
-        ("GOOGLE_", "KAKAO_", "NAVER_", "OAUTH_", "CORS_"))}
+        ("GOOGLE_", "GITHUB_", "NAVER_", "OAUTH_", "CORS_"))}
     env.update({"APP_ENV": "production", "PYTHONDONTWRITEBYTECODE": "1", "CORS_ORIGINS": "https://app.example.com",
                 "JWT_SECRET": secrets.token_urlsafe(48), "SERVICE_API_KEY": "",
                 "HOLDER_KEY_ENCRYPTION_KEY": base64.b64encode(os.urandom(32)).decode(),
-                "DB_PASSWORD": secrets.token_urlsafe(24)})  # 운영 검사를 통과하는 값 (실행할 때마다 새로 만든다)
+                "DB_PASSWORD": secrets.token_urlsafe(24),  # 운영 검사를 통과하는 값 (실행할 때마다 새로 만든다)
+                **PRODUCTION_DB_TLS_ENV})
     result = subprocess.run([sys.executable, "-B", "-W", "ignore", "-c", _CORS_PROBE], cwd=BE_DIR, env=env,
                             capture_output=True, text=True, timeout=120)
     assert result.returncode == 0, result.stderr[-2000:]
@@ -812,17 +814,22 @@ def test_cors_preflight_in_production_with_explicit_origins():
     ("/auth/google/callback?code=4%2F0A-CODE&state=eyJ.STATE.sig", "/auth/google/callback?[redacted]"),
     ("/api/v1/users/oauth/google/callback", "/api/v1/users/oauth/google/callback"),
     ("/api/v1/users/oauth/google/authorize?redirect=true", "/api/v1/users/oauth/google/authorize?redirect=true"),
-    # 카카오·네이버 콜백도 같다 (BE의 GET 콜백, 잘못 들어온 FE 콜백 주소, 대소문자·겹친 슬래시).
-    ("/api/v1/users/oauth/kakao/callback?code=KAKAO-CODE&state=eyJ.STATE.sig&code_verifier=PKCE-VERIFIER",
-     "/api/v1/users/oauth/kakao/callback?[redacted]"),
+    # GitHub·네이버 콜백도 같다 (BE의 GET 콜백, 잘못 들어온 FE 콜백 주소, 대소문자·겹친 슬래시).
+    ("/api/v1/users/oauth/github/callback?code=GITHUB-CODE&state=eyJ.STATE.sig&code_verifier=PKCE-VERIFIER",
+     "/api/v1/users/oauth/github/callback?[redacted]"),
     ("/api/v1/users/oauth/naver/callback?code=NAVER-CODE&state=eyJ.STATE.sig",
      "/api/v1/users/oauth/naver/callback?[redacted]"),
-    ("/auth/kakao/callback?code=KAKAO-CODE&state=eyJ.STATE.sig", "/auth/kakao/callback?[redacted]"),
+    ("/auth/github/callback?code=GITHUB-CODE&state=eyJ.STATE.sig", "/auth/github/callback?[redacted]"),
+    ("/auth/GitHub/callback?error=access_denied&state=eyJ.STATE.sig", "/auth/GitHub/callback?[redacted]"),
     ("/auth/naver/callback?error=access_denied&state=eyJ.STATE.sig", "/auth/naver/callback?[redacted]"),
     ("/API/V1/USERS/OAUTH/NAVER/CALLBACK?code=NAVER-CODE", "/API/V1/USERS/OAUTH/NAVER/CALLBACK?[redacted]"),
-    ("/api/v1/users/oauth//kakao//callback/?code=KAKAO-CODE", "/api/v1/users/oauth//kakao//callback/?[redacted]"),
-    ("/api/v1/users/oauth/kakao/authorize?redirect=true", "/api/v1/users/oauth/kakao/authorize?redirect=true"),
+    ("/api/v1/users/oauth//github//callback/?code=GITHUB-CODE", "/api/v1/users/oauth//github//callback/?[redacted]"),
+    ("/api/v1/users/oauth/github/authorize?redirect=true", "/api/v1/users/oauth/github/authorize?redirect=true"),
     ("/api/v1/users/oauth/naver/callback", "/api/v1/users/oauth/naver/callback"),
+    # 라우트에 닿지 않는 비슷한 경로(콜백 뒤에 글자가 붙거나 ;·%2F·%3F가 섞임)에 잘못 실린 코드도 가린다.
+    ("/auth/github/callback;x?code=LEAK", "/auth/github/callback;x?[redacted]"),
+    ("/auth/github/callbackx?code=LEAK", "/auth/github/callbackx?[redacted]"),
+    ("/auth/github/callback%3Fcode=LEAK?state=S", "/auth/github/callback%3Fcode=LEAK?[redacted]"),
     # 비밀이 아닌 경로는 그대로 둔다 (공유 링크 관리용 ID, 포트폴리오 ID 등).
     ("/api/v1/shares/7d9c0c2e-0000-4000-8000-000000000000", "/api/v1/shares/7d9c0c2e-0000-4000-8000-000000000000"),
     ("/api/v1/portfolios/7d9c0c2e-0000-4000-8000-000000000000",
@@ -1076,7 +1083,7 @@ def test_validation_error_body_has_only_loc_msg_and_type(client):
     for path, fields in (("/api/v1/users/login", ["email", "password"]),
                          ("/api/v1/users/register", ["name", "email", "password"]),
                          ("/api/v1/users/oauth/google/callback", ["code", "state"]),
-                         ("/api/v1/users/oauth/kakao/callback", ["code", "state"]),
+                         ("/api/v1/users/oauth/github/callback", ["code", "state"]),
                          ("/api/v1/users/oauth/naver/callback", ["code", "state"])):
         res = client.post(path, json=junk)
         assert res.status_code == 422, (path, res.text)

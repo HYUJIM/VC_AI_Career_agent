@@ -42,13 +42,23 @@ interface CallbackFailure {
   detail?: string;
 }
 
-/** 이메일·연동 안내는 콜백 화면에서 제공자 이름을 넣어 보여 준다 (나머지는 apiClient 번역 그대로). */
+/**
+ * 이메일·연동 안내는 콜백 화면에서 제공자 이름을 넣어 보여 준다 (나머지는 apiClient 번역 그대로).
+ * GitHub 은 이메일 제공 동의 항목이 따로 없다: 이메일이 없으면 이메일 권한(user:email)을 주지 않은 경우이고,
+ * 인증 안 됨은 GitHub 의 기본(primary) 이메일이 인증되지 않은 경우라 그에 맞는 안내를 쓴다.
+ */
 function providerMessage(provider: OAuthProviderId, detail: string | undefined, fallback: string): string {
   const { label } = OAUTH_PROVIDERS[provider];
   switch (detail) {
     case OAUTH_EMAIL_REQUIRED_DETAIL:
+      if (provider === 'github') {
+        return 'GitHub 계정의 이메일을 확인할 수 없습니다. 이메일 권한(user:email)을 허용했는지 확인한 뒤 다시 시도해주세요.';
+      }
       return `${label} 계정의 이메일 제공에 동의해야 로그인할 수 있어요. 동의 항목을 확인한 뒤 다시 시도해주세요.`;
     case OAUTH_EMAIL_NOT_VERIFIED_DETAIL:
+      if (provider === 'github') {
+        return 'GitHub 계정의 기본 이메일이 인증되지 않았습니다. GitHub에서 이메일 인증을 마친 뒤 다시 시도해주세요.';
+      }
       return `${label} 계정의 이메일이 인증되지 않아 로그인할 수 없습니다.`;
     case OAUTH_ALREADY_LINKED_DETAIL:
       return `이 이메일 계정에는 이미 다른 ${label} 계정이 연동되어 있습니다. 연동된 ${label} 계정으로 로그인해주세요.`;
@@ -58,7 +68,7 @@ function providerMessage(provider: OAuthProviderId, detail: string | undefined, 
 }
 
 /**
- * 소셜 로그인(Google·카카오·네이버 OAuth 2.0) 콜백 화면 (`/auth/{google,kakao,naver}/callback`).
+ * 소셜 로그인(Google·GitHub·네이버 OAuth 2.0) 콜백 화면 (`/auth/{google,github,naver}/callback`).
  * 1) 주소창의 일회성 code·state 쿼리를 즉시 지워 브라우저 기록·Referer로 새지 않게 한다.
  * 2) sessionStorage에 보관한 provider·state·PKCE code_verifier로 검증한 뒤 BE `POST /v1/users/oauth/{provider}/callback`을 호출한다.
  */

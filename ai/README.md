@@ -4,6 +4,9 @@ BE(`../BE`)가 호출하는 AI 서버입니다. 직무 비교(검증된 자격�
 수집한 공고 묶음으로 직무별 요구 역량 통계도 계산합니다(`POST /v1/market/snapshots`. 수집·저장·조회는 BE).
 무엇을 어떻게 계산하는지는 [docs/CAREER_AI_SERVICE.md](docs/CAREER_AI_SERVICE.md)를 보세요. 다음 작업(공고 수집·통계 → 커리큘럼 반영) 설계는
 [docs/JOB_MARKET_STATS_DESIGN.md](docs/JOB_MARKET_STATS_DESIGN.md)에 있습니다. 아래 명령은 이 `ai/` 폴더에서 실행합니다.
+AWS 배포(ECS Fargate, BE와는 ECS Service Connect `http://ai:8100`으로 연결)는 [../deploy/README.md](../deploy/README.md)와 작업 정의
+템플릿 [../deploy/ecs/ai-service.taskdef.json](../deploy/ecs/ai-service.taskdef.json)을 보세요. 운영 이미지는 Apple Silicon에서도
+`docker build --platform linux/amd64 -t <ECR 주소>/vc-ai:<커밋> .`로 빌드합니다(BE와 같은 커밋).
 
 ## 1. 가장 쉬운 방법: BE와 함께 Docker Compose로
 

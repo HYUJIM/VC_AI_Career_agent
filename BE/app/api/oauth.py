@@ -17,9 +17,9 @@ from starlette.concurrency import run_in_threadpool
 from app.api.auth import build_auth_response, issue_user_identity
 from app.core.auth import ALGORITHM
 from app.core.config import get_settings
-from app.integrations import get_google_oauth_provider, get_kakao_oauth_provider, get_naver_oauth_provider
-from app.integrations.oauth import GoogleOAuthAdapter, KakaoOAuthAdapter, NaverOAuthAdapter
-from app.integrations.ports import OAuthCodeError, OAuthEmailMissing, OAuthProvider
+from app.integrations import get_github_oauth_provider, get_google_oauth_provider, get_naver_oauth_provider
+from app.integrations.oauth import GitHubOAuthAdapter, GoogleOAuthAdapter, NaverOAuthAdapter
+from app.integrations.ports import OAuthCodeError, OAuthEmailMissing, OAuthEmailUnverified, OAuthProvider
 from app.services.database import (
     OAuthAccountConflict, OAuthPasswordAccountConflict, OAuthUnverifiedLinkConflict, db_service,
 )
@@ -27,7 +27,7 @@ from app.services.key_custody import KeyCustody, get_key_custody
 from app.services.login_throttle import TOO_MANY_ATTEMPTS
 
 router = APIRouter()
-# 감사 로그 (INFO 한 줄, 이메일·DID·토큰·이름 없음, 끝에 provider=google|kakao|naver):
+# 감사 로그 (INFO 한 줄, 이메일·DID·토큰·이름 없음, 끝에 provider=google|github|naver):
 # event=oauth_login outcome=created|linked|login|refused_password_account|refused_unverified_link,
 # 토큰 교환 한도(ExchangeBudget)가 거절한 콜백마다 event=oauth_exchange_denied retry_after=<초>
 audit = logging.getLogger("vc-be.audit")
@@ -90,13 +90,13 @@ class ExchangeBudget:
 
 # 프로세스(태스크) 하나에 제공자마다 하나. Google 것은 예전 이름(oauth_exchange_budget)을 그대로 쓴다.
 oauth_exchange_budget = ExchangeBudget()
-kakao_exchange_budget = ExchangeBudget()
+github_exchange_budget = ExchangeBudget()
 naver_exchange_budget = ExchangeBudget()
 
 
 def exchange_budget(provider: str) -> ExchangeBudget:
     """제공자의 토큰 교환 한도. 부를 때마다 모듈 속성을 읽는다 (테스트가 바꿔 끼운 한도도 그대로 쓰이게)."""
-    return {"google": oauth_exchange_budget, "kakao": kakao_exchange_budget, "naver": naver_exchange_budget}[provider]
+    return {"google": oauth_exchange_budget, "github": github_exchange_budget, "naver": naver_exchange_budget}[provider]
 
 
 def _clean_code_verifier(value: Optional[str]) -> Optional[str]:
@@ -136,12 +136,12 @@ class _ProviderSpec:
 
     name: str  # 경로·state의 provider 클레임·oauth_accounts.provider
     label: str  # 응답 문구의 이름
-    requires_verified_email: bool  # 제공자가 인증한 이메일만 받는지 (Google·Kakao). Naver는 인증 여부를 알리지 않는다.
+    requires_verified_email: bool  # 제공자가 인증한 이메일만 받는지 (Google·GitHub). Naver는 인증 여부를 알리지 않는다.
 
 
 def _redirect_uris(provider: str) -> tuple[str, list[str]]:
     """(기본 콜백 주소, 허용하는 콜백 주소 목록). Google은 GOOGLE_REDIRECT_URI + GOOGLE_ALLOWED_REDIRECT_URIS,
-    카카오·네이버는 *_REDIRECT_URI 하나뿐이다."""
+    GitHub·네이버는 *_REDIRECT_URI 하나뿐이다."""
     settings = get_settings()
     if provider == "google":
         return settings.google_redirect_uri, settings.google_allowed_redirect_uris
@@ -152,7 +152,7 @@ def _redirect_uris(provider: str) -> tuple[str, list[str]]:
 def _resolve_redirect_uri(spec: _ProviderSpec, requested: Optional[str]) -> str:
     default, allowed = _redirect_uris(spec.name)
     if not allowed or ((requested is None or not requested.strip()) and not default):
-        # 콜백 주소를 하나도 설정하지 않은 제공자(운영에서 아직 켜지 않은 카카오·네이버 등)는 FE가 보낸 주소와 비교하기 전에
+        # 콜백 주소를 하나도 설정하지 않은 제공자(운영에서 아직 켜지 않은 GitHub·네이버 등)는 FE가 보낸 주소와 비교하기 전에
         # '설정 없음'(503)으로 답한다. 400 'Invalid redirect_uri'는 설정된 주소와 다른 주소를 보낸 경우만이다.
         raise HTTPException(status_code=503, detail=f"{spec.label} OAuth redirect_uri is not configured")
     if requested is None or not requested.strip():
@@ -269,8 +269,11 @@ async def _complete_oauth(
     except OAuthEmailMissing as exc:
         # 사용자가 이메일 제공에 동의하지 않았다 (계정을 이메일로 찾고 만들므로 이메일 없이는 가입·로그인할 수 없다).
         raise HTTPException(status_code=400, detail=OAUTH_EMAIL_REQUIRED) from exc
+    except OAuthEmailUnverified as exc:
+        # 제공자가 토큰 단계에서 이메일이 인증되지 않았다고 알렸다 (GitHub unverified_user_email). 아래 검사와 같은 400이다.
+        raise HTTPException(status_code=400, detail=OAUTH_EMAIL_NOT_VERIFIED) from exc
 
-    # 이메일을 인증하는 제공자(Google·Kakao)는 인증된 이메일만 받는다. Naver는 인증 여부를 알리지 않으므로 여기서 막지 않고,
+    # 이메일을 인증하는 제공자(Google·GitHub)는 인증된 이메일만 받는다. Naver는 인증 여부를 알리지 않으므로 여기서 막지 않고,
     # 인증되지 않은 이메일로 보고 같은 이메일의 다른 계정에 붙이지 않는다 (database.find_or_create_oauth_user).
     email_verified = spec.requires_verified_email and user_info.email_verified is True
     if spec.requires_verified_email and not email_verified:
@@ -381,8 +384,9 @@ def _add_provider_routes(spec: _ProviderSpec, get_provider: Callable[[], OAuthPr
     router.add_api_route(f"/{spec.name}/callback", callback_post, methods=["POST"], name=f"{spec.name}_callback_post")
 
 
+# 등록 순서(OpenAPI 문서의 순서)는 FE의 버튼·배지 순서와 같다: Google, GitHub, Naver.
 for _adapter, _get_provider in ((GoogleOAuthAdapter, get_google_oauth_provider),
-                                (KakaoOAuthAdapter, get_kakao_oauth_provider),
+                                (GitHubOAuthAdapter, get_github_oauth_provider),
                                 (NaverOAuthAdapter, get_naver_oauth_provider)):
     _add_provider_routes(
         _ProviderSpec(name=_adapter.provider_name, label=_adapter.label,
