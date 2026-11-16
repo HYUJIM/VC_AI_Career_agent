@@ -1154,11 +1154,12 @@ def test_mock_issue_attempt_window_and_breaker_end_empty_when_the_reservation_fa
     mock_issue_attempts.clear()
     fake_dx.error = None
     monkeypatch.setattr(db_service, "reserve_mock_issuance", db_unavailable)
-    assert [issue(client, user).status_code for _ in range(3)] == [500] * 3
+    # DB에 접속하지 못한 요청(OperationalError)은 DB 혼잡과 같은 503 + Retry-After다 (main.py database_busy_handler).
+    assert [issue(client, user).status_code for _ in range(3)] == [503] * 3
     assert fake_dx.issued == []
     assert mock_issue_attempts._attempts == {} and breaker._last_probe is None  # 탐침 기회도 그대로 남는다
     breaker.clear()
-    assert [issue(client, user).status_code for _ in range(3)] == [500] * 3  # 보통 요청일 때도 같다
+    assert [issue(client, user).status_code for _ in range(3)] == [503] * 3  # 보통 요청일 때도 같다
     assert mock_issue_attempts._attempts == {} and len(breaker._failures) == 0
 
 

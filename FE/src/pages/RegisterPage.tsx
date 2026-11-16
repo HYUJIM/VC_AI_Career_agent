@@ -39,7 +39,7 @@ const registerSchema = z.object({
     .trim()
     .min(1, '이름을 입력해주세요.')
     .max(100, '이름은 100자 이하여야 합니다.')
-    .regex(SINGLE_LINE_PATTERN, '이름에 줄바꿈이나 제어문자를 사용할 수 없습니다.'),
+    .regex(SINGLE_LINE_PATTERN, '이름에는 줄바꿈·제어 문자·보이지 않는 글자를 쓸 수 없고, 보이는 글자가 하나 이상 있어야 합니다.'),
   email: z
     .string()
     .trim()

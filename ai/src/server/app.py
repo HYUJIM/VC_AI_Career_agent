@@ -4,7 +4,11 @@ Run from the `ai/` folder:  uvicorn src.server.app:app --host 127.0.0.1 --port 8
 
 - Every /v1 route requires `Authorization: Bearer $AI_SERVICE_TOKEN` (>= 32 bytes), checked
   before any byte of the request body is read.
-- Request bodies are capped at AI_MAX_BODY_BYTES while they stream, with or without Content-Length.
+- Request bodies are capped while they stream, with or without Content-Length: AI_MAX_BODY_BYTES
+  (default 32 MiB) only on the routes that carry a whole job/resource corpus (CORPUS_ROUTES), and
+  min(4 MiB, AI_MAX_BODY_BYTES) on every other path (one posting, one resource, one preview text).
+- Curriculum LLM generations (default provider: Google Gemini API) run at most
+  CURRICULUM_LLM_MAX_CONCURRENCY at a time per process (src.career.llm_client.llm_slot).
 - Every response except an unhandled-exception 500 carries the contract ID; a client
   announcing another ID is refused.
 - Request bodies (verified evidence, job and resource texts) are never logged or echoed.
@@ -13,6 +17,7 @@ Run from the `ai/` folder:  uvicorn src.server.app:app --host 127.0.0.1 --port 8
 
 import os
 import secrets
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -56,7 +61,7 @@ from src.career.curriculum_service import planning_context, search_resources
 from src.career.errors import ConfigurationError, EvidenceError, Rejection
 from src.career.job_requirements import preview_requirements, validate_annotations
 from src.career.learning_retrieval import validate_resource
-from src.career.llm_client import generator_from_env
+from src.career.llm_client import generator_from_env, llm_max_concurrency
 from src.career.skill_catalog import CATALOG
 from src.market.catalog import CATALOG as MARKET_CATALOG
 from src.market.statistics import build_snapshot
@@ -65,6 +70,19 @@ if os.getenv("CAREER_AI_SKIP_DOTENV", "false").lower() != "true":
     load_dotenv(Path(__file__).resolve().parents[2] / ".env")  # ai/.env; never overrides
 
 DEFAULT_MAX_BODY_BYTES = 32 * 1024 * 1024
+# AI_MAX_BODY_BYTES(기본 32 MiB)를 쓰는 경로: 요청마다 검토된 공고·학습자료 묶음(공고 최대 1,000건·자료 500건)이나 그
+# 일부(커리큘럼 생성의 계획 컨텍스트: 단계마다 자료 버전 최대 3개)를 싣는다. 그 밖의 경로(공고 하나·자료 하나·미리보기 원문,
+# 본문 없는 GET, 없는 경로)는 SMALL_BODY_BYTES까지만 읽는다: BE가 보내는 가장 큰 본문은 BE의 반입 본문 상한(2 MiB) 안의
+# 공고 하나다. 모르는 키를 가득 채운 본문은 1 MiB마다 약 80~90 MB를 쓰므로(형식 오류 객체) 큰 상한을 꼭 필요한 경로에만 둔다.
+CORPUS_ROUTES = frozenset({
+    "/v1/job-postings/search",
+    "/v1/career-analyses",
+    "/v1/learning-resources/search",
+    "/v1/curricula/context",
+    "/v1/curricula/generate",
+    "/v1/market/snapshots",
+})
+SMALL_BODY_BYTES = 4 * 1024 * 1024
 TOO_LARGE = "Request too large for the AI service"
 # 422 응답에 싣는 검증 오류 수와 loc 문자열 길이의 상한 (validation_handler)
 MAX_REPORTED_ERRORS = 20
@@ -99,7 +117,7 @@ def require_service_token(
 
 
 class BodyTooLarge(HTTPException):
-    """본문을 읽는 도중 AI_MAX_BODY_BYTES를 넘으면 ServiceGuard의 receive()가 던진다.
+    """본문을 읽는 도중 그 경로의 상한(ServiceGuard.body_limit)을 넘으면 ServiceGuard의 receive()가 던진다.
 
     FastAPI는 본문을 읽다 난 예외 중 HTTPException만 그대로 다시 던지고 나머지는 400으로 바꾸므로
     HTTPException으로 두고, create_app의 핸들러가 413 REQUEST_TOO_LARGE로 답한다.
@@ -133,7 +151,7 @@ class ServiceGuard:
             await send(message)
 
         try:
-            limit = self.body_limit()
+            limit = self.body_limit(get_route_path(scope))
             await self.check_headers(scope, limit)
         except Rejection as exc:
             response = error(exc.status, exc.code, exc.message)
@@ -153,15 +171,19 @@ class ServiceGuard:
         await self.app(scope, receive_with_limit, send_with_contract)
 
     @staticmethod
-    def body_limit():
-        """요청마다 다시 읽는다(테스트가 값을 바꾼다). 잘못된 값은 create_app이 시작할 때 이미 막지만,
+    def body_limit(path: str = ""):
+        """이 경로의 본문 상한 (라우터가 경로를 찾을 때와 같은 값, root_path 제외). 묶음 경로(CORPUS_ROUTES)는
+        AI_MAX_BODY_BYTES, 그 밖은 min(SMALL_BODY_BYTES, AI_MAX_BODY_BYTES).
+
+        요청마다 다시 읽는다(테스트가 값을 바꾼다). 잘못된 값은 create_app이 시작할 때 이미 막지만,
         그 뒤에 바뀌었다면 모든 경로가 처리되지 않은 500이 되는 대신 503으로 답한다."""
         try:
-            return max_body_bytes()
+            configured = max_body_bytes()
         except ConfigurationError as exc:
             raise Rejection(
                 503, "AI_CONFIGURATION_REQUIRED", "AI service configuration required"
             ) from exc
+        return configured if path in CORPUS_ROUTES else min(SMALL_BODY_BYTES, configured)
 
     @staticmethod
     async def check_headers(scope, limit):
@@ -186,6 +208,7 @@ class ServiceGuard:
 
 def create_app() -> FastAPI:
     max_body_bytes()  # 잘못된 AI_MAX_BODY_BYTES는 첫 요청의 500이 아니라 시작(import) 실패로 드러나게 한다.
+    llm_max_concurrency()  # CURRICULUM_LLM_MAX_CONCURRENCY도 같다 (LLM을 끈 배포에서도 오타를 바로 드러낸다).
     app = FastAPI(
         title="VC AI Career Agent AI",
         version="0.1.0",
@@ -322,4 +345,7 @@ def create_app() -> FastAPI:
     return app
 
 
-app = create_app()
+try:
+    app = create_app()
+except ConfigurationError as exc:  # 잘못된 AI_MAX_BODY_BYTES·CURRICULUM_LLM_MAX_CONCURRENCY: traceback 대신 이 한 줄(변수 이름만)과 종료 코드 1
+    sys.exit(str(exc))

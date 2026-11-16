@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, field_validator
 from starlette.concurrency import run_in_threadpool
 
 from app.core.auth import Principal, create_access_token, require_user
-from app.core.text import StorableText, ensure_single_line
+from app.core.text import StorableText, ensure_single_line, has_visible_text, is_email_confusable
 from app.services.database import DatabaseBusy, EmailAlreadyRegistered, db_service
 from app.services.key_custody import KeyCustody, StoredHolderKey, get_key_custody
 from app.services.login_throttle import TOO_MANY_ATTEMPTS, login_throttle
@@ -17,8 +17,12 @@ from app.services.security import MAX_PASSWORD_BYTES, hash_password_async, verif
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# DB가 바빠서 조회하지 못한 경우 (main.py의 database_busy_handler가 503 + Retry-After로 답하는 세 가지 예외)
-_DB_BUSY_ERRORS = (DatabaseBusy, psycopg.errors.QueryCanceled, psycopg.errors.LockNotAvailable)
+# DB가 바쁘거나 닿지 않아 조회하지 못한 경우 (main.py의 database_busy_handler가 503 + Retry-After로 답하는 예외들.
+# OperationalError는 QueryCanceled·LockNotAvailable의 부모이고 접속 실패·끊긴 연결도 포함한다)
+_DB_BUSY_ERRORS = (DatabaseBusy, psycopg.errors.QueryCanceled, psycopg.errors.LockNotAvailable,
+                   psycopg.OperationalError)
+# 가입 이메일에 둘 수 없는 특수 문자 (RFC 5322에서 따옴표 밖에 쓸 수 없는 문자. '@'·'.'은 구조로 따로 본다)
+_EMAIL_SPECIALS = frozenset('"(),:;<>[\\]')
 
 
 class RegisterRequest(BaseModel):
@@ -41,7 +45,17 @@ class RegisterRequest(BaseModel):
     @field_validator("email")
     @classmethod
     def normalize_email(cls, v: str) -> str:
-        if "@" not in v:
+        local, at, domain = v.partition("@")
+        # '@'가 하나이고 앞뒤가 비어 있지 않아야 한다. 공백(NBSP 등 포함)·보이지 않는 서식 문자(Cf: 폭 없는 공백·방향 바꿈,
+        # OAuth 쪽 _confusable_email_char와 같은 기준)·따옴표 밖에서 쓸 수 없는 특수 문자("(),:;<>[\])는 받지 않는다:
+        # FE 가입 화면이 만들 수 없는 값('<script>…@example.com', 'ad​min@…')이 API로 바로 계정 이메일이 되지 않게 한다.
+        # 비ASCII 글자(국제화 이메일, 'İ' 등)는 지금처럼 받는다 (로그인 실패 제한이 소문자 접기 차이를 따로 다룬다).
+        # 로그인 요청은 그대로 둔다: 이미 있는 계정은 예전 규칙의 이메일로도 로그인한다.
+        if (
+            not at or not local or not domain or "@" in domain
+            or not has_visible_text(local) or not has_visible_text(domain)
+            or any(ch.isspace() or ch in _EMAIL_SPECIALS or is_email_confusable(ch) for ch in v)
+        ):
             raise ValueError("Invalid email")
         v = v.lower()
         # 위 255자 상한은 소문자로 바꾸기 전 값에 적용된다. 'İ'(U+0130)는 lower()로 두 글자('i' + U+0307)가 되므로
@@ -130,8 +144,9 @@ async def login_user(req: LoginRequest):
     try:
         user = await run_in_threadpool(db_service.get_user_by_email, email)
     except Exception as exc:
-        # 조회가 실패해도(예: DB 연결 수 초과) 이미 실패로 기록한 시도다. 다른 실패처럼 더미 bcrypt 비교를 한 번 하고 같은 오류를
-        # 그대로 다시 던진다(응답은 지금처럼 500). 비용 없이 키만 만드는 요청으로 잠긴 키를 밀어내지 못하게 하기 위해서다.
+        # 조회가 실패해도(예: DB 내부 오류) 이미 실패로 기록한 시도다. 다른 실패처럼 더미 bcrypt 비교를 한 번 하고 같은 오류를
+        # 그대로 다시 던진다(응답은 처리기가 정한다: DB 혼잡·접속 실패는 503, 그 밖은 500). 비용 없이 키만 만드는 요청으로 잠긴
+        # 키를 밀어내지 못하게 하기 위해서다.
         if isinstance(exc, _DB_BUSY_ERRORS):
             # DB가 바빠서 조회하지 못한 시도(503 + Retry-After: 잠시 뒤 다시 하라고 답한다)는 실패로 세지 않고 기록을 돌려준다.
             # 비밀번호를 확인한 적이 없는데 세면, 안내대로 다시 시도한 사용자가 맞는 비밀번호로도 15분 동안 잠긴다.

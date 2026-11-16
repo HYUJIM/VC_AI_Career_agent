@@ -883,7 +883,7 @@ def test_cli_export_and_import_round_trip(ai_app, db, caplog, tmp_path):
 
 
 def test_cli_import_of_a_missing_or_empty_directory_is_a_failure(db, caplog, tmp_path):
-    # README의 import 명령을 폴더를 복사하기 전에 돌린 경우: 예전에는 '가져온 통계: {}'와 종료 코드 0이었다.
+    # docs/GETTING_STARTED.md 7-1의 import 명령을 폴더를 복사하기 전에 돌린 경우: 예전에는 '가져온 통계: {}'와 종료 코드 0이었다.
     (tmp_path / "empty").mkdir()
     for directory in (tmp_path / "missing", tmp_path / "empty"):
         assert run_cli(caplog, "import", "--dir", directory) == (

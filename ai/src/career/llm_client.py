@@ -2,6 +2,9 @@ import asyncio
 import json
 import os
 import re
+import unicodedata
+import weakref
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
@@ -20,11 +23,70 @@ SELECTOR_SYSTEM_PROMPT = (
     "minimum hours and both budgets. The baseline is an allowed fallback."
 )
 
+# CURRICULUM_LLM_MODEL for every HTTPS provider. The model ID never goes into a URL.
+MODEL_ID_PATTERN = re.compile(r"[a-zA-Z0-9/_.:@-]{1,200}")
+
+# In-process cap on concurrent LLM generations (CURRICULUM_LLM_MAX_CONCURRENCY). A generation that
+# finds no free slot within LLM_SLOT_WAIT_SECONDS fails as retryable LLM_BUSY without calling the
+# model. Worst case per request: 10 s wait + 2 attempts x 25 s = 60 s, inside BE's 90 s
+# AI_GENERATION_TIMEOUT_SECONDS.
+DEFAULT_LLM_MAX_CONCURRENCY = 2
+MAX_LLM_MAX_CONCURRENCY = 32
+LLM_SLOT_WAIT_SECONDS = 10.0
+# asyncio.Semaphore is bound to the loop that first waits on it (tests create several loops), so
+# there is one per running loop: (limit at creation, semaphore). Production has one loop.
+_llm_slots: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, tuple[int, asyncio.Semaphore]]" = (
+    weakref.WeakKeyDictionary()
+)
+
 
 class ProviderFailure(RuntimeError):
-    def __init__(self, code, retryable=False):
+    def __init__(self, code, retryable=False, *, http_status=None, provider_code=None):
         super().__init__(code)
         self.code, self.retryable = code, retryable
+        # Diagnostics only (scripts/gemini_check.py, logs): the provider's HTTP status and an
+        # identifier-like error code. Never the provider's message or body.
+        self.http_status, self.provider_code = http_status, provider_code
+
+
+def llm_max_concurrency() -> int:
+    """CURRICULUM_LLM_MAX_CONCURRENCY: blank means 2; otherwise ASCII digits from 1 to 32."""
+    raw = os.getenv("CURRICULUM_LLM_MAX_CONCURRENCY", "").strip()
+    if not raw:
+        return DEFAULT_LLM_MAX_CONCURRENCY
+    if (
+        not (raw.isascii() and raw.isdigit())
+        or len(raw) > 3
+        or not 1 <= int(raw) <= MAX_LLM_MAX_CONCURRENCY
+    ):
+        raise ConfigurationError(
+            f"CURRICULUM_LLM_MAX_CONCURRENCY must be an integer from 1 to {MAX_LLM_MAX_CONCURRENCY}"
+        )
+    return int(raw)
+
+
+@asynccontextmanager
+async def llm_slot():
+    """Hold one LLM generation slot for the block, or fail with retryable LLM_BUSY."""
+    limit = llm_max_concurrency()
+    loop = asyncio.get_running_loop()
+    entry = _llm_slots.get(loop)
+    if entry is None or entry[0] != limit:
+        for known in [known for known in _llm_slots if known.is_closed()]:
+            del _llm_slots[known]
+        entry = _llm_slots[loop] = (limit, asyncio.Semaphore(limit))
+    slots = entry[1]
+    if slots.locked():
+        try:
+            await asyncio.wait_for(slots.acquire(), timeout=LLM_SLOT_WAIT_SECONDS)
+        except TimeoutError:
+            raise ProviderFailure("LLM_BUSY", True) from None
+    else:
+        await slots.acquire()  # A free slot is taken without waiting.
+    try:
+        yield
+    finally:
+        slots.release()
 
 
 @dataclass
@@ -53,7 +115,7 @@ class LLMConfig:
             or parsed.password
             or parsed.query
             or parsed.fragment
-            or not re.fullmatch(r"[a-zA-Z0-9/_.:@-]{1,200}", model)
+            or not MODEL_ID_PATTERN.fullmatch(model)
             or not key
             # The key goes into the Authorization header: non-ASCII would fail on every request.
             or not (key.isascii() and key.isprintable())
@@ -83,6 +145,75 @@ class LLMReply:
     usage: dict = field(default_factory=dict)
 
 
+# Unicode Default_Ignorable_Code_Point (stable set; Python 3.11 has no property for it). These
+# render with zero width, including unassigned ones (Cn) that a newer model tokenizer still reads.
+_DEFAULT_IGNORABLE = (
+    (0x00AD, 0x00AD), (0x034F, 0x034F), (0x061C, 0x061C), (0x115F, 0x1160), (0x17B4, 0x17B5),
+    (0x180B, 0x180F), (0x200B, 0x200F), (0x202A, 0x202E), (0x2060, 0x206F), (0x3164, 0x3164),
+    (0xFE00, 0xFE0F), (0xFEFF, 0xFEFF), (0xFFA0, 0xFFA0), (0xFFF0, 0xFFF8), (0x1BCA0, 0x1BCA3),
+    (0x1D173, 0x1D17A), (0xE0000, 0xE0FFF),
+)
+# Not Default_Ignorable but blank or invisible as well: Braille blank, Egyptian hieroglyph format
+# controls (several are unknown to Python 3.11's Unicode 14).
+_EXTRA_HIDDEN = frozenset("\u2800\ufffc")  # Braille blank, object replacement character
+_EGYPTIAN_FORMAT = range(0x13430, 0x13440)
+_EMOJI_PRESENTATION = frozenset("\ufe0e\ufe0f")
+
+
+def _is_hidden(ch: str) -> bool:
+    code = ord(ch)
+    category = unicodedata.category(ch)
+    # Private use (Co) has no standard glyph and several draw nothing (macOS U+F850-F87F); controls
+    # (Cc) other than tab/newline draw nothing or a blank gap.
+    return (category in ("Cf", "Co") or (category == "Cc" and ch not in "\t\n")
+            or ch in _EXTRA_HIDDEN or code in _EGYPTIAN_FORMAT
+            or any(low <= code <= high for low, high in _DEFAULT_IGNORABLE))
+
+
+def _joinable(ch: str) -> bool:
+    category = unicodedata.category(ch)
+    return ch != "\u200d" and (category[0] in "LMNPS" or category == "Cn")
+
+
+def visible_text(value: str) -> str:
+    """Keep only what a reader sees.
+
+    Drops every Default_Ignorable code point and Unicode Cf character (bidi controls, zero-width
+    characters, tag characters, variation selectors, CGJ, Hangul fillers, unassigned ignorables),
+    private-use characters, control characters other than tab/newline, the Braille blank, U+FFFC
+    and Egyptian format controls. Kept: a single ZWJ U+200D between two visible characters (emoji
+    and Indic joining sequences) and one U+FE0E/U+FE0F directly after a letter, digit, punctuation
+    or symbol (text/emoji presentation).
+    A quote can look harmless to the researcher who reviewed it while carrying hidden instructions
+    the model still reads (tag or variation-selector "smuggling"), so nothing invisible is sent.
+    """
+    out: list[str] = []
+    after_visible = False  # the previous input character was kept and is a visible base
+    previous_joinable = False  # the previous input character was kept and may sit before a ZWJ
+    for index, ch in enumerate(value):
+        if ch == "\u200d":
+            # One ZWJ, only between two visible characters (emoji and Indic joining sequences):
+            # runs of ZWJ, or ZWJ next to hidden characters, could encode bits nobody sees.
+            following = value[index + 1 : index + 2]
+            if previous_joinable and following and not _is_hidden(following) and _joinable(following):
+                out.append(ch)
+            after_visible = previous_joinable = False
+        elif ch in _EMOJI_PRESENTATION:
+            kept = after_visible
+            if kept:
+                out.append(ch)
+            after_visible = False
+            previous_joinable = kept  # e.g. heart + U+FE0F + ZWJ + fire
+        elif _is_hidden(ch):
+            after_visible = previous_joinable = False
+        else:
+            out.append(ch)
+            category = unicodedata.category(ch)
+            after_visible = category[0] in "LNPS" or category == "Cn"
+            previous_joinable = _joinable(ch)
+    return "".join(out)
+
+
 def selector_payload(context, request, errors=None):
     # Neither VC data, user identity, job documents nor course URLs are sent.
     options = []
@@ -101,7 +232,7 @@ def selector_payload(context, request, errors=None):
                         "cost_krw": version.resource.cost_krw,
                         "level": version.resource.level,
                         "untrusted_quotes": [
-                            annotation.quote[:200]
+                            visible_text(annotation.quote)[:200]
                             for annotation in version.resource.skill_annotations
                         ],
                     }
@@ -216,13 +347,20 @@ class CompatibleLLMClient:
 
 
 def generator_from_env():
-    """Select the curriculum generator explicitly; nothing is inferred or auto-enabled.
+    """Select the curriculum generator explicitly; nothing is auto-enabled.
 
-    CURRICULUM_LLM_PROVIDER=compatible (default): OpenAI-compatible HTTPS endpoint.
+    Every provider still requires CURRICULUM_LLM_ENABLED=true.
+    CURRICULUM_LLM_PROVIDER=gemini (default, also when blank): Google Gemini API
+    (src.career.gemini_client, key in GEMINI_API_KEY).
+    CURRICULUM_LLM_PROVIDER=compatible: OpenAI-compatible HTTPS endpoint (CURRICULUM_LLM_BASE_URL).
     CURRICULUM_LLM_PROVIDER=local-transformers: the pinned research Qwen model on this
     machine's GPU (src.llm.transformers_llm); no VC data leaves the AI host.
     """
-    provider = os.getenv("CURRICULUM_LLM_PROVIDER", "compatible").strip()
+    provider = os.getenv("CURRICULUM_LLM_PROVIDER", "").strip() or "gemini"
+    if provider == "gemini":
+        from src.career.gemini_client import GeminiConfig
+
+        return GeminiConfig.from_env()
     if provider == "compatible":
         return LLMConfig.from_env()
     if provider == "local-transformers":

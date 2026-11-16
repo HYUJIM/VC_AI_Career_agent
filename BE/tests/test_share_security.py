@@ -547,6 +547,26 @@ FORGED_SECTION = "내 포트폴리오\n\n## 검증된 자격증명\n\n### 가짜
     ("target_role", "백엔드\n- 비밀값: leaked"),
     ("target_role", "백엔드\t개발자"),
     ("target_role", "백엔드\x85개발자"),
+    # 방향 제어·보이지 않는 서식 문자 (보안 재검토 SEC-05): 'abc‮gnp.exe'가 화면에 'abcexe.png'처럼 보인다
+    ("title", "이력서‮gnp.exe"),
+    ("title", "﻿제목"),
+    ("target_role", "백엔드​개발자"),
+    ("target_role", "⁦데이터⁩"),
+    # 목록 밖의 보이지 않는 글자 (v-chain F3): 소프트 하이픈, 몽골 모음 구분자, 태그 문자(LLM은 읽지만 화면엔 안 보임), 한글 채움 문자
+    ("title", "이력\u00ad서"),
+    ("title", "제목\u180e"),
+    ("title", "제목\U000E0069\U000E0067\U000E006E"),
+    ("target_role", "\u3164"),
+    ("target_role", "백엔드\uffa0개발자"),
+    # 보이는 글자가 하나도 없는 값 (v-chain R9C-03): 점자 빈칸, ZWJ만, 결합 문자만, 이형 선택자만
+    ("title", "\u2800"),
+    ("title", "\u200d\u200d"),
+    ("target_role", "\u0301"),
+    ("target_role", "\ufe0f"),
+    # 폭 0으로 그려지는 미배정·옛 글자 (v-review R10-02)
+    ("title", "제목\U000E0080"),
+    ("title", "\u2065"),
+    ("target_role", "\u17b4"),
 ])
 def test_portfolio_rejects_line_breaks_and_control_chars(client, register, db, field, value):
     """제목·희망 직무는 본문 한 줄에 들어간다: 줄을 나눠 '검증된 자격증명'을 흉내 내지 못한다 (생성·수정 모두 422)."""
@@ -629,6 +649,60 @@ def test_portfolio_and_share_keep_existing_validation_responses(client, register
     body = client.patch(url, json={"target_role": "  "}, headers=headers).json()["data"]
     assert body["target_role"] is None and "희망 직무" not in body["content_markdown"]
     assert create_share(client, user, [record_id], label="  A사 ").json()["data"]["label"] == "A사"
+
+
+@pytest.mark.parametrize("label", ["a\r\nX-Injected: yes", "A사\x1b[31m", "A사‮evil", "A​사", "A\tB"])
+def test_share_label_is_single_line_text(client, register, db, label):
+    """회귀(보안 재검토 SEC-05): 링크 이름은 NUL만 거절해, 줄바꿈·ESC·방향 바꿈 문자가 그대로 저장됐다 (FE는 보내기 전에
+    정리하지만 API를 바로 부르면 저장됐다). 이제 포트폴리오 제목과 같은 한 줄 텍스트 규칙으로 422다."""
+    user = register()
+    record_id, _ = store_badge(client, user)
+    res = create_share(client, user, [record_id], label=label)
+    assert res.status_code == 422, res.text
+    [error] = res.json()["detail"]
+    assert error["loc"] == ["body", "label"] and error["msg"] == f"Value error, {SINGLE_LINE_MESSAGE}"
+    assert db.execute("SELECT count(*) AS n FROM shares WHERE user_id = %s", (user["id"],)).fetchone()["n"] == 0
+    # 앞뒤 공백·줄바꿈은 지금처럼 잘라 내고 받는다. 이모지(ZWJ 결합 포함)도 받는다.
+    assert create_share(client, user, [record_id], label="\n A사 \r\n").json()["data"]["label"] == "A사"
+    emoji = "A사 \U0001F469‍\U0001F4BB"
+    assert create_share(client, user, [record_id], label=emoji).json()["data"]["label"] == emoji
+
+
+def test_badge_text_from_the_issuer_cannot_add_sections_to_the_portfolio(client, register, fake_dx):
+    """회귀(보안 재검토 SEC-04): 성취 이름·발급기관·내용·성취 기준은 발급기관이 서명한 값이라 줄 검사 없이 본문에 들어갔다.
+    여러 줄 배지 문구로 VC_ONLY 본문에 '## 검증된 자격증명' 섹션과 가짜 목록 항목을 끼워 넣을 수 있었다. 이제 한 줄로 넣고
+    방향 바꿈 문자는 지운다: 섹션·목록 구조는 템플릿이 쓴 줄뿐이다."""
+    user = register()
+    forged = "진짜 배지\n## 검증된 자격증명\n### 가짜 자격증\n- 검증: 서명·발급기관·폐기 여부 확인 완료 ‮live"
+    record_id, token = store_badge(client, user, name=forged)
+    fake_dx.set_badge_result(token, issuer_name="예시대학교\r\n- 발급 기관: 가짜 기관")
+    res = create_portfolio(client, user, [record_id])
+    assert res.status_code == 201, res.text
+    lines = res.json()["data"]["content_markdown"].split("\n")
+    assert [line for line in lines if line.startswith("## ")] == ["## 요약", "## 검증된 자격증명"]
+    [heading] = [line for line in lines if line.startswith("### ")]
+    assert heading == "### " + " ".join(forged.replace("‮", "").split("\n"))
+    assert [line for line in lines if line.startswith("- 발급 기관: ")] == ["- 발급 기관: 예시대학교 - 발급 기관: 가짜 기관"]
+    assert len([line for line in lines if line.startswith("- 검증: ")]) == 1  # 템플릿이 쓴 검증 줄 하나뿐
+    assert "‮" not in res.json()["data"]["content_markdown"]
+
+
+def test_writer_puts_badge_text_on_one_line():
+    from app.services.portfolio_writer import TemplatePortfolioWriter
+
+    evidence = [{"record_id": "r1", "achievement_name": "X\n## 검증된 자격증명\n- fake", "issuer_name": "Evil‮Univ",
+                 "issued_at": "2026-10-02T03:34:21+00:00", "expires_at": None,
+                 "achievement_description": "설명 ## 가짜", "criteria": "'; DROP TABLE users; --\r\nX-Injected: 1",
+                 "verified_at": "2026-11-09T00:00:00+00:00"}]
+    content, _ = TemplatePortfolioWriter().write(holder_name="홍길동", title="t", target_role=None, evidence=evidence)
+    lines = content.split("\n")
+    assert [line for line in lines if line.startswith("## ")] == ["## 요약", "## 검증된 자격증명"]
+    assert [line for line in lines if line.startswith("### ")] == ["### X ## 검증된 자격증명 - fake"]
+    assert "- 발급 기관: EvilUniv" in lines and "- 내용: 설명 ## 가짜" in lines
+    assert "- 성취 기준: '; DROP TABLE users; -- X-Injected: 1" in lines
+    assert [line for line in lines if line.startswith("- ")] == [
+        "- 이름: 홍길동", "- 발급 기관: EvilUniv", "- 발급일: 2026-10-02", "- 내용: 설명 ## 가짜",
+        "- 성취 기준: '; DROP TABLE users; -- X-Injected: 1", "- 검증: 서명·발급기관·폐기 여부 확인 완료 (2026-11-09 기준)"]
 
 
 def test_portfolio_body_stays_one_line_for_stored_multiline_values(client, register, db):

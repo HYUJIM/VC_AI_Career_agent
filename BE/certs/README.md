@@ -2,8 +2,10 @@
 
 BE가 Amazon RDS for PostgreSQL에 TLS로 접속할 때 서버 인증서를 확인하는 데 쓰는 **공개 CA 인증서 묶음**입니다(비밀값이
 아닙니다). 운영 이미지(`BE/Dockerfile`)가 `COPY certs ./certs`로 `/app/certs/rds-global-bundle.pem`에 넣고
-`PGSSLROOTCERT=/app/certs/rds-global-bundle.pem`을 기본값으로 둡니다. BE 서비스·마이그레이션 태스크(`python -m app.migrate`)·
-시장 통계 반입 태스크가 모두 같은 이미지를 쓰므로 따로 파생 이미지를 만들지 않습니다.
+`PGSSLROOTCERT=/app/certs/rds-global-bundle.pem`을 기본값으로 둡니다. BE 서비스·마이그레이션 태스크(`python -m app.migrate`)는
+이 이미지를 그대로 쓰고, 시장 통계 반입 태스크는 이 이미지에 스냅샷 파일만 더한 이미지(`vc-be:<커밋>-market`,
+[deploy/README.md](../../deploy/README.md) ⑤-1)를 쓰므로 묶음과 `PGSSLROOTCERT` 기본값을 그대로 물려받습니다. CA 묶음을 넣는
+파생 이미지는 따로 만들지 않습니다.
 
 - `APP_ENV=production`이면 `PGSSLMODE`가 `verify-full`(권장) 또는 `verify-ca`이고 `PGSSLROOTCERT`가 읽을 수 있는 파일이어야
   서버·마이그레이션 실행기가 시작합니다 (`app/core/config.py`의 `db_tls_options`). 작업 정의에는 `PGSSLMODE=verify-full`을
@@ -11,6 +13,11 @@ BE가 Amazon RDS for PostgreSQL에 TLS로 접속할 때 서버 인증서를 확�
 - RDS CA는 공개 신뢰 저장소(OS·certifi)에 없으므로 `PGSSLROOTCERT=system`으로 대신할 수 없습니다.
 - 로컬 Compose(`APP_ENV=development`, TLS 없는 Postgres)는 `PGSSLMODE`를 넣지 않으면 libpq 기본값 `prefer`로 접속하므로 이
   파일이 있어도 동작이 같습니다.
+- **RDS가 아닌 TLS PostgreSQL에 이 이미지를 붙일 때**(직접 운영하는 Postgres, 다른 클라우드 등): 이미지 기본값
+  `PGSSLROOTCERT`(RDS 묶음)를 그 서버의 CA 파일로 바꿉니다(개발에서는 `PGSSLROOTCERT=`처럼 비워도 됨: 빈 값은 설정하지 않은
+  것으로 봄). 그대로 두면 libpq는 CA 파일이 있을 때 `prefer`·`require`에서도 서버 인증서를 확인하므로, `prefer`(기본)는 확인에
+  실패한 뒤 **조용히 TLS 없이** 다시 접속하고 `require`는 `certificate verify failed`로 실패합니다(TLS 서버·psql/libpq 16으로
+  로컬 확인).
 
 ## 받은 파일
 
@@ -48,4 +55,5 @@ openssl crl2pkcs7 -nocrl -certfile rds-global-bundle.pem \
   | openssl pkcs7 -print_certs -noout | grep 'ap-northeast-2'   # 이 리전의 CA가 들어 있는지
 ```
 
-그다음 BE 이미지를 다시 빌드해 BE 서비스·마이그레이션·시장 통계 작업 정의를 모두 새 이미지 태그로 바꿉니다.
+그다음 BE 이미지를 다시 빌드해 BE 서비스·마이그레이션 작업 정의를 새 이미지 태그로 바꿉니다. 시장 통계 반입을 다시 할
+때는 그 태그로 `<새 태그>-market` 이미지도 다시 만듭니다.

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { getApiErrorMessage } from '@/lib/apiClient';
+import { isSendableSingleLine, NO_VISIBLE_TEXT_MESSAGE } from '@/lib/text';
 import { useCopy } from '@/lib/useCopy';
 
 const EXPIRY_OPTIONS = [7, 14, 30, 90];
@@ -19,6 +20,7 @@ export function ShareLinksCard({ selectedIds }: { selectedIds: string[] }) {
   const queryClient = useQueryClient();
   const { copy, isCopied } = useCopy();
   const [label, setLabel] = useState('');
+  const labelOk = isSendableSingleLine(label); // 비우면 이름 없는 링크, 보이는 글자가 없으면 BE가 422
   const [days, setDays] = useState(14);
   const [createdUrl, setCreatedUrl] = useState<string | null>(null);
 
@@ -59,6 +61,7 @@ export function ShareLinksCard({ selectedIds }: { selectedIds: string[] }) {
           placeholder="예: OO회사 백엔드 지원"
           maxLength={100}
           value={label}
+          error={labelOk ? undefined : NO_VISIBLE_TEXT_MESSAGE}
           onChange={(e) => setLabel(e.target.value)}
         />
         <div className="flex flex-col gap-2">
@@ -80,7 +83,7 @@ export function ShareLinksCard({ selectedIds }: { selectedIds: string[] }) {
         </div>
       </div>
       <Button
-        disabled={selectedIds.length === 0}
+        disabled={selectedIds.length === 0 || !labelOk}
         isLoading={create.isPending}
         onClick={() => {
           setCreatedUrl(null);

@@ -300,6 +300,8 @@ def test_ai_outage_is_503_and_nothing_is_saved(client, ai_app, researcher, regis
     res = client.post("/api/v1/career-analyses", json={}, headers=student["headers"])
     assert res.status_code == 503
     assert res.json() == {"detail": "AI service temporarily unavailable", "code": "AI_SERVICE_UNAVAILABLE"}
+    # 다시 하면 될 수 있는 실패라 기다릴 시간을 알려 준다 (예전에는 Retry-After가 없어 클라이언트가 바로 다시 몰아 보냈다).
+    assert res.headers["retry-after"] == "5"
     count = db.execute("SELECT COUNT(*) AS n FROM career_analyses WHERE user_id = %s", (student["id"],)).fetchone()
     assert count["n"] == 0
 
@@ -433,6 +435,8 @@ def test_ai_misconfiguration_is_503_without_logging_the_token(client, ai_app, re
     ("LLM_CONTEXT_TOO_LARGE", False, 422),
     ("GENERATOR_CONFIGURATION_REQUIRED", False, 503),
     ("LLM_PROVIDER_UNAVAILABLE", True, 503),
+    ("LLM_BUSY", True, 503),  # AI의 동시 LLM 생성 상한(CURRICULUM_LLM_MAX_CONCURRENCY)이 10초 동안 찼다
+    ("LLM_PROVIDER_REJECTED", True, 503),  # Gemini 429 RESOURCE_EXHAUSTED·5xx
 ])
 def test_curriculum_generation_failure_keeps_status_gains_code_and_saves_nothing(
         client, ai_app, researcher, register, db, monkeypatch, caplog, error_code, retryable, status):
@@ -456,6 +460,8 @@ def test_curriculum_generation_failure_keeps_status_gains_code_and_saves_nothing
                "budget_krw": 0, "learning_choices": [{"skill_id": "spark", "action": "learn"}]}
     res = client.post("/api/v1/curricula", json=request, headers=student["headers"])
     assert res.status_code == status and res.json() == {"detail": error_code, "code": error_code}
+    # 다시 시도할 수 있는 실패의 503에는 Retry-After가 붙는다 (FE·클라이언트가 바로 되풀이하지 않게). 그 밖에는 없다.
+    assert res.headers.get("retry-after") == ("5" if retryable else None)
     [log] = ai_error_logs(caplog)
     assert f"path=/api/v1/curricula status={status} code={error_code} retryable={retryable}" in log.getMessage()
     count = db.execute("SELECT COUNT(*) AS n FROM curricula WHERE user_id = %s", (student["id"],)).fetchone()
@@ -510,14 +516,16 @@ def test_corpus_requests_to_ai_never_exceed_the_concurrency_limit(client, ai_app
     from app.integrations import ai_service as module
 
     import_posting(client, researcher)
-    student = register("학생")
+    # 학생 여섯 명이 두 개씩 (한 사용자가 동시에 쥘 수 있는 자리는 CORPUS_IN_FLIGHT_PER_USER = 2개다).
+    students = [register("학생") for _ in range(6)]
     gate = GatedTransport(module.ai_service.transport, {"/v1/job-postings/search"}, delay=0.05)
     monkeypatch.setattr(module.ai_service, "transport", gate)
     use_ai_limit(monkeypatch, 2)
 
     with ThreadPoolExecutor(12) as pool:
         statuses = Counter(pool.map(
-            lambda _: client.get("/api/v1/job-postings", headers=student["headers"]).status_code, range(12)))
+            lambda index: client.get("/api/v1/job-postings", headers=students[index // 2]["headers"]).status_code,
+            range(12)))
     # 기다린 요청도 자리가 나면 그대로 처리된다 (오류 없음). AI에는 한 번에 두 개까지만 가 있었다.
     assert statuses == {200: 12}
     assert gate.calls.count("/v1/job-postings/search") == 12 and gate.peak == 2
@@ -828,6 +836,352 @@ def test_closed_event_loops_are_dropped_from_the_corpus_slot_map(monkeypatch):
     for _ in range(5):
         asyncio.run(contend())
     assert len([loop for loop in module._corpus_slots if loop.is_closed()]) <= 1
+
+
+# ── 사용자별 AI 묶음 요청 한도 (보안 재검토 SEC-02) ────────────────────────
+
+TOO_MANY_ANALYSIS_REQUESTS = {"detail": "Too many analysis requests. Try again later."}
+
+
+def corpus_denials(caplog) -> list[str]:
+    return [r.getMessage() for r in caplog.records
+            if r.name == "vc-be.audit" and r.getMessage().startswith("event=corpus_budget_denied")]
+
+
+def test_one_account_cannot_take_every_ai_slot(client, ai_app, researcher, register, monkeypatch, caplog):
+    """회귀: 묶음 요청 자리(AI_MAX_CONCURRENCY)는 프로세스 전체에 하나뿐이고 사용자별 한도가 없어, 무료 계정 하나가 공고
+    목록을 병렬로 몰아 부르면(초당 10번) 다른 사용자의 학습자료 검색이 자리를 기다리다 503 AI_SERVICE_BUSY였다.
+    이제 한 사용자는 자리를 동시에 두 개까지만 쥐고, 넘는 요청은 기다리지 않고 묶음도 읽지 않은 채 429 + Retry-After다."""
+    from app.integrations import ai_service as module
+    from app.services.career_store import career_store
+
+    import_posting(client, researcher)
+    resource = client.post("/api/v1/research/learning-resources", json=resource_body(), headers=researcher["headers"])
+    assert resource.status_code == 201, resource.text
+    attacker, victim = register("학생"), register("다른 학생")
+    gate = GatedTransport(module.ai_service.transport, {"/v1/job-postings/search"}, max_hold=10.0)
+    monkeypatch.setattr(module.ai_service, "transport", gate)
+    use_ai_limit(monkeypatch, 4, wait_seconds=0.5)
+    loads = []
+    original = career_store.market_candidates
+    monkeypatch.setattr(career_store, "market_candidates", lambda *args: (loads.append(1), original(*args))[1])
+
+    gate.hold.set()
+    with ThreadPoolExecutor(10) as pool, caplog.at_level(logging.INFO, logger="vc-be.audit"):
+        futures = [pool.submit(client.get, "/api/v1/job-postings", headers=attacker["headers"]) for _ in range(10)]
+        try:
+            for _ in range(500):  # 여덟 건은 바로 거절되고 두 건이 AI에 붙잡혀 있을 때까지
+                if sum(future.done() for future in futures) == 8 and gate.in_flight == 2:
+                    break
+                threading.Event().wait(0.01)
+            refused = [future.result() for future in futures if future.done()]
+            assert len(refused) == 8 and gate.in_flight == 2
+            for res in refused:
+                assert res.status_code == 429 and res.headers["retry-after"] == "2", res.text
+                assert res.json() == TOO_MANY_ANALYSIS_REQUESTS
+            assert len(loads) == 2  # 거절된 요청은 공고 묶음을 읽지 않았다
+            # 다른 사용자는 기다리지 않고 바로 처리된다 (공격 계정은 자리 네 개 중 두 개만 쥐었다).
+            res = client.get("/api/v1/learning-resources", headers=victim["headers"])
+            assert res.status_code == 200, res.text
+        finally:
+            gate.hold.clear()
+        assert sorted(future.result(timeout=10).status_code for future in futures) == [200, 200] + [429] * 8
+    assert gate.calls.count("/v1/job-postings/search") == 2
+    assert corpus_denials(caplog) == [f"event=corpus_budget_denied user={attacker['id']} "
+                                      "route=/v1/job-postings/search reason=in_flight retry_after=2"] * 8
+    # 붙잡혀 있던 요청이 끝나면 같은 계정도 다시 받는다 (동시 수는 오류·취소로 끝나도 돌아온다).
+    assert client.get("/api/v1/job-postings", headers=attacker["headers"]).status_code == 200
+    assert module._corpus_in_flight == {}
+
+
+def test_corpus_requests_per_account_are_rate_limited(client, ai_app, researcher, register, monkeypatch, caplog):
+    """사용자마다 묶음 요청 수를 분·시간 몫(토큰 버킷)으로 묶는다. 몫이 모자라면 DB·AI를 부르지 않고 429 + Retry-After.
+    공고 목록·학습자료 검색·직무 비교·학습 계획이 같은 몫을 쓰고, 다른 사용자의 몫과는 따로 센다."""
+    from app.integrations import ai_service as module
+    from app.services.verifier_budget import VerifierBudget
+
+    import_posting(client, researcher)
+    student, other = register("학생"), register("다른 학생")
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(module, "corpus_request_budget",
+                        VerifierBudget(calls_per_minute=3, calls_per_hour=300, process_calls_per_minute=10 ** 6,
+                                       clock=lambda: clock["now"]))
+    gate = GatedTransport(module.ai_service.transport, set())
+    monkeypatch.setattr(module.ai_service, "transport", gate)
+
+    def search(user):
+        return client.get("/api/v1/job-postings", headers=user["headers"])
+
+    with caplog.at_level(logging.INFO, logger="vc-be.audit"):
+        assert [search(student).status_code for _ in range(3)] == [200, 200, 200]
+        res = search(student)
+        assert res.status_code == 429 and res.headers["retry-after"] == "20" and res.json() == TOO_MANY_ANALYSIS_REQUESTS
+        for method, path in (("GET", "/api/v1/learning-resources"), ("POST", "/api/v1/career-analyses")):
+            denied = client.request(method, path, headers=student["headers"], json={} if method == "POST" else None)
+            assert denied.status_code == 429 and denied.json() == TOO_MANY_ANALYSIS_REQUESTS, denied.text
+        assert search(other).status_code == 200  # 다른 사용자의 몫은 그대로다
+    assert gate.calls.count("/v1/job-postings/search") == 4 and "/v1/career-analyses" not in gate.calls
+    assert corpus_denials(caplog)[0] == (f"event=corpus_budget_denied user={student['id']} "
+                                         "route=/v1/job-postings/search reason=rate retry_after=20")
+    clock["now"] += 20
+    assert search(student).status_code == 200
+
+
+def test_rate_limited_analysis_makes_no_dxworks_call(client, ai_app, researcher, register, fake_dx, monkeypatch,
+                                                     caplog):
+    """회귀(v-review VR-02): 사용자별 AI 묶음 요청 한도를 재검증(DXWorks) 뒤에 봐서, 한도를 넘어 429로 끝날 직무 비교도
+    자격증명마다 검증기를 먼저 불렀다. 이제 한도는 재검증 전에 보므로 거절된 요청은 검증기 호출이 0번이다."""
+    from app.integrations import ai_service as module
+    from app.services.verifier_budget import VerifierBudget
+
+    posting = import_posting(client, researcher)
+    student = register("학생")
+    verify_badge(client, student)
+    verify_badge(client, student)
+    verifier = CountingVerifier(fake_dx)
+    use_verifier(verifier)
+    monkeypatch.setattr(module, "corpus_request_budget",
+                        VerifierBudget(calls_per_minute=1, calls_per_hour=300, process_calls_per_minute=10 ** 6,
+                                       clock=lambda: 1000.0))
+    body = {"target_posting_id": posting["posting_id"]}
+    first = client.post("/api/v1/career-analyses", json=body, headers=student["headers"])
+    assert first.status_code == 201, first.text
+    calls = len(verifier.calls)
+    assert calls == 2  # 자격증명 두 개를 다시 검증했다
+    with caplog.at_level(logging.INFO, logger="vc-be.audit"):
+        denied = client.post("/api/v1/career-analyses", json=body, headers=student["headers"])
+    assert denied.status_code == 429 and denied.json() == TOO_MANY_ANALYSIS_REQUESTS
+    assert len(verifier.calls) == calls  # 거절된 요청은 검증기를 부르지 않았다
+    assert corpus_denials(caplog)[0].startswith(
+        f"event=corpus_budget_denied user={student['id']} route=/v1/career-analyses reason=rate retry_after=")
+    assert module._corpus_in_flight == {}  # 사용자별 동시 수도 돌려받았다
+
+
+# ── LLM 모드 학습 계획: 사용자별 24시간 한도 (보안 재검토 SEC-01) ────────────
+
+LLM_LIMIT_REACHED = {"detail": "Daily LLM curriculum limit reached. Use the template mode or try again later."}
+
+
+@pytest.fixture
+def llm_planner(client, ai_app, researcher, register, monkeypatch):
+    """허용 목록에 든 학생 한 명과 그 학생의 학습 계획 요청 함수. AI 서비스(같은 프로세스)가 실제 Gemini 클라이언트로 가짜
+    Gemini(httpx.MockTransport)를 부른다 (키는 실행마다 만드는 가짜 값, 외부 호출 없음). 가짜는 받은 기준안(baseline)을
+    그대로 돌려준다: 생성 방식은 "llm"이다."""
+    from app.core.config import get_settings
+    from src.career.gemini_client import GeminiClient
+
+    student = register("학생")
+    verify_badge(client, student)
+    posting = import_posting(client, researcher)
+    res = client.post("/api/v1/research/learning-resources", json=resource_body(), headers=researcher["headers"])
+    assert res.status_code == 201, res.text
+    analysis = client.post("/api/v1/career-analyses", json={"target_posting_id": posting["posting_id"]},
+                           headers=student["headers"])
+    assert analysis.status_code == 201, analysis.text
+    monkeypatch.setenv("CURRICULUM_LLM_ENABLED", "true")
+    monkeypatch.delenv("CURRICULUM_LLM_PROVIDER", raising=False)
+    monkeypatch.setenv("GEMINI_API_KEY", "fake-" + uuid.uuid4().hex)
+    monkeypatch.setenv("CURRICULUM_LLM_USER_IDS", student["id"])
+    get_settings.cache_clear()
+    gemini = {"requests": [], "status": 200, "delay": 0.0}
+
+    async def handler(request):
+        gemini["requests"].append(request)
+        await asyncio.sleep(gemini["delay"])
+        if gemini["status"] != 200:
+            return httpx.Response(gemini["status"], json={"error": {"code": gemini["status"], "status": "FAKE"}})
+        baseline = json.loads(json.loads(request.content)["input"])["baseline"]
+        return httpx.Response(200, json={"id": "fake", "status": "completed", "steps": [
+            {"type": "model_output", "content": [{"type": "text", "text": json.dumps(baseline)}]}]})
+
+    ai_app.state.selector_client_factory = lambda config: GeminiClient(config, transport=httpx.MockTransport(handler))
+
+    def plan(mode: str = "llm"):
+        body = {"analysis_id": analysis.json()["data"]["analysis_id"], "idempotency_key": str(uuid.uuid4()),
+                "budget_krw": 0, "learning_choices": [{"skill_id": "spark", "action": "learn"}]}
+        if mode == "llm":
+            body.update(mode="llm", allow_external_processing=True)
+        return client.post("/api/v1/curricula", json=body, headers=student["headers"])
+
+    return student, gemini, plan
+
+
+def use_llm_daily_limit(monkeypatch, limit: int) -> None:
+    from app.core.config import get_settings
+
+    monkeypatch.setenv("CURRICULUM_LLM_DAILY_LIMIT", str(limit))
+    get_settings.cache_clear()
+
+
+def test_llm_curricula_per_account_are_capped_per_day(llm_planner, monkeypatch, caplog):
+    """회귀: 허용된 계정 하나(또는 그 토큰을 훔친 쪽)가 LLM 모드 계획을 한도 없이 만들 수 있었다 (동시 60건 → Gemini 호출
+    60건). 이제 24시간에 CURRICULUM_LLM_DAILY_LIMIT건이고, 넘으면 Gemini를 부르지 않고 429 + Retry-After다.
+    저장된 LLM 계획은 DB로 세므로 프로세스가 다시 시작돼도(메모리의 시도 창이 비어도) 한도는 그대로다."""
+    from app.services.verifier_budget import llm_curriculum_attempts
+
+    student, gemini, plan = llm_planner
+    use_llm_daily_limit(monkeypatch, 2)
+    for _ in range(2):
+        res = plan()
+        assert res.status_code == 201 and res.json()["data"]["result"]["generation_method"] == "llm", res.text
+    with caplog.at_level(logging.INFO, logger="vc-be.audit"):
+        res = plan()
+    assert res.status_code == 429 and res.json() == LLM_LIMIT_REACHED
+    assert 86000 < int(res.headers["retry-after"]) <= 86400
+    assert len(gemini["requests"]) == 2
+    assert [r.getMessage() for r in caplog.records if r.name == "vc-be.audit"
+            and "daily_limit_denied" in r.getMessage()][0].startswith(
+        f"event=daily_limit_denied user={student['id']} route=curriculum_llm retry_after=")
+    template = plan("template")  # 템플릿 모드는 이 한도와 관계없다
+    assert template.status_code == 201 and template.json()["data"]["result"]["generation_method"] == "template"
+
+    llm_curriculum_attempts.clear()  # 재시작을 흉내 낸다: 메모리의 시도 창은 비지만 DB에 저장된 LLM 계획 두 건이 있다
+    res = plan()
+    assert res.status_code == 429 and res.json() == LLM_LIMIT_REACHED and len(gemini["requests"]) == 2
+
+
+def test_concurrent_llm_curricula_cannot_overshoot_the_daily_limit(llm_planner, monkeypatch):
+    from app.integrations import ai_service as module
+
+    from app.services import career as service
+
+    _, gemini, plan = llm_planner
+    use_llm_daily_limit(monkeypatch, 3)
+    monkeypatch.setattr(module, "CORPUS_IN_FLIGHT_PER_USER", 10)  # 이 테스트는 하루 LLM 한도만 본다
+    monkeypatch.setattr(service, "LLM_IN_FLIGHT_PER_USER", 10)
+    gemini["delay"] = 0.3  # 모두가 DB에 저장되기 전에 한도를 확인한다
+    with ThreadPoolExecutor(8) as pool:
+        responses = list(pool.map(lambda _: plan(), range(8)))
+    assert Counter(res.status_code for res in responses) == {201: 3, 429: 5}
+    assert all(res.json() == LLM_LIMIT_REACHED for res in responses if res.status_code == 429)
+    assert len(gemini["requests"]) == 3
+
+
+def test_llm_attempts_that_never_reached_the_model_are_not_counted(llm_planner, monkeypatch):
+    """모델을 부르지 않고 끝난 시도(생성기 설정 없음, AI의 동시 생성 자리 없음 LLM_BUSY)는 한도에 세지 않는다.
+    모델까지 간 실패(Gemini 400 → 422)는 저장된 계획이 없어도 센다."""
+    from app.ai_contract.api import GenerationOutcome
+    from app.integrations import ai_service as module
+
+    _, gemini, plan = llm_planner
+    use_llm_daily_limit(monkeypatch, 1)
+    key = os.environ["GEMINI_API_KEY"]
+    monkeypatch.delenv("GEMINI_API_KEY")
+    res = plan()
+    assert res.status_code == 503 and res.json()["code"] == "GENERATOR_CONFIGURATION_REQUIRED"
+    monkeypatch.setenv("GEMINI_API_KEY", key)
+
+    busy = {"on": True}
+    original = module.ai_service.generate_curriculum
+
+    async def generate(body):
+        if busy["on"]:
+            return GenerationOutcome(state="failed", error_code="LLM_BUSY", retryable=True)
+        return await original(body)
+
+    monkeypatch.setattr(module.ai_service, "generate_curriculum", generate)
+    res = plan()
+    assert res.status_code == 503 and res.json()["code"] == "LLM_BUSY" and res.headers["retry-after"] == "5"
+    assert gemini["requests"] == []
+
+    busy["on"] = False
+    gemini["status"] = 400
+    res = plan()
+    assert res.status_code == 422 and res.json()["code"] == "LLM_PROVIDER_REJECTED"
+    assert len(gemini["requests"]) == 1
+    res = plan()  # 위 시도는 Gemini까지 갔다: 저장된 계획은 없지만 한도(1)를 썼다
+    assert res.status_code == 429 and res.json() == LLM_LIMIT_REACHED and len(gemini["requests"]) == 1
+
+
+def test_one_account_generates_one_llm_curriculum_at_a_time(llm_planner, monkeypatch, caplog):
+    """회귀(v-review VR-06): AI의 동시 LLM 생성 자리(CURRICULUM_LLM_MAX_CONCURRENCY, 기본 2)를 허용된 계정 하나가 병렬 요청으로
+    모두 쥐면, 허용된 다른 계정은 10초 기다린 뒤 503 LLM_BUSY였다. 이제 계정마다 한 번에 한 건이고, 넘는 요청은 Gemini도
+    하루 몫도 쓰지 않고 바로 429 + Retry-After다."""
+    from app.integrations import ai_service as module
+
+    student, gemini, plan = llm_planner
+    use_llm_daily_limit(monkeypatch, 5)
+    monkeypatch.setattr(module, "CORPUS_IN_FLIGHT_PER_USER", 10)  # 이 테스트는 LLM 동시 수만 본다
+    gemini["delay"] = 1.0  # 첫 요청이 Gemini를 기다리는 동안 나머지가 도착한다
+    with caplog.at_level(logging.INFO, logger="vc-be.audit"), ThreadPoolExecutor(4) as pool:
+        responses = list(pool.map(lambda _: plan(), range(4)))
+    assert Counter(res.status_code for res in responses) == {201: 1, 429: 3}
+    for res in responses:
+        if res.status_code == 429:
+            assert res.json() == {"detail": "An LLM curriculum is already being generated for this account. "
+                                            "Try again later."}
+            assert res.headers["retry-after"] == "5"
+    assert len(gemini["requests"]) == 1
+    assert f"event=llm_in_flight_denied user={student['id']}" in [r.getMessage() for r in caplog.records]
+    gemini["delay"] = 0.0
+    # 거절된 세 건은 하루 몫(5)을 쓰지 않았다: 4건 더 만들 수 있고 그다음이 한도다.
+    assert [plan().status_code for _ in range(5)] == [201, 201, 201, 201, 429]
+
+
+def test_changed_generator_settings_are_503_and_not_counted(llm_planner, monkeypatch):
+    """회귀(v-review VR-01): BE가 생성기 정보를 받은 뒤 AI 설정(모델 등)이 바뀌면(배포 중 태스크가 섞인 경우) AI가 이를
+    UNTRUSTED_OR_UNSUPPORTED_JOB_INPUT(422)로 답해, 모델을 부르지 않았는데도 하루 LLM 몫을 썼다. 이제 다시 하면 되는
+    503 GENERATOR_CONFIGURATION_CHANGED + Retry-After이고 몫을 돌려준다."""
+    from app.integrations import ai_service as module
+
+    _, gemini, plan = llm_planner
+    use_llm_daily_limit(monkeypatch, 1)
+    original = module.ai_service.generator_info
+
+    async def stale_generator_info():
+        info = await original()
+        return {**info, "model": "gemini-3.1-flash-lite"}  # AI의 지금 설정과 다르다
+
+    monkeypatch.setattr(module.ai_service, "generator_info", stale_generator_info)
+    res = plan()
+    assert res.status_code == 503 and res.json()["code"] == "GENERATOR_CONFIGURATION_CHANGED", res.text
+    assert res.headers["retry-after"] == "5" and gemini["requests"] == []
+    monkeypatch.setattr(module.ai_service, "generator_info", original)
+    res = plan()  # 몫(1)을 돌려받았으므로 만들 수 있다
+    assert res.status_code == 201 and res.json()["data"]["result"]["generation_method"] == "llm", res.text
+
+
+# ── 직무 비교·학습 계획 저장 수: 사용자별 24시간 한도 (보안 재검토 SEC-06) ─────
+
+def test_analyses_and_curricula_per_account_are_capped_per_day(client, ai_app, researcher, register, fake_dx,
+                                                                 monkeypatch, caplog):
+    """회귀: 계정 하나가 직무 비교·학습 계획을 끝없이 저장할 수 있었다 (템플릿 계획 40건/1.6초, 자격증명이 없는 계정의
+    직무 비교는 검증기 몫에도 묶이지 않았다). 이제 24시간에 각각 MAX_ANALYSES_PER_DAY·MAX_CURRICULA_PER_DAY건이고,
+    넘는 직무 비교는 검증기(DXWorks)를 부르기 전에 429 + Retry-After다. 같은 요청 식별자로 다시 받는 계획은 세지 않는다."""
+    from app.services import career as service
+
+    posting = import_posting(client, researcher)
+    resource = client.post("/api/v1/research/learning-resources", json=resource_body(), headers=researcher["headers"])
+    assert resource.status_code == 201, resource.text
+    student, other = register("학생"), register("다른 학생")
+    verify_badge(client, student)
+    verifier = CountingVerifier(fake_dx)
+    use_verifier(verifier)
+    monkeypatch.setattr(service, "MAX_ANALYSES_PER_DAY", 2)
+    monkeypatch.setattr(service, "MAX_CURRICULA_PER_DAY", 1)
+    body = {"target_posting_id": posting["posting_id"]}
+
+    analyses = [client.post("/api/v1/career-analyses", json=body, headers=student["headers"]) for _ in range(2)]
+    assert [res.status_code for res in analyses] == [201, 201]
+    calls = len(verifier.calls)
+    with caplog.at_level(logging.INFO, logger="vc-be.audit"):
+        res = client.post("/api/v1/career-analyses", json=body, headers=student["headers"])
+    assert res.status_code == 429 and res.json() == {"detail": "Daily career analysis limit reached. Try again later."}
+    assert 86000 < int(res.headers["retry-after"]) <= 86400
+    assert len(verifier.calls) == calls  # 검증기를 부르지 않았다
+    assert client.post("/api/v1/career-analyses", json=body, headers=other["headers"]).status_code == 201
+
+    request = {"analysis_id": analyses[0].json()["data"]["analysis_id"], "idempotency_key": str(uuid.uuid4()),
+               "budget_krw": 0, "learning_choices": [{"skill_id": "spark", "action": "learn"}]}
+    first = client.post("/api/v1/curricula", json=request, headers=student["headers"])
+    assert first.status_code == 201, first.text
+    again = client.post("/api/v1/curricula", json=request, headers=student["headers"])
+    assert again.status_code == 201 and again.json()["data"]["curriculum_id"] == first.json()["data"]["curriculum_id"]
+    res = client.post("/api/v1/curricula", json={**request, "idempotency_key": str(uuid.uuid4())},
+                      headers=student["headers"])
+    assert res.status_code == 429 and res.json() == {"detail": "Daily curriculum limit reached. Try again later."}
+    denied = [r.getMessage() for r in caplog.records if r.name == "vc-be.audit" and "daily_limit_denied" in r.getMessage()]
+    assert denied[0].startswith(f"event=daily_limit_denied user={student['id']} route=career_analysis retry_after=")
 
 
 # ── 재검증 중 검증기(DXWorks) 장애 ─────────────────────────────────

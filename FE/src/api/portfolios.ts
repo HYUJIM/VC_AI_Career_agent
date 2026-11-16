@@ -7,7 +7,7 @@ import {
   previewListPortfolios,
   previewUpdatePortfolio,
 } from '@/lib/preview';
-import { sanitizeSingleLine } from '@/lib/text';
+import { cleanEvidenceText, sanitizeSingleLine } from '@/lib/text';
 import type {
   PortfolioCreateRequest,
   PortfolioListResponse,
@@ -22,6 +22,13 @@ import type {
  * 통과한 것만 본문에 넣고 나머지는 `excluded` 로 돌려준다. 통과한 것이 하나도 없으면 422.
  */
 
+/** 본문에 들어간 근거(sections)의 배지 문구에서 보이지 않는 글자를 지운다 (화면 표시용, lib/text.ts cleanEvidenceText) */
+function cleanPortfolio(response: PortfolioResponse): PortfolioResponse {
+  const sections = response?.data?.sections;
+  if (!Array.isArray(sections)) return response;
+  return { ...response, data: { ...response.data, sections: sections.map(cleanEvidenceText) } };
+}
+
 /** GET /api/v1/portfolios (최근 수정순) */
 export async function listPortfolios(): Promise<PortfolioListResponse> {
   if (import.meta.env.DEV && isPreviewSession()) return previewListPortfolios();
@@ -33,7 +40,7 @@ export async function listPortfolios(): Promise<PortfolioListResponse> {
 export async function getPortfolio(id: string): Promise<PortfolioResponse> {
   if (import.meta.env.DEV && isPreviewSession()) return previewGetPortfolio(id);
   const { data } = await apiClient.get<PortfolioResponse>(`/v1/portfolios/${encodeURIComponent(id)}`);
-  return data;
+  return cleanPortfolio(data);
 }
 
 /** POST /api/v1/portfolios */
@@ -48,7 +55,7 @@ export async function createPortfolio(
   };
   if (import.meta.env.DEV && isPreviewSession()) return previewCreatePortfolio(body);
   const { data } = await apiClient.post<PortfolioResponse>('/v1/portfolios', body);
-  return data;
+  return cleanPortfolio(data);
 }
 
 /** PATCH /api/v1/portfolios/{id} — 제목·희망 직무·상태만 수정 가능 (본문 수정 불가) */
@@ -62,7 +69,7 @@ export async function updatePortfolio(id: string, payload: PortfolioUpdateReques
   };
   if (import.meta.env.DEV && isPreviewSession()) return previewUpdatePortfolio(id, body);
   const { data } = await apiClient.patch<PortfolioResponse>(`/v1/portfolios/${encodeURIComponent(id)}`, body);
-  return data;
+  return cleanPortfolio(data);
 }
 
 /** DELETE /api/v1/portfolios/{id} */

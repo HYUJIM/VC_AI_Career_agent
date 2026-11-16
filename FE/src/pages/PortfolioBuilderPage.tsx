@@ -12,6 +12,7 @@ import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
+import { isSendableSingleLine, NO_VISIBLE_TEXT_MESSAGE } from '@/lib/text';
 import { getApiErrorMessage } from '@/lib/apiClient';
 import { markPortfolioUsed } from '@/lib/onboarding';
 import { useCopy } from '@/lib/useCopy';
@@ -67,6 +68,9 @@ export function PortfolioBuilderPage() {
   const [thinking, setThinking] = useState(false);
   const [title, setTitle] = useState('');
   const [targetRole, setTargetRole] = useState('');
+  // 보낼 값에 보이는 글자가 있어야 BE가 받는다 (결합 문자·이형 선택자만으로 된 값은 422)
+  const titleOk = isSendableSingleLine(title, true);
+  const roleOk = isSendableSingleLine(targetRole);
   const [page, setPage] = useState(1);
   const chatRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
@@ -322,6 +326,7 @@ export function PortfolioBuilderPage() {
                   placeholder="예: 백엔드 개발자 지원용"
                   maxLength={255}
                   value={title}
+                  error={title.trim() && !titleOk ? NO_VISIBLE_TEXT_MESSAGE : undefined}
                   onChange={(e) => setTitle(e.target.value)}
                 />
                 <Input
@@ -330,12 +335,13 @@ export function PortfolioBuilderPage() {
                   placeholder="예: 백엔드 개발자"
                   maxLength={100}
                   value={targetRole}
+                  error={roleOk ? undefined : NO_VISIBLE_TEXT_MESSAGE}
                   onChange={(e) => setTargetRole(e.target.value)}
                 />
               </div>
               <Button
                 className="shrink-0"
-                disabled={!title.trim() || selected.size === 0}
+                disabled={!titleOk || !roleOk || selected.size === 0}
                 isLoading={save.isPending}
                 onClick={() => save.mutate()}
               >

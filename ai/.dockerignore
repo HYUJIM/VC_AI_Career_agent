@@ -9,6 +9,8 @@
 tests
 docs
 data
+# 개발 PC에서만 쓰는 도구 (계약 사본 동기화, Gemini 연결 확인 scripts/gemini_check.py)
+scripts
 **/__pycache__
 **/*.py[cod]
 **/.pytest_cache

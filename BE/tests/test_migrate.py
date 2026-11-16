@@ -179,7 +179,7 @@ def test_production_fails_while_accounts_use_the_published_seed_password(scratch
         _migrate(seeded, production=True)
     assert runner.SEED_PASSWORD_HASH not in str(error.value)  # 해시 값은 메시지(CLI 로그)에 넣지 않는다
     assert _ledger(seeded) == set(_names())
-    # 로컬(development)은 그대로: README 6번(initdb 시드 DB에 --seed 없이)과 Compose migrate 서비스(--seed)
+    # 로컬(development)은 그대로: docs/GETTING_STARTED.md 6번(initdb 시드 DB에 --seed 없이)과 Compose migrate 서비스(--seed)
     assert _migrate(seeded) == []
     assert _migrate(seeded, seed=True) == []
 
@@ -339,6 +339,194 @@ def test_migration_cli_treats_blank_db_tls_variables_as_unset_in_development(bla
     assert result.returncode == 0, result.stderr[-2000:]
     assert "INFO:app.migrate:완료: 새로 적용한 마이그레이션 없음" in result.stderr.splitlines()
     assert "sslmode" not in result.stderr
+
+
+@pytest.mark.parametrize("log_level", ["verbose", "10", "NOTSET", "INFO,DEBUG"])
+def test_cli_ends_an_unknown_log_level_with_one_line_and_exit_code_1(log_level):
+    # 회귀: 없는 수준 이름이면 실행기가 try 밖의 logging.basicConfig에서 "Unknown level" traceback으로 끝났다.
+    # 이제 다른 실패와 같은 `마이그레이션 실패:` 한 줄(변수 이름과 받는 값만, 넣은 값은 싣지 않음)과 종료 코드 1이다.
+    # DB에 접속하지 않는다 (접속 정보를 일부러 닿지 않는 주소로 둔다).
+    env = _cli_env(LOG_LEVEL=log_level, DB_HOST="127.0.0.1", DB_PORT="1")
+    started = time.monotonic()
+    result = subprocess.run([sys.executable, "-B", "-m", "app.migrate"], cwd=BE_DIR, env=env, capture_output=True,
+                            text=True, timeout=120)
+    assert time.monotonic() - started < 30  # 60초 접속 대기 없이
+    assert result.returncode == 1 and result.stdout == "", result.stderr[-2000:]
+    assert result.stderr.splitlines() == [
+        "ERROR:app.migrate:마이그레이션 실패: LOG_LEVEL must be one of: DEBUG, INFO, WARNING, ERROR, CRITICAL"
+        " (empty means INFO)"]
+    if log_level != "INFO,DEBUG":  # "INFO"는 받는 값 목록에도 있다
+        assert log_level not in result.stderr
+
+
+# ── 접속 실패: 다시 해도 같은 오류는 기다리지 않고, 남기는 줄에는 안전한 요약만 ──────────────────
+
+# libpq 접속 오류 원문 꼴. 원문에는 DB 주소(IP)·사용자 이름·DB 이름·인증서 경로가 들어 있어 로그에 싣지 않는다.
+_RAW_DETAILS = ("10.78.0.2", "vc-db.abc123.ap-northeast-2.rds.amazonaws.com", "vc_master", "vc_career_agent",
+                "/run/vc-ca/ca.pem")
+_AT = 'connection failed: connection to server at "10.78.0.2", port 5432 failed: '
+_PERMANENT_CONNECT_ERRORS = [
+    (_AT + "SSL error: certificate verify failed",
+     "server certificate verification failed (check PGSSLROOTCERT: RDS CA bundle)"),
+    (_AT + 'server certificate for "vc-db.abc123.ap-northeast-2.rds.amazonaws.com" does not match host name'
+           ' "10.78.0.2"',
+     "server certificate does not match the host name (set DB_HOST to the RDS endpoint name, not an IP or CNAME)"),
+    (_AT + 'FATAL:  password authentication failed for user "vc_master"',
+     "password authentication failed (check DB_USER and DB_PASSWORD)"),
+    (_AT + 'FATAL:  role "vc_master" does not exist', "role does not exist (check DB_USER)"),
+    (_AT + 'FATAL:  database "vc_career_agent" does not exist', "database does not exist (check DB_NAME)"),
+    (_AT + 'FATAL:  no pg_hba.conf entry for host "10.78.0.9", user "vc_master", database "vc_career_agent",'
+           " no encryption",
+     "connection rejected by pg_hba.conf (check PGSSLMODE: RDS requires SSL)"),
+    ('connection failed: root certificate file "/run/vc-ca/ca.pem" does not exist',
+     "CA bundle file is missing or unreadable (check PGSSLROOTCERT)"),
+    (_AT + "server does not support SSL, but SSL was required",
+     "server does not support SSL (check DB_HOST and PGSSLMODE)"),
+]
+_TRANSIENT_CONNECT_ERRORS = [
+    (psycopg.OperationalError, _AT + "Connection refused\n\tIs the server running on that host and accepting TCP/IP"
+                                     " connections?",
+     "OperationalError: connection refused (check DB_HOST and DB_PORT)"),
+    (psycopg.OperationalError, _AT + "FATAL:  the database system is starting up",
+     "OperationalError: database server is starting up, shutting down or in recovery"),
+    (psycopg.errors.ConnectionTimeout, "connection timeout expired",
+     "ConnectionTimeout: connection timed out (check DB_HOST, DB_PORT and security groups)"),
+    (psycopg.OperationalError, _AT + "FATAL:  sorry, too many clients already",
+     "OperationalError: too many connections (check RDS max_connections and DB_MAX_CONNECTIONS)"),
+    (psycopg.OperationalError, 'connection failed: could not translate host name "vc-db.abc123" to address',
+     "OperationalError: host name not resolved (check DB_HOST)"),
+]
+
+
+class _FakeClock:
+    """migrate 모듈의 time 자리에 넣는 가짜 시계 (sleep이 시간을 앞당긴다. 실제로 기다리지 않는다)."""
+
+    def __init__(self):
+        self.now, self.sleeps = 0.0, []
+
+    def monotonic(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.sleeps.append(seconds)
+        self.now += seconds
+
+
+def _refusing_connect(monkeypatch, runner, error: BaseException) -> list:
+    calls = []
+
+    def connect(**kwargs):
+        calls.append(kwargs)
+        raise error
+
+    monkeypatch.setattr(runner.psycopg, "connect", connect)
+    return calls
+
+
+@pytest.mark.parametrize("raw,summary", _PERMANENT_CONNECT_ERRORS,
+                         ids=[f"permanent-{index}" for index in range(len(_PERMANENT_CONNECT_ERRORS))])
+def test_connect_waiting_stops_at_once_on_errors_that_retrying_cannot_fix(monkeypatch, caplog, raw, summary):
+    # 회귀(DFX-RUN-1): 마이그레이션 태스크가 인증서 확인 실패에도 60초 동안 다시 시도하며 DB IP가 든 libpq 원문을 30번 넘게
+    # 남긴 뒤 같은 원문으로 끝났다. 다시 해도 같은 오류는 기다리지 않고, 운영 시작 DB 점검과 같은 안전한 요약 한 줄로 끝난다.
+    import app.migrate as runner
+
+    clock = _FakeClock()
+    monkeypatch.setattr(runner, "time", clock)
+    calls = _refusing_connect(monkeypatch, runner, psycopg.OperationalError(raw))
+    with caplog.at_level(logging.INFO, logger="app.migrate"):
+        with pytest.raises(runner.DBConnectError) as error:
+            runner._connect_waiting({"host": "vc-db.abc123.ap-northeast-2.rds.amazonaws.com"}, wait_seconds=60)
+    assert len(calls) == 1 and clock.sleeps == []
+    assert str(error.value) == f"DB에 접속하지 못했습니다: OperationalError: {summary}"
+    assert error.value.transient is False and isinstance(error.value.__cause__, psycopg.OperationalError)
+    assert isinstance(error.value, runner.MigrationError)  # CLI는 `마이그레이션 실패:` 한 줄 + 종료 코드 1
+    assert "DB 연결 대기 중" not in caplog.text
+    for detail in _RAW_DETAILS:
+        assert detail not in str(error.value) and detail not in caplog.text
+
+
+@pytest.mark.parametrize("error_type,raw,summary", _TRANSIENT_CONNECT_ERRORS,
+                         ids=[f"transient-{index}" for index in range(len(_TRANSIENT_CONNECT_ERRORS))])
+def test_connect_waiting_retries_transient_errors_with_safe_lines_until_the_deadline(monkeypatch, caplog, error_type,
+                                                                                     raw, summary):
+    # DB가 막 뜨는 중(Compose initdb 직후·RDS 재시작)일 수 있는 오류는 지금처럼 2초마다 다시 시도한다. 기다리는 줄과
+    # 마지막 오류에는 libpq 원문 대신 안전한 요약만 싣는다.
+    import app.migrate as runner
+
+    clock = _FakeClock()
+    monkeypatch.setattr(runner, "time", clock)
+    calls = _refusing_connect(monkeypatch, runner, error_type(raw))
+    with caplog.at_level(logging.INFO, logger="app.migrate"):
+        with pytest.raises(runner.DBConnectError) as error:
+            runner._connect_waiting({"host": "10.78.0.2"}, wait_seconds=6)
+    assert len(calls) == 4 and clock.sleeps == [2, 2, 2]  # 0·2·4·6초에 시도하고 6초(기한)에 끝낸다
+    assert str(error.value) == f"DB에 접속하지 못했습니다: {summary}" and error.value.transient is True
+    waiting = [r.getMessage() for r in caplog.records if r.name == "app.migrate"]
+    assert waiting == [f"DB 연결 대기 중: {summary}"] * 3
+    for detail in _RAW_DETAILS:
+        assert detail not in str(error.value) and detail not in caplog.text
+
+
+def test_connect_waiting_returns_the_connection_once_a_transient_error_clears(monkeypatch):
+    import app.migrate as runner
+
+    clock = _FakeClock()
+    monkeypatch.setattr(runner, "time", clock)
+    real, calls = psycopg.connect, []
+
+    def connect(**kwargs):
+        calls.append(kwargs)
+        if len(calls) < 3:
+            raise psycopg.OperationalError(_AT + "Connection refused")
+        return real(**kwargs)
+
+    monkeypatch.setattr(runner.psycopg, "connect", connect)
+    with runner._connect_waiting(_conn_kwargs(TEST_DB_NAME), wait_seconds=60) as conn:
+        assert conn.execute("SELECT 1").fetchone() == (1,)
+    assert len(calls) == 3 and clock.sleeps == [2, 2]
+
+
+def test_permanent_connect_fragments_are_classified_by_the_startup_check_table():
+    # 다시 시도하지 않는 오류의 조각은 운영 시작 DB 점검의 분류표(_CONNECT_ERRORS)에 있는 것만 쓴다: 그래야 남기는 줄이
+    # 늘 정해 둔 요약이다 (원문으로 떨어지지 않는다).
+    import app.migrate as runner
+    from app.services.db_startup_check import _CONNECT_ERRORS
+
+    classified = {fragments for fragments, _ in _CONNECT_ERRORS}
+    assert set(runner._PERMANENT_CONNECT_ERRORS) <= classified
+    transient = {("too many",), ("remaining connection slots",), ("the database system is",), ("timeout expired",),
+                 ("connection refused",), ("could not translate host name",), ("ssl",)}
+    assert not transient & set(runner._PERMANENT_CONNECT_ERRORS)
+
+
+@pytest.mark.parametrize("case", ["wrong-password", "missing-database", "tls-required"])
+def test_migration_cli_ends_a_db_error_that_retrying_cannot_fix_at_once_with_one_safe_line(case):
+    # 운영 이미지의 마이그레이션 태스크 명령 그대로(`python -m app.migrate`)를 테스트 DB 서버에 실제로 붙여 본다.
+    # 비밀번호가 틀리거나, DB가 없거나, TLS가 없는 서버에 verify-full로 붙으면 60초를 기다리지 않고 한 줄로 끝난다.
+    # 그 줄에는 DB 주소·포트·사용자 이름·DB 이름·비밀번호가 없다.
+    password = secrets.token_urlsafe(24)
+    missing_db = f"{TEST_DB_NAME}_missing_{uuid.uuid4().hex[:8]}"
+    overrides = {"APP_ENV": "development"}
+    if case == "wrong-password":
+        overrides["DB_PASSWORD"] = password
+        expected = "password authentication failed (check DB_USER and DB_PASSWORD)"
+    elif case == "missing-database":
+        overrides["DB_NAME"] = missing_db
+        expected = "database does not exist (check DB_NAME)"
+    else:  # 테스트 DB 서버는 TLS가 없다
+        overrides.update({"PGSSLMODE": "verify-full", "PGSSLROOTCERT": str(BE_DIR / "certs" / "rds-global-bundle.pem")})
+        expected = "server does not support SSL (check DB_HOST and PGSSLMODE)"
+    env = _cli_env(**overrides)
+    started = time.monotonic()
+    result = subprocess.run([sys.executable, "-B", "-m", "app.migrate"], cwd=BE_DIR, env=env, capture_output=True,
+                            text=True, timeout=120)
+    assert time.monotonic() - started < 30, result.stderr[-2000:]  # 60초 접속 대기 없이
+    assert result.returncode == 1 and result.stdout == "", result.stderr[-2000:]
+    assert result.stderr.splitlines() == [
+        f"ERROR:app.migrate:마이그레이션 실패: DB에 접속하지 못했습니다: OperationalError: {expected}"]
+    for value in (env["DB_HOST"], f"port {env['DB_PORT']}", f'"{env["DB_USER"]}"', TEST_DB_NAME, missing_db, password,
+                  str(BE_DIR)):
+        assert value not in result.stderr
 
 
 # ── 서비스 계정(DB_APP_ROLE) 권한 ────────────────────────────────────
@@ -639,7 +827,7 @@ def _plant_operator(conn, name: str, left: str, right: str) -> None:
 
 
 def test_least_privilege_master_that_creates_the_app_role_passes(cluster):
-    """README 'AWS 배포 체크리스트'의 구성: 슈퍼유저가 아닌 마스터 사용자(LOGIN CREATEDB CREATEROLE)가 DB를 소유하고
+    """deploy/CHECKLIST.md 'DB 마이그레이션'의 구성: 슈퍼유저가 아닌 마스터 사용자(LOGIN CREATEDB CREATEROLE)가 DB를 소유하고
     CREATE ROLE로 서비스 계정을 만든다 (PostgreSQL 16은 만든 역할에 마스터의 ADMIN 소속을 남긴다: 마스터가 서비스 계정에
     속하는 것이지 반대가 아니다). 소속 역할의 특권 속성·소유·public의 객체를 보는 검사도 이 구성은 통과시키고 권한을 준다."""
     from app.migrate import migrate
@@ -884,7 +1072,7 @@ def test_runner_never_resolves_operators_the_app_role_planted_in_public(app_role
     """실행기 자신의 SQL(서비스 계정 검사·원장·시드 해시 확인)은 pg_catalog만 찾는 lock 연결에서 실행한다.
 
     PUBLIC에 public 스키마 CREATE가 있던 동안 서비스 계정이 실행기의 비교와 형이 정확히 맞는 연산자(=(oid, regclass)는 소유
-    객체 검사를 숨기고, =(varchar, varchar)는 시드 해시 확인·마이그레이션 SQL의 비교에 걸린다)를 심어 두어도, README 단계
+    객체 검사를 숨기고, =(varchar, varchar)는 시드 해시 확인·마이그레이션 SQL의 비교에 걸린다)를 심어 두어도, deploy/CHECKLIST.md 단계
     (REVOKE CREATE ... FROM PUBLIC) 뒤의 실행은 그 객체를 알려 주며 거부하고(운영 검사도 같다) 심은 함수는 실행되지 않는다.
     """
     from app.migrate import MigrationError
@@ -916,7 +1104,7 @@ def test_runner_never_resolves_operators_the_app_role_planted_in_public(app_role
 
 def test_runner_own_sql_ignores_operators_any_role_planted_in_public(cluster):
     """lock 연결(search_path = pg_catalog)의 SQL은 public에 심은 연산자를 소유자와 상관없이 부르지 않는다: 소유 객체 검사가 보지
-    않는 다른 역할이 심은 것도 서비스 계정 검사·원장 읽기·시드 해시 확인에서 실행되지 않는다 (README의 기존 DB 단계가 찾는다)."""
+    않는 다른 역할이 심은 것도 서비스 계정 검사·원장 읽기·시드 해시 확인에서 실행되지 않는다 (deploy/CHECKLIST.md의 기존 DB 단계가 찾는다)."""
     from app.migrate import MigrationError
 
     new_role, new_db = cluster
@@ -974,7 +1162,7 @@ def test_objects_given_to_predefined_roles_in_public_are_refused(cluster, tmp_pa
             _migrate(db, app_role=app, production=True, db_dir=db_dir)
         _as_admin(db, *re.findall(r"ALTER DATABASE [^;]+;", str(error.value)))
     else:
-        _as_admin(db, "REVOKE CREATE ON SCHEMA public FROM PUBLIC")  # README 단계
+        _as_admin(db, "REVOKE CREATE ON SCHEMA public FROM PUBLIC")  # deploy/CHECKLIST.md 단계
     with pytest.raises(MigrationError, match="public 스키마에 객체를 소유합니다") as error:
         _migrate(db, app_role=app, production=True, db_dir=db_dir)
     assert "operator public.=(character varying,character varying)" in str(error.value)
@@ -1203,7 +1391,7 @@ def test_objects_planted_as_a_member_role_stay_refused_after_the_fix(cluster, tm
 
 @pytest.mark.parametrize("case", ["schema", "db", "db_without_extensions", "db_and_schema"])
 def test_owner_fixes_for_a_non_superuser_master_run_in_order(cluster, case):
-    """README 'AWS 배포 체크리스트'처럼 슈퍼유저가 아닌 마스터 사용자(LOGIN CREATEDB CREATEROLE)가 DB를 만들고 서비스 계정을
+    """deploy/CHECKLIST.md 'DB 마이그레이션'처럼 슈퍼유저가 아닌 마스터 사용자(LOGIN CREATEDB CREATEROLE)가 DB를 만들고 서비스 계정을
     만든 구성에서, 서비스 계정이 public 스키마나 DB를 소유하고 그 몫의 CREATE를 이미 거둔 상태(소유자를 바꾸기 전에 REVOKE를
     먼저 실행함)면 메시지는 지금 소유자의 권한을 받는 GRANT, ALTER ... OWNER, 마이그레이션에 필요한 CREATE를 다시 주는 GRANT를
     순서대로 준다(DB CREATE는 public 스키마 소유자를 바꿀 때만. 기본 스키마가 확장을 만들지 않으므로 확장이 하나도 없는 DB

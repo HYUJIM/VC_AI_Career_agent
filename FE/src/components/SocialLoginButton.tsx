@@ -2,11 +2,13 @@ import { type ComponentType, useEffect, useState } from 'react';
 import { Alert } from '@/components/ui/Alert';
 import {
   type ApiErrorKind,
+  getApiErrorDetail,
   getApiErrorKind,
   getApiErrorMessage,
   getApiErrorStatus,
   getConnectionHint,
   needsRetryHint,
+  OAUTH_INVALID_REDIRECT_DETAIL,
   RETRY_LATER_MESSAGE,
 } from '@/lib/apiClient';
 import { startOAuth } from '@/lib/oauth';
@@ -18,6 +20,8 @@ interface OAuthStartError {
   kind: ApiErrorKind;
   message: string;
   status?: number;
+  /** BE가 보낸 detail 원문 (문자열일 때만) */
+  detail?: string;
 }
 
 function GoogleMark() {
@@ -182,6 +186,7 @@ export function SocialLoginButtons({
         kind: getApiErrorKind(error),
         message: getApiErrorMessage(error),
         status: getApiErrorStatus(error),
+        detail: getApiErrorDetail(error),
       });
     }
   }
@@ -208,7 +213,8 @@ export function SocialLoginButtons({
         onClose={() => setOauthError(null)}
       >
         {err.message}
-        {needsRetryHint(err.status, err.message) && (
+        {/* 400 'Invalid redirect_uri'(배포 설정 문제)는 다시 시도해도 같으므로 다시 시도 안내를 붙이지 않는다 */}
+        {err.detail !== OAUTH_INVALID_REDIRECT_DETAIL && needsRetryHint(err.status, err.message) && (
           <>
             <br />
             {import.meta.env.DEV

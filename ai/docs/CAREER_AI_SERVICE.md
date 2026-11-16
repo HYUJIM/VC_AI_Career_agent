@@ -17,7 +17,7 @@ flowchart LR
     S --> Gap["역량 매핑·공고 비교"]
     S --> Plan["자료 검색·계획 옵션"]
     S --> Gen["커리큘럼 생성·출력 검사"]
-    Gen -. "선택: 설정 + 계정 허용 + 동의" .-> LLM["OpenAI 호환 API<br/>또는 로컬 Qwen"]
+    Gen -. "선택: 설정 + 계정 허용 + 동의" .-> LLM["Google Gemini API (기본)<br/>또는 OpenAI 호환 API · 로컬 Qwen"]
     S -->|"결과 (BE가 재검사 후 저장)"| BE
 ```
 
@@ -37,7 +37,8 @@ AI는 **VC 서명 원본을 받지 않고 검증을 판단하지 않습니다.**
 | `learning_retrieval.py`, `curriculum_service.py` | 검토된 자료의 기술 태그·비용·최신성(30일) 기준 검색, 계획 컨텍스트 |
 | `curriculum_planner.py` | 부족한 요구사항 → 단계·선수 단계·자료 후보·시간 하한, 확인 질문 |
 | `curriculum_generator.py`, `output_validator.py` | 템플릿 또는 LLM 초안 → 검사 → 1회 수정 → 실패 시 템플릿 대체 → 문구 조립 |
-| `llm_client.py`, `local_selector.py` | OpenAI 호환 HTTPS 클라이언트, 고정 Qwen 로컬 실행 어댑터(`../src/llm/transformers_llm.py`) |
+| `gemini_client.py` | Google Gemini API(Interactions API, `httpx`) 클라이언트 — 기본 공급자(`CURRICULUM_LLM_PROVIDER=gemini`) |
+| `llm_client.py`, `local_selector.py` | 공급자 선택(`generator_from_env`)·선택 지시문·전달 내용(`selector_payload`)·LLM 동시 생성 상한(`llm_slot`), OpenAI 호환 HTTPS 클라이언트, 고정 Qwen 로컬 실행 어댑터(`../src/llm/transformers_llm.py`) |
 | `contracts/` | BE와 공유하는 요청/응답 형식 (BE `app/ai_contract/`에 바이트 단위 사본) |
 
 판단 원칙:
@@ -96,17 +97,29 @@ BE·FE 어디에서도 부르지 않습니다(BE 클라이언트의 호출 코�
   이 버전을 올리기 전에 BE(`../BE/README.md`)의 "결합 문자 점검"으로 저장된 버전을 한 번 확인합니다.
 - 요청 본문은 저장하거나 로그에 남기지 않고, 입력 검증 오류(422 `REQUEST_SCHEMA_INVALID`)는 입력값을 되돌려 보내지 않습니다.
   `detail`은 오류마다 `loc`·`msg`·`type`만 싣고 앞에서부터 20개까지이며, 64자를 넘는 키 이름은 `<long key>`로 바꿉니다.
-- LLM 공급자의 응답을 해석할 수 없으면(JSON이 아니거나 너무 깊게 중첩됨 등) `LLM_MALFORMED_RESPONSE` 실패로 끝내고 감사 기록을 남깁니다.
-  `CURRICULUM_LLM_API_KEY`는 공백 없는 출력 가능한 ASCII여야 하고 아니면 생성기 설정 오류입니다.
+- LLM 공급자의 응답을 해석할 수 없으면(JSON이 아니거나 너무 깊게 중첩됨, 도구 호출 단계 등) `LLM_MALFORMED_RESPONSE` 실패로 끝내고 감사 기록을 남깁니다.
+  `GEMINI_API_KEY`(Gemini)·`CURRICULUM_LLM_API_KEY`(OpenAI 호환)는 공백 없는 출력 가능한 ASCII여야 하고 아니면 생성기 설정 오류입니다.
+- Gemini 키는 `x-goog-api-key` 헤더에만 싣고(주소·로그·오류·감사 기록·생성기 공개 정보에는 없음), 요청은 `store: false`로 보내며,
+  리디렉션·프록시 환경변수를 쓰지 않고, 호출마다 25초·응답 256 KiB·출력 4,096 토큰으로 묶습니다. 무료 등급 키의 입력·출력은
+  Google 약관상 제품 개선·사람 검토에 쓰일 수 있습니다(설정·데이터 정책은 [../README.md](../README.md) 6번).
+- LLM 생성(공급자 공통)은 AI 프로세스마다 `CURRICULUM_LLM_MAX_CONCURRENCY`(기본 2)개까지만 동시에 돌고, 자리가 10초 안에 나지 않으면
+  모델을 부르지 않고 다시 시도 가능한 `LLM_BUSY`로 끝납니다(BE 503).
 - 커리큘럼 생성 요청에는 스냅샷·DID·공고 원문이 없고 동결된 계획 옵션만 옵니다. BE는 모델 원문 출력은 저장하지 않고 해시·사용량·검사 결과만 남깁니다.
 
 ## 4. API
 
 모든 `/v1` 경로는 `Authorization: Bearer $AI_SERVICE_TOKEN`이 필요하고, BE만 호출하도록 설계했습니다.
 토큰은 요청 본문을 읽기 전에 검사하므로(없거나 다르면 본문을 읽지 않고 401, 없는 `/v1` 경로도 마찬가지), 토큰 없는 요청은 본문 크기와 관계없이 메모리를 쓰지 않습니다.
-본문이 `AI_MAX_BODY_BYTES`(기본 32 MiB)를 넘으면 `Content-Length`가 없는 청크 전송이라도 읽는 도중 413 `REQUEST_TOO_LARGE`로 끊습니다.
+본문이 그 경로의 상한을 넘으면 `Content-Length`가 없는 청크 전송이라도 읽는 도중 413 `REQUEST_TOO_LARGE`로 끊습니다(선언된 크기가 넘으면 읽기 전에).
+상한은 경로마다 둘 중 하나입니다(`src/server/app.py`의 `CORPUS_ROUTES`·`ServiceGuard.body_limit`). 검토된 공고·학습자료 묶음이나 그 일부를 싣는 경로
+(`/v1/job-postings/search`, `/v1/career-analyses`, `/v1/learning-resources/search`, `/v1/curricula/context`, `/v1/curricula/generate`,
+`/v1/market/snapshots`)는 `AI_MAX_BODY_BYTES`(기본 32 MiB), 그 밖의 경로(공고 하나 검사, 학습자료 하나 검사, 미리보기 원문, 본문이 없는 GET,
+없는 경로)는 min(4 MiB, `AI_MAX_BODY_BYTES`)입니다. BE가 단건 경로로 보내는 가장 큰 본문은 계약의 길이 상한을 모두 채워도 약 1.8 MB입니다
+(`tests/career/test_server_api.py`가 계산). 모르는 키를 가득 채운 본문은 형식 오류 객체 때문에 1 MiB마다 약 85~90 MB를 쓰므로(서비스 토큰을
+가진 쪽만 보낼 수 있음), 큰 상한은 묶음 경로에만 둡니다. 묶음 경로의 메모리는 `AI_MAX_CONCURRENCY`(BE 쪽 동시 묶음 요청 수)와 함께 AI 태스크
+메모리에 맞춥니다.
 `AI_MAX_BODY_BYTES`는 비워 두면 기본값이고, 양의 정수(바이트)가 아닌 값(예: `32MiB`, `0`)이면 서비스가 시작하지 않습니다
-(`ConfigurationError: AI_MAX_BODY_BYTES must be a positive integer (bytes)`).
+(`AI_MAX_BODY_BYTES must be a positive integer (bytes)` 한 줄, 종료 코드 1).
 값은 ASCII 숫자(`0`~`9`)만 18자리까지 씁니다(앞뒤 공백은 무시). 부호·밑줄·소수점·지수·16진 표기나 전각 숫자(`+4096`, `4_096`, `4096.0`, `1e6`, `0x1000`, `４０９６`)도
 양의 정수가 아닌 값으로 보아 시작하지 않습니다. 이전 버전은 `+4096`, `4_096`, `４０９６`을 4096으로 받았으므로, 그렇게 써 둔 배포는 ASCII 숫자만 남기고 올립니다.
 
@@ -145,3 +158,5 @@ BE·FE 어디에서도 부르지 않습니다(BE 클라이언트의 호출 코�
 - 직무별 시장 통계는 BE 배치가 수집한 공고(지금은 출처 한 곳)를 규칙으로 추출한 참고용 수치이고, 아직 커리큘럼 계획에는 쓰지 않습니다.
 - 이 서비스의 `/docs`(Swagger UI)는 환경과 관계없이 켜져 있습니다(`/v1` 경로는 서비스 토큰이 있어야 호출됨). 서비스는 공개 로드밸런서에 붙이지 않습니다.
 - 로컬 Qwen 공급자(`local-transformers`)와 `requirements-gpu.txt`는 GPU 환경이 필요해 CI와 서비스 테스트에서 실행되지 않습니다.
+- Gemini 공급자 테스트는 가짜 Gemini(`httpx.MockTransport`)로만 돕니다. 실제 API 형식(Interactions API v1, 2026-11 공식 문서 기준)은
+  키를 넣은 뒤 `scripts/gemini_check.py`로 한 번 확인합니다.

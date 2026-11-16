@@ -26,8 +26,13 @@ info:
       짝 없는 서로게이트(예: JSON `\ud800`)는 FastAPI(pydantic) 기본 메시지
       `Input should be a valid string, unable to parse raw data as a unicode string`(`type: string_unicode`)이다.
       DID 경로의 NUL(`%00`)은 첫 메시지의 422(`loc: ["path", "did"]`)이고, 그 밖의 입력이 DB 단계에서 같은 이유로 걸려도
-      첫 메시지의 422(`loc: []`)다. 한 줄 필드(가입 이름·이메일, 포트폴리오 제목·희망 직무)의 앞뒤 공백을 자른 값 안에
-      줄바꿈·탭 같은 제어 문자나 U+2028·U+2029가 있으면 `Value error, must be a single line without control characters`로 422다.
+      첫 메시지의 422(`loc: []`)다. 한 줄 필드(가입 이름·이메일, 포트폴리오 제목·희망 직무, 공유 링크 이름)의 앞뒤 공백을 자른
+      값 안에 줄바꿈·탭 같은 제어 문자, U+2028·U+2029, 글자 방향 제어·보이지 않는 서식 문자(Unicode Cf 전부: U+202E·U+200B·
+      U+FEFF·소프트 하이픈 U+00AD·태그 문자 U+E0000대 등), 빈칸처럼 보이는 글자(U+115F·U+1160·U+3164·U+FFA0·U+2800), 폭 0으로
+      그려지는 그 밖의 Default_Ignorable 글자(U+17B4·U+17B5·U+2065·U+FFF0–U+FFF8·U+E0000–U+E00FF·U+E01F0–U+E0FFF)가 있거나,
+      비어 있지 않은데 보이는 글자(문자·숫자·문장부호·기호)가 하나도 없으면
+      `Value error, must be a single line without control characters`로 422다 (서식 문자 중 이모지 결합 문자 ZWJ U+200D만 받는다.
+      그래서 태그 문자로 만드는 지역 깃발 이모지는 받지 않는다).
     - 요청 본문 상한은 경로에 따라 네 가지다 (v0.8.0에서 기본 상한을 2 MiB에서 64 KiB로 낮췄다).
       기본 64 KiB(65,536바이트): 아래에 없는 모든 경로·메서드.
       16 KiB(16,384바이트): 토큰 없이 부르는 `POST /api/v1/users/register`, `POST /api/v1/users/login`,
@@ -77,6 +82,13 @@ info:
       프로세스마다 동시에 `AI_MAX_CONCURRENCY`개(기본 4)까지다. 자리가 10초 안에 나지 않으면 AI를 부르지 않고 503
       `{ "detail": "AI service is busy. Try again later.", "code": "AI_SERVICE_BUSY" }` + `Retry-After`(초)로 답한다.
       자리를 쥔 채로는 검증기(DXWorks)를 부르지 않는다: 직무 비교는 자격증명 재검증을 마친 뒤에 자리를 잡는다.
+      사용자마다도 묶는다: 한 사용자가 동시에 쥐는 자리는 2개, 묶음 요청 수는 분당 30번·시간당 300번까지다. 넘으면 기다리지 않고
+      DB·AI를 부르지 않은 채 429 `{ "detail": "Too many analysis requests. Try again later." }` + `Retry-After`(초)다.
+    - 사용자별 24시간 저장 상한: 직무 비교 200건, 학습 계획 200건(같은 `idempotency_key`로 다시 받는 계획은 세지 않는다),
+      LLM 모드 학습 계획 `CURRICULUM_LLM_DAILY_LIMIT`건(기본 20. 외부 LLM까지 간 실패한 시도도 센다). 넘으면 검증기·AI·LLM을
+      부르지 않고 429 + `Retry-After`(초)다 (`Daily career analysis limit reached. Try again later.` /
+      `Daily curriculum limit reached. Try again later.` /
+      `Daily LLM curriculum limit reached. Use the template mode or try again later.`).
     - 모든 응답에 `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`,
       `X-Frame-Options: DENY`, `Content-Security-Policy: frame-ancestors 'none'`이 붙고, 서버가 `APP_ENV=production`이면
       `Strict-Transport-Security: max-age=31536000`도 붙는다 (CORS 사전 요청(OPTIONS) 응답은 제외).
@@ -193,9 +205,12 @@ paths:
         - 설정이 없으면(`APP_ENV=development`에서만) 홀더 키 없이 임시 DID(`did:key:z6MkMock...`)를 발급한다.
           `APP_ENV=production`에서는 이 값이 없으면 서버가 시작하지 않는다.
         비밀번호는 bcrypt 해시로 저장한다. 8자 미만 또는 72바이트 초과면 422 (1,024자를 넘으면 바이트를 세기 전에 길이 검사로 422).
-        이름(1~100자)·이메일(3~255자, `@` 포함)은 앞뒤 공백·줄바꿈을 잘라 낸 한 줄 텍스트다. 안쪽에 줄바꿈·탭 같은 제어 문자나
-        U+2028·U+2029가 있으면 422 `Value error, must be a single line without control characters`, NUL이 있으면 422.
-        이모지·NBSP는 받는다. 이메일은 소문자로 저장하며, 소문자로 바꾸면 길어지는 글자(예: `İ`(U+0130)는 두 글자가 됨) 때문에
+        이름(1~100자)·이메일(3~255자, `@` 포함)은 앞뒤 공백·줄바꿈을 잘라 낸 한 줄 텍스트다. 안쪽에 줄바꿈·탭 같은 제어 문자,
+        U+2028·U+2029, 방향 제어·보이지 않는 서식 문자(U+202E·U+200B·U+FEFF 등)가 있으면 422
+        `Value error, must be a single line without control characters`, NUL이 있으면 422. 이름의 이모지·NBSP는 받는다.
+        이메일은 `@`가 하나이고 앞뒤에 보이는 글자가 있어야 하며, 공백(NBSP 포함)·`"(),:;<>[\]`·이름에는 받는 폭 0 글자(이형 선택자
+        U+FE00–U+FE0F·U+E0100–U+E01EF, CGJ, 몽골 자유 이형 선택자, U+FFFC)가 있으면 422 `Value error, Invalid email`이다
+        (서식 문자(Cf)와 그 밖의 보이지 않는 글자는 위 한 줄 검사가 먼저 422로 거절한다) (국제화 이메일의 비ASCII 글자는 받는다. 로그인 요청에는 이 검사가 없다). 이메일은 소문자로 저장하며, 소문자로 바꾸면 길어지는 글자(예: `İ`(U+0130)는 두 글자가 됨) 때문에
         바꾼 값이 255자를 넘으면 422 `Value error, Email must be at most 255 characters`다.
         가입과 동시에 로그인 토큰(`access_token`)을 준다. FE는 응답의 `data`를 그대로 로그인 상태로 저장한다.
       operationId: registerUser
@@ -1757,6 +1772,8 @@ paths:
                 $ref: "#/components/schemas/CareerEnvelope"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyAnalysisRequests"
         "503":
           $ref: "#/components/responses/AIUnavailable"
 
@@ -1807,6 +1824,8 @@ paths:
                 $ref: "#/components/schemas/CareerEnvelope"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyAnalysisRequests"
         "503":
           $ref: "#/components/responses/AIUnavailable"
 
@@ -1862,7 +1881,28 @@ paths:
         "422":
           description: 비교에 쓸 공고가 없음 (No eligible reviewed job sources; import sources first)
         "429":
-          $ref: "#/components/responses/TooManyVerifications"
+          description: |
+            세 가지 한도 가운데 하나에 걸림. 어느 경우든 분석을 저장하지 않고 `Retry-After`(초)가 붙는다.
+            - 이 사용자의 24시간 직무 비교 저장 수(200건): 검증기·AI를 부르기 전 (`Daily career analysis limit reached. Try again later.`)
+            - 검증기 호출 몫 (`Too many verification requests. Try again later.`, TooManyVerifications 참고): 검증기·AI를 부르기 전
+            - 사용자별 AI 묶음 요청 한도 (`Too many analysis requests. Try again later.`, TooManyAnalysisRequests 참고):
+              검증기·AI를 부르기 전
+          headers:
+            Retry-After:
+              description: 다시 시도할 수 있을 때까지의 초
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                daily:
+                  value: { detail: Daily career analysis limit reached. Try again later. }
+                verifier:
+                  value: { detail: Too many verification requests. Try again later. }
+                corpus:
+                  value: { detail: Too many analysis requests. Try again later. }
         "502":
           description: |
             AI 응답이 계약·BE 재검사를 통과하지 못함 (`code` 예: AI_CONTRACT_MISMATCH, AI_RESPONSE_INVALID,
@@ -1919,6 +1959,13 @@ paths:
         본문은 `CurriculumRequest` (`BE/app/ai_contract/curriculum.py`). 같은 `idempotency_key`로 같은 본문을 보내면 같은 결과, 다른 본문이면 409.
         `mode=llm`은 `CURRICULUM_LLM_USER_IDS`에 있는 계정 + `allow_external_processing=true`일 때만 (아니면 403/422).
         분석이 만료되었으면 409. LLM은 허용된 단계·자료·시간만 고르며, 초안이 검사를 통과하지 못하면 템플릿으로 대체한다.
+        사용자별 한도: 24시간에 학습 계획 200건, 그중 LLM 모드는 `CURRICULUM_LLM_DAILY_LIMIT`건(기본 20. 외부 LLM까지 간 실패한
+        시도도 센다)과 AI 묶음 요청 한도(TooManyAnalysisRequests). 넘으면 429 + `Retry-After`. 같은 `idempotency_key`로 다시
+        받는 계획은 한도에 세지 않는다. LLM 모드 계획은 계정마다 한 번에 한 건이다: 겹친 요청은 429
+        `An LLM curriculum is already being generated for this account. Try again later.` + `Retry-After: 5`.
+        LLM 모드의 외부 처리자는 Google Gemini API(AI 서비스가 부름)다. AI가 다시 시도할 수 있다고 답한 생성 실패(`LLM_BUSY`·
+        `LLM_PROVIDER_UNAVAILABLE`, Gemini 429·5xx의 `LLM_PROVIDER_REJECTED`, 배포 중 설정이 바뀐 `GENERATOR_CONFIGURATION_CHANGED`)는
+        503 + `Retry-After: 5`다.
       operationId: createCurriculum
       security:
         - bearerAuth: []
@@ -1952,6 +1999,25 @@ paths:
           description: 분석 만료, 자료 변경, 또는 같은 키의 다른 요청
         "413":
           $ref: "#/components/responses/ContentTooLarge"
+        "429":
+          description: |
+            사용자별 한도에 걸림 (아무것도 저장하지 않고, LLM 한도면 생성기·LLM을 부르지 않는다). `Retry-After`(초)가 붙는다.
+            `Daily curriculum limit reached. Try again later.` (24시간 200건) /
+            `Daily LLM curriculum limit reached. Use the template mode or try again later.` (`CURRICULUM_LLM_DAILY_LIMIT`) /
+            `An LLM curriculum is already being generated for this account. Try again later.` (계정당 동시 LLM 계획 1건,
+            `Retry-After: 5`) /
+            `Too many analysis requests. Try again later.` (TooManyAnalysisRequests)
+          headers:
+            Retry-After:
+              description: 다시 시도할 수 있을 때까지의 초
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                detail: Daily LLM curriculum limit reached. Use the template mode or try again later.
         "503":
           $ref: "#/components/responses/AIUnavailable"
 
@@ -2205,7 +2271,8 @@ components:
     ServiceBusy:
       description: |
         DB가 바쁨. 서버 프로세스(태스크)의 DB 연결 자리(`DB_MAX_CONNECTIONS`)를 5초 안에 얻지 못했거나, DB 문장이 15초를
-        넘었거나, 잠금을 5초 안에 얻지 못했다. 실패한 그 DB 작업은 반영되지 않는다. `Retry-After`(초) 뒤에 다시 시도한다.
+        넘었거나, 잠금을 5초 안에 얻지 못했거나, DB에 접속하지 못했다(접속 거부·시간 초과·서버가 연결을 끊음).
+        `Retry-After`(초) 뒤에 다시 시도한다.
         DB를 쓰는 모든 API가 돌려줄 수 있다.
       headers:
         Retry-After:
@@ -2383,6 +2450,22 @@ components:
               value: { detail: GitHub OAuth is not configured, code: PROVIDER_NOT_CONFIGURED }
             naver:
               value: { detail: Naver OAuth is not configured, code: PROVIDER_NOT_CONFIGURED }
+    TooManyAnalysisRequests:
+      description: |
+        사용자별 AI 묶음 요청 한도 초과 (공고 목록·학습자료 검색·직무 비교·학습 계획이 같은 몫을 쓴다). 한 사용자가 동시에 쥐는
+        묶음 요청은 2개, 요청 수는 분당 30번·시간당 300번까지다. 넘으면 기다리지 않고 DB의 묶음도 AI도 부르지 않는다.
+        `Retry-After`(초. 동시 수 초과면 2, 요청 수 초과면 몫이 다시 찰 때까지) 뒤에 다시 시도한다.
+      headers:
+        Retry-After:
+          description: 다시 시도할 수 있을 때까지의 초
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            detail: Too many analysis requests. Try again later.
     TooManyVerifications:
       description: |
         검증기(DXWorks) 호출 한도 초과. 호출자(사용자, 서비스 키는 하나로)마다 분당 120번과 시간당 1,200번, 서버 프로세스(태스크)
@@ -2436,12 +2519,19 @@ components:
         `code` 예: AI_SERVICE_UNAVAILABLE(연결 실패·시간 초과), AI_SERVICE_ERROR(형식 ID 없는 5xx: 프록시·비정상 종료),
         AI_SERVICE_AUTH_FAILED, AI_SERVICE_NOT_CONFIGURED. AI가 보낸 5xx는 AI의 code를 그대로 싣는다.
         AI_SERVICE_BUSY(`AI service is busy. Try again later.`)는 AI로 보내는 묶음 요청의 동시 수 상한(`AI_MAX_CONCURRENCY`)에
-        걸려 10초를 기다려도 자리가 없던 경우다. AI를 부르지 않았고, 이 응답에만 `Retry-After`(초) 헤더가 붙는다.
+        걸려 10초를 기다려도 자리가 없던 경우다. AI를 부르지 않았고 `Retry-After`(초) 헤더가 붙는다.
         직무 비교(`POST /api/v1/career-analyses`)는 자격증명 재검증을 마친 뒤에 자리를 기다리므로, 이 응답이어도 그 요청의
-        검증기 호출 몫은 이미 쓴 상태다.
+        검증기 호출 몫은 이미 쓴 상태다. 학습 계획(`POST /api/v1/curricula`)에서 AI가 다시 시도할 수 있다고 답한 생성 실패
+        (`LLM_BUSY`: AI의 동시 LLM 생성 상한, `LLM_PROVIDER_UNAVAILABLE`, Gemini 429·5xx의 `LLM_PROVIDER_REJECTED`,
+        배포 중 설정이 바뀐 `GENERATOR_CONFIGURATION_CHANGED`)와 다시 시도할 수 있는 AI 연결 실패(`AI_SERVICE_UNAVAILABLE` 등)에도
+        `Retry-After: 5`가 붙는다.
       headers:
         Retry-After:
-          description: (code가 AI_SERVICE_BUSY일 때만) 다시 시도할 수 있을 때까지의 초
+          description: |
+            (다시 시도할 수 있는 503일 때: AI_SERVICE_BUSY, AI_SERVICE_UNAVAILABLE·AI_SERVICE_ERROR 등 AI 연결 실패, 다시 시도할 수
+            있는 학습 계획 생성 실패. AI_SERVICE_NOT_CONFIGURED·AI_SERVICE_AUTH_FAILED·AI_CONFIGURATION_REQUIRED·
+            GENERATOR_CONFIGURATION_REQUIRED에는 없다)
+            다시 시도할 수 있을 때까지의 초
           schema:
             type: integer
       content:
@@ -2541,14 +2631,15 @@ components:
           type: string
           minLength: 1
           maxLength: 100
-          description: 한 줄 텍스트 (앞뒤 공백은 잘라 내고, 안쪽의 제어 문자·U+2028·U+2029·NUL은 422)
+          description: 한 줄 텍스트 (앞뒤 공백은 잘라 내고, 안쪽의 제어 문자·U+2028·U+2029·방향 제어/보이지 않는 서식 문자·NUL은 422)
         email:
           type: string
           format: email
           minLength: 3
           maxLength: 255
           description: |
-            한 줄 텍스트이며 `@`를 포함해야 한다. 소문자로 저장한다. 255자 상한은 소문자로 바꾼 값에도 적용된다
+            한 줄 텍스트이며 `@`가 하나이고 앞뒤에 보이는 글자가 있어야 한다. 공백·`"(),:;<>[\]`·이형 선택자·CGJ·U+FFFC는 422
+            `Value error, Invalid email` (서식 문자(Cf) 등 보이지 않는 글자는 한 줄 검사의 422). 소문자로 저장한다. 255자 상한은 소문자로 바꾼 값에도 적용된다
             (예: `İ`(U+0130)는 두 글자가 되므로 넘으면 422 `Value error, Email must be at most 255 characters`).
         password:
           type: string
@@ -2970,7 +3061,9 @@ components:
         label:
           type: [string, "null"]
           maxLength: 100
-          description: 학생이 알아보기 위한 이름 (예 지원 회사명). 기업용 화면에는 보이지 않는다. NUL·짝 없는 서로게이트는 422
+          description: |
+            학생이 알아보기 위한 이름 (예 지원 회사명). 기업용 화면에는 보이지 않는다. 한 줄 텍스트다: 앞뒤 공백·줄바꿈은 잘라
+            저장하고, 안쪽의 제어 문자(줄바꿈·ESC 등)·U+2028·U+2029·방향 제어/보이지 않는 서식 문자·NUL·짝 없는 서로게이트는 422
         expires_in_days: { type: integer, minimum: 1, maximum: 90, default: 14 }
 
     ShareSummary:

@@ -20,7 +20,8 @@
   (비워 두는 것은 지금처럼 허용). 신원 VP 검증은 IDENTITY_VERIFICATION_ENABLED로 켤 때만 받는다.
   OAuth·AI 시간 제한도 비우면 기본값이고 범위를 벗어나면 변수 이름을 알리며 시작하지 않는다 (OAUTH_TIMEOUT_SECONDS가
   없으면 예전 이름 GOOGLE_OAUTH_TIMEOUT_SECONDS를 읽는다).
-  비워 둔 LOG_LEVEL은 INFO, 비워 둔 DB_PORT는 5432다 (traceback이나 요청마다 500이 아니다).
+  비워 둔 LOG_LEVEL은 INFO, 비워 둔 DB_PORT는 5432다 (traceback이나 요청마다 500이 아니다). 없는 수준 이름의 LOG_LEVEL과
+  형식이 틀린 HOLDER_KEY_ENCRYPTION_KEY도 다른 설정 오류처럼 RuntimeError 한 줄(넣은 값 없음)이다.
   비워 둔 PGSSLMODE·PGSSLROOTCERT는 없는 것과 같다 (PGSSLMODE는 libpq 기본값 prefer, 앞뒤 공백은 뗀다).
 production에서 받아들이는 값은 실행할 때마다 새로 만든다 (저장소에 고정해 두면 그 자체가 공개된 값이 된다).
 오류 메시지·로그에 비밀값이 들어가지 않는지도 확인한다.
@@ -274,6 +275,10 @@ def test_server_refuses_to_start_in_production_with_the_test_environment():
                         "set the same values on every task/worker (e.g. AWS Secrets Manager or SSM)"),
     ("unknown-app-env", "APP_ENV must be one of: development, production (empty means development)"),
     ("range-error", "JWT_EXPIRES_MINUTES must be an integer between 1 and 1440"),
+    # 회귀(E1): 아래 두 경우는 import 중의 ValueError traceback(수십 줄)으로 끝났다.
+    ("unknown-log-level", "LOG_LEVEL must be one of: DEBUG, INFO, WARNING, ERROR, CRITICAL (empty means INFO)"),
+    ("malformed-master-key", "HOLDER_KEY_ENCRYPTION_KEY must be base64"),
+    ("prefixed-master-key", "HOLDER_KEY_ENCRYPTION_KEY must decode to 32 bytes"),
 ])
 def test_uvicorn_ends_a_config_error_with_one_stderr_line_and_exit_code_1(case, expected):
     # 운영 이미지의 CMD와 같은 uvicorn CLI. 설정 오류(RuntimeError)는 import 중에 끝나므로 서버를 띄우지 않고(포트를 열지
@@ -286,6 +291,17 @@ def test_uvicorn_ends_a_config_error_with_one_stderr_line_and_exit_code_1(case, 
         env.update({"APP_ENV": "production", "JWT_SECRET": "", "HOLDER_KEY_ENCRYPTION_KEY": ""})
     elif case == "unknown-app-env":
         env.update({"APP_ENV": "prod"})
+    elif case == "unknown-log-level":
+        env.update({"APP_ENV": "development", "LOG_LEVEL": "verbose"})
+        secret_values.append("verbose")
+    elif case in ("malformed-master-key", "prefixed-master-key"):
+        # 운영 이미지 그대로(production). base64 길이가 맞지 않는 키, 또는 Secrets Manager에 `NAME=값` 꼴로 넣은 키
+        # (README ④). 오류 줄에는 넣은 값이 나오지 않는다.
+        key = base64.b64encode(os.urandom(32)).decode().rstrip("=")
+        value = key + "AB" if case == "malformed-master-key" else f"HOLDER_KEY_ENCRYPTION_KEY={key}"
+        env.update({"APP_ENV": "production", "JWT_SECRET": secrets.token_urlsafe(48), "HOLDER_KEY_ENCRYPTION_KEY": value,
+                    **PRODUCTION_DB_TLS_ENV})
+        secret_values += [key, env["JWT_SECRET"]]
     else:
         env.update({"APP_ENV": "development", "JWT_EXPIRES_MINUTES": "0"})
     result = subprocess.run([sys.executable, "-B", "-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", "0"],
@@ -1046,6 +1062,21 @@ def test_ai_max_concurrency_default_and_range(monkeypatch):
             get_settings()
 
 
+def test_curriculum_llm_daily_limit_default_and_range(monkeypatch):
+    # 허용된 사용자 한 명의 24시간 LLM 모드 학습 계획 수 (외부 LLM 비용·한도 보호). 비우면 20.
+    monkeypatch.delenv("CURRICULUM_LLM_DAILY_LIMIT", raising=False)
+    assert get_settings().curriculum_llm_daily_limit == 20
+    for value, limit in ((" ", 20), ("", 20), ("1", 1), (" 100 ", 100)):
+        monkeypatch.setenv("CURRICULUM_LLM_DAILY_LIMIT", value)
+        get_settings.cache_clear()
+        assert get_settings().curriculum_llm_daily_limit == limit
+    for value in ("0", "-1", "abc", "2.5"):
+        monkeypatch.setenv("CURRICULUM_LLM_DAILY_LIMIT", value)
+        get_settings.cache_clear()
+        with pytest.raises(RuntimeError, match=r"^CURRICULUM_LLM_DAILY_LIMIT must be an integer >= 1$"):
+            get_settings()
+
+
 # ── DXWorks 접속 설정: 넣었으면 형식·범위가 맞아야 한다 ────────────────────
 
 def test_identity_verification_is_off_unless_enabled(monkeypatch):
@@ -1123,9 +1154,61 @@ def test_log_level_defaults_to_info_when_missing_or_blank(monkeypatch):
 
     monkeypatch.delenv("LOG_LEVEL", raising=False)
     assert log_level() == "INFO"
-    for value, level in (("", "INFO"), ("   ", "INFO"), ("debug", "DEBUG"), (" Warning ", "WARNING"), ("INFO", "INFO")):
+    for value, level in (("", "INFO"), ("   ", "INFO"), ("debug", "DEBUG"), (" Warning ", "WARNING"), ("INFO", "INFO"),
+                         ("error", "ERROR"), ("Critical", "CRITICAL")):
         monkeypatch.setenv("LOG_LEVEL", value)
         assert log_level() == level
+
+
+@pytest.mark.parametrize("value", ["verbose", "10", "NOTSET", "warn", "FATAL", "ＩＮＦＯ", "INFO,DEBUG", "trace\n"])
+def test_log_level_refuses_unknown_names_without_echoing_them(monkeypatch, value):
+    # 회귀(E1): 없는 수준 이름은 logging.basicConfig의 'Unknown level' ValueError traceback으로 서버·마이그레이션 실행기를
+    # 막았다. 이제 받는 다섯 이름 밖의 값은 RuntimeError(변수 이름과 받는 값만)다. logging만 아는 별칭(NOTSET: 루트가 모든
+    # 수준을 남김, WARN·FATAL)도 받지 않는다.
+    from app.core.config import LOG_LEVELS, log_level
+
+    monkeypatch.setenv("LOG_LEVEL", value)
+    with pytest.raises(RuntimeError) as error:
+        log_level()
+    assert str(error.value) == "LOG_LEVEL must be one of: DEBUG, INFO, WARNING, ERROR, CRITICAL (empty means INFO)"
+    assert LOG_LEVELS == ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
+    if value != "INFO,DEBUG":  # 받는 이름 두 개를 이은 값이라 두 이름은 메시지에도 있다
+        assert value.strip() not in str(error.value)
+
+
+def test_server_ends_a_non_utf8_secret_with_one_line_without_the_byte():
+    # E1 감사: 비밀값 환경변수에 UTF-8이 아닌 바이트가 들어 있으면 get_settings()의 .encode("utf-8")가 UnicodeEncodeError를 내고
+    # traceback(그 바이트와 위치가 든 문구)으로 끝났다. 이제 고정 문구 한 줄과 종료 코드 1이다 (POSIX 환경변수의 \xff 바이트는
+    # 파이썬에서 '\udcff'로 읽힌다).
+    secret = secrets.token_urlsafe(40)
+    env = {**os.environ, "APP_ENV": "production", "JWT_SECRET": secret[:5] + "\udcff" + secret[5:],
+           "DB_PASSWORD": secrets.token_urlsafe(24), "SERVICE_API_KEY": "", "PYTHONDONTWRITEBYTECODE": "1",
+           **PRODUCTION_DB_TLS_ENV}
+    result = subprocess.run([sys.executable, "-B", "-c", "import main"], cwd=BE_DIR, env=env,
+                            capture_output=True, text=True, errors="backslashreplace", timeout=120)
+    assert _one_error_line(result) == ("A setting value is not valid UTF-8 text (check the secret and environment values"
+                                       " for stray bytes)")
+    assert secret[:5] not in result.stderr and "udcff" not in result.stderr.lower() and "\\xff" not in result.stderr
+
+
+@pytest.mark.parametrize("app_env", ["development", "production"])
+def test_malformed_master_key_is_a_one_line_config_error_without_the_value(monkeypatch, app_env):
+    # 회귀(E1): 형식이 틀린 HOLDER_KEY_ENCRYPTION_KEY는 get_settings()에서 ValueError로 나가 main.py가 잡지 못하고(설정 오류는
+    # RuntimeError만 잡음) traceback으로 끝났다. 이제 다른 설정 오류처럼 RuntimeError 한 줄이고, base64 디코더 오류는 잇지 않는다.
+    key = base64.b64encode(os.urandom(32)).decode()
+    if app_env == "production":
+        production(monkeypatch)
+    for value, message in ((key.rstrip("=") + "AB", "HOLDER_KEY_ENCRYPTION_KEY must be base64"),
+                           ("키" + key, "HOLDER_KEY_ENCRYPTION_KEY must be base64"),
+                           (f"HOLDER_KEY_ENCRYPTION_KEY={key}", "HOLDER_KEY_ENCRYPTION_KEY must decode to 32 bytes"),
+                           (base64.b64encode(os.urandom(16)).decode(), "HOLDER_KEY_ENCRYPTION_KEY must decode to 32 bytes")):
+        monkeypatch.setenv("HOLDER_KEY_ENCRYPTION_KEY", value)
+        get_settings.cache_clear()
+        with pytest.raises(RuntimeError) as error:
+            get_settings()
+        assert type(error.value) is RuntimeError and str(error.value) == message
+        assert error.value.__cause__ is None and error.value.__suppress_context__
+        assert key.rstrip("=") not in str(error.value) and value not in str(error.value)
 
 
 @pytest.mark.parametrize("host,stored", [

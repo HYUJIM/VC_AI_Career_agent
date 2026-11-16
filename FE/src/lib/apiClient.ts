@@ -145,6 +145,12 @@ export const OAUTH_OTHER_METHOD_ACCOUNT_DETAIL =
 /** 소셜 로그인 콜백의 409 detail 중 "이 이메일 계정에 같은 제공자의 다른 계정이 이미 연동됨" */
 export const OAUTH_ALREADY_LINKED_DETAIL = 'User is already linked to another account for this provider';
 
+/**
+ * 소셜 로그인 시작·콜백의 400 detail: FE가 보낸 콜백 주소가 BE의 `*_REDIRECT_URI`와 다름 (배포 설정 문제).
+ * 다시 시도해도 같으므로 화면이 "잠시 후 다시 시도" 안내를 덧붙이지 않는다 (번역 문구가 이미 관리자 문의로 끝남).
+ */
+export const OAUTH_INVALID_REDIRECT_DETAIL = 'Invalid redirect_uri';
+
 /** 소셜 로그인 콜백의 400 detail: 제공자가 이메일을 주지 않음 (사용자가 이메일 제공에 동의하지 않음 등) */
 export const OAUTH_EMAIL_REQUIRED_DETAIL = 'OAuth email is required';
 
@@ -202,6 +208,16 @@ const KNOWN_ERROR_MESSAGES: Record<string, string> = {
   'Share link limit reached. Revoke unused links first.':
     '공유 링크를 더 만들 수 없습니다. 사용하지 않는 링크를 먼저 폐기해주세요.',
   'Portfolio limit reached.': '포트폴리오를 더 만들 수 없습니다.',
+  // 직무 비교·학습 계획의 사용자별 한도 (BE 429 + Retry-After). 공고 조회·직무 비교·학습 계획이 같은 몫을 쓴다
+  'Too many analysis requests. Try again later.': '분석 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.',
+  'Daily career analysis limit reached. Try again later.':
+    '오늘 만들 수 있는 직무 비교 수를 모두 썼습니다. 내일 다시 시도해주세요.',
+  'Daily curriculum limit reached. Try again later.': '오늘 만들 수 있는 학습 계획 수를 모두 썼습니다. 내일 다시 시도해주세요.',
+  'Daily LLM curriculum limit reached. Use the template mode or try again later.':
+    '오늘 만들 수 있는 LLM 학습 계획 수를 모두 썼습니다. 템플릿으로 만들거나 내일 다시 시도해주세요.',
+  // 같은 계정의 LLM 모드 계획은 한 번에 한 건 (BE 429 + Retry-After)
+  'An LLM curriculum is already being generated for this account. Try again later.':
+    '이 계정의 LLM 학습 계획을 이미 만들고 있습니다. 끝난 뒤 다시 시도해주세요.',
   // 소셜 로그인 (Google·GitHub·네이버 OAuth 2.0). 400 / 409 / 502 / 503
   // 콜백 화면은 아래 이메일·연동 안내 중 일부를 제공자 이름을 넣은 문구로 바꿔 보여 준다 (pages/OAuthCallbackPage.tsx).
   'Invalid or expired OAuth state': '로그인 요청이 만료되었거나 올바르지 않습니다. 처음부터 다시 시도해주세요.',
@@ -324,6 +340,22 @@ const KNOWN_ERROR_MESSAGES: Record<string, string> = {
 const KNOWN_ERROR_CODES: Record<string, string> = {
   // BE→AI 동시 호출 한도 초과 (503 + Retry-After). 공고 조회·직무 비교·학습 계획
   AI_SERVICE_BUSY: '분석 요청이 많습니다. 잠시 후 다시 시도해주세요.',
+  // AI 서비스의 동시 LLM 생성 한도 초과 (BE 503 + Retry-After). LLM 모드 학습 계획
+  LLM_BUSY: 'LLM 학습 계획 요청이 많습니다. 잠시 후 다시 시도해주세요.',
+  // Gemini에 연결하지 못했거나 응답이 늦음 (BE 503 + Retry-After)
+  LLM_PROVIDER_UNAVAILABLE: 'LLM 서비스에 연결하지 못했습니다. 템플릿 모드를 쓰거나 잠시 후 다시 시도해주세요.',
+  // AI 서비스에 LLM 설정이 없거나 잘못됨 (BE 503). 템플릿 모드는 그대로 쓸 수 있다
+  GENERATOR_CONFIGURATION_REQUIRED: '지금은 LLM 모드를 사용할 수 없습니다. 템플릿 모드를 사용해주세요.',
+  // 배포 중 AI 설정이 바뀌어 다시 요청해야 함 (BE 503 + Retry-After)
+  GENERATOR_CONFIGURATION_CHANGED: 'LLM 설정이 바뀌는 중입니다. 잠시 후 다시 시도해주세요.',
+};
+
+/**
+ * 다시 시도하면 될 수 있는 실패(503 + Retry-After)일 때 KNOWN_ERROR_CODES 대신 쓰는 문구.
+ * Gemini 429·5xx(LLM_PROVIDER_REJECTED)는 같은 코드라도 503이면 기다렸다 다시 하면 되고, 422면 다시 해도 같다.
+ */
+const RETRYABLE_ERROR_CODES: Record<string, string> = {
+  LLM_PROVIDER_REJECTED: 'LLM 서비스가 지금 요청을 받지 못했습니다. 템플릿 모드를 쓰거나 잠시 후 다시 시도해주세요.',
 };
 
 /** 운영 빌드에서 개발자용 안내(로컬 주소·서버 로그) 대신 붙이는 공통 안내 */
@@ -390,6 +422,13 @@ const FIELD_LABELS: Record<string, string> = {
   learning_choices: '학습 진행 방식',
 };
 
+/** BE 입력 검사기(app/core/text.py)의 422 메시지 → 한국어 */
+const VALIDATION_MESSAGES: Record<string, string> = {
+  'Value error, must be a single line without control characters':
+    '줄바꿈·제어 문자·보이지 않는 글자 없이, 보이는 글자로 입력해주세요',
+  'Value error, must not contain NUL or unpaired surrogate characters': '저장할 수 없는 문자가 들어 있습니다',
+};
+
 /** FastAPI 422 의 detail 배열을 한 줄 메시지로 합친다. */
 function formatValidationDetail(detail: ValidationErrorItem[]): string {
   const messages = detail
@@ -398,7 +437,8 @@ function formatValidationDetail(detail: ValidationErrorItem[]): string {
         ?.filter((part) => part !== 'body')
         .map((part) => (Object.hasOwn(FIELD_LABELS, String(part)) ? FIELD_LABELS[String(part)] : String(part)))
         .join('.');
-      return field && item.msg ? `${field}: ${item.msg}` : item.msg;
+      const msg = item.msg && Object.hasOwn(VALIDATION_MESSAGES, item.msg) ? VALIDATION_MESSAGES[item.msg] : item.msg;
+      return field && msg ? `${field}: ${msg}` : msg;
     })
     .filter((msg): msg is string => Boolean(msg));
   return messages.length > 0
@@ -408,6 +448,14 @@ function formatValidationDetail(detail: ValidationErrorItem[]): string {
 
 export function getApiErrorMessage(error: unknown): string {
   const code = axios.isAxiosError(error) ? (error.response?.data as ApiErrorBody | undefined)?.code : undefined;
+  if (
+    typeof code === 'string' &&
+    Object.hasOwn(RETRYABLE_ERROR_CODES, code) &&
+    axios.isAxiosError(error) &&
+    error.response?.status === 503
+  ) {
+    return RETRYABLE_ERROR_CODES[code];
+  }
   if (typeof code === 'string' && Object.hasOwn(KNOWN_ERROR_CODES, code)) return KNOWN_ERROR_CODES[code];
   if (getApiErrorKind(error) === 'network') {
     return import.meta.env.DEV

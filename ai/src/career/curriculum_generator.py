@@ -20,7 +20,12 @@ from src.career.contracts.api import GenerationInput, GenerationOutcome
 from src.career.contracts.curriculum import CurriculumDraft, CurriculumResult
 from src.career.errors import ConfigurationError, EvidenceError
 from src.career.learning_retrieval import RESOURCE_FRESHNESS_DAYS
-from src.career.llm_client import ProviderFailure, generator_from_env, selector_payload
+from src.career.llm_client import (
+    ProviderFailure,
+    generator_from_env,
+    llm_slot,
+    selector_payload,
+)
 from src.career.output_validator import render_steps, validate_draft
 
 logger = logging.getLogger(__name__)
@@ -51,41 +56,46 @@ async def generate(job: GenerationInput, client_factory=None, config_loader=None
         if job.request.mode == "llm" and job.context.options:
             config = (config_loader or generator_from_env)()
             if config.public_metadata() != job.generator:
-                raise EvidenceError("GENERATOR_CONFIGURATION_CHANGED")
+                # The caller read the generator info from another configuration (rolling deploy,
+                # tasks with different settings). The model is not called; asking again works.
+                return failed("GENERATOR_CONFIGURATION_CHANGED", True, audit)
             client = (client_factory or (lambda current: current.create_client()))(config)
             model = config.model
-            for _ in range(2):
-                prompt_hash = digest_json(selector_payload(job.context, job.request, errors))
-                try:
-                    reply = await client.generate(job.context, job.request, errors)
-                except ProviderFailure as exc:
+            # At most CURRICULUM_LLM_MAX_CONCURRENCY generations call a model at once (both attempts
+            # hold the same slot). No slot within 10 s: retryable LLM_BUSY, the model is not called.
+            async with llm_slot():
+                for _ in range(2):
+                    prompt_hash = digest_json(selector_payload(job.context, job.request, errors))
+                    try:
+                        reply = await client.generate(job.context, job.request, errors)
+                    except ProviderFailure as exc:
+                        audit.append(
+                            {"prompt_hash": prompt_hash, "provider_error": exc.code, "usage": {}}
+                        )
+                        raise
+                    try:
+                        if not reply.complete:
+                            raise ValueError("incomplete")
+                        proposed = parse_draft(reply.text)
+                        errors = validate_draft(proposed, job.context, job.request)
+                    except (ValueError, ValidationError, TypeError, RecursionError):
+                        errors = ["INVALID_MODEL_SCHEMA_OR_INCOMPLETE_JSON"]
                     audit.append(
-                        {"prompt_hash": prompt_hash, "provider_error": exc.code, "usage": {}}
+                        {
+                            "prompt_hash": prompt_hash,
+                            "raw_output": reply.text.encode(
+                                "utf-8", errors="backslashreplace"
+                            ).decode("utf-8"),
+                            "output_encoding": "utf8-backslashreplace",
+                            "usage": reply.usage,
+                            "validation_errors": errors,
+                        }
                     )
-                    raise
-                try:
-                    if not reply.complete:
-                        raise ValueError("incomplete")
-                    proposed = parse_draft(reply.text)
-                    errors = validate_draft(proposed, job.context, job.request)
-                except (ValueError, ValidationError, TypeError, RecursionError):
-                    errors = ["INVALID_MODEL_SCHEMA_OR_INCOMPLETE_JSON"]
-                audit.append(
-                    {
-                        "prompt_hash": prompt_hash,
-                        "raw_output": reply.text.encode("utf-8", errors="backslashreplace").decode(
-                            "utf-8"
-                        ),
-                        "output_encoding": "utf8-backslashreplace",
-                        "usage": reply.usage,
-                        "validation_errors": errors,
-                    }
-                )
-                if not errors:
-                    draft, method = proposed, "llm"
-                    break
-            else:
-                method = "llm_fallback"
+                    if not errors:
+                        draft, method = proposed, "llm"
+                        break
+                else:
+                    method = "llm_fallback"
         elif job.request.mode == "llm":
             method = "template"  # No actionable steps; never bill an empty request.
         if validate_draft(draft, job.context, job.request):

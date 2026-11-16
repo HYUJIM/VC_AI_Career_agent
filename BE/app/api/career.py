@@ -83,12 +83,13 @@ async def import_learning_resource(req: LearningResourceInput, principal: Princi
 async def search_job_postings(
     region: Optional[str] = Query(default=None, min_length=1, max_length=80),
     seniority: Optional[Seniority] = None,
-    _: Principal = Depends(require_user),
+    principal: Principal = Depends(require_user),
     ai: AIServiceClient = Depends(get_ai_service),
 ):
     request = CareerAnalysisRequest(region=region, seniority=seniority)
     # 공고 묶음을 읽기 전에 AI 묶음 요청 자리를 잡는다 (자리를 기다리는 요청이 묶음을 메모리에 올려 두지 않게).
-    async with ai.corpus_slot("POST /v1/job-postings/search"):
+    # 사용자별 한도(동시 2개, 분당 30번)를 넘으면 429 (ai_service.corpus_slot).
+    async with ai.corpus_slot("POST /v1/job-postings/search", caller=principal.user_id):
         candidates = await run_in_threadpool(career_store.market_candidates, request.target_role_id,
                                              datetime.now(timezone.utc))
         return _ok((await ai.search_jobs(request, candidates)).model_dump(mode="json"))
@@ -106,10 +107,11 @@ async def get_job_posting(posting_id: UUID, version_id: Optional[UUID] = None,
 async def search_learning_resources(
     skill_id: Optional[SkillID] = None,
     budget_krw: Optional[int] = Query(default=None, ge=0, le=100000000),
-    _: Principal = Depends(require_user),
+    principal: Principal = Depends(require_user),
     ai: AIServiceClient = Depends(get_ai_service),
 ):
-    async with ai.corpus_slot("POST /v1/learning-resources/search"):  # 학습자료 묶음을 읽기 전에 자리를 잡는다
+    # 학습자료 묶음을 읽기 전에 자리를 잡는다 (사용자별 한도를 넘으면 429)
+    async with ai.corpus_slot("POST /v1/learning-resources/search", caller=principal.user_id):
         resources = await run_in_threadpool(career_store.resources)
         found = await ai.search_resources(resources, skill_id, budget_krw)
     return _ok([item.model_dump(mode="json", exclude=RESOURCE_INTERNAL_FIELDS) for item in found])

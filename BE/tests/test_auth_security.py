@@ -821,9 +821,10 @@ def test_overlong_login_password_still_runs_one_full_bcrypt_compare(client, regi
             assert checkpw_calls == [(dummy, False)], (email, len(password))
 
 
-# 조회가 던질 수 있는 예외: DB 연결 수 초과, 끊긴 연결(OperationalError가 아님), DB 오류가 아닌 예외
+# 조회가 던질 수 있는 503이 아닌 예외: DB 내부 오류, 끊긴 연결(OperationalError가 아님), DB 오류가 아닌 예외.
+# 접속 실패·연결 수 초과(OperationalError)는 DB 혼잡과 같은 503이고 실패로 세지 않는다 (아래 BUSY_ERRORS).
 LOOKUP_ERRORS = [
-    (psycopg.OperationalError, "simulated: sorry, too many clients already"),
+    (psycopg.InternalError, "simulated: internal error"),
     (psycopg.InterfaceError, "the connection is closed"),
     (RuntimeError, "simulated: unexpected lookup failure"),
 ]
@@ -832,10 +833,10 @@ LOOKUP_ERRORS = [
 @pytest.mark.parametrize(("error", "message"), LOOKUP_ERRORS, ids=[e.__name__ for e, _ in LOOKUP_ERRORS])
 def test_login_whose_user_lookup_fails_still_costs_one_bcrypt(client, fast_bcrypt, monkeypatch, checkpw_calls, caplog,
                                                                error, message):
-    """조회 단계의 오류(예: 연결 수 초과)도 다른 실패처럼 더미 bcrypt 비교를 한 번 하고, 응답·로그는 지금처럼 500이다.
+    """조회 단계의 오류(예: DB 내부 오류)도 다른 실패처럼 더미 bcrypt 비교를 한 번 하고, 응답·로그는 지금처럼 500이다.
 
     고치기 전에는 bcrypt 없이 실패 기록의 키만 만들어, 이런 요청을 몰아 보내 키 상한을 채우고 잠긴 키를 밀어낼 수 있었다.
-    DB 연결 오류만이 아니라 조회가 던지는 모든 예외가 그렇다 (OperationalError만 잡으면 나머지 예외는 비용 없이 키를 만든다).
+    DB 오류만이 아니라 조회가 던지는 모든 예외가 그렇다 (특정 예외만 잡으면 나머지 예외는 비용 없이 키를 만든다).
     """
     from app.services.database import db_service
 
@@ -864,7 +865,8 @@ def test_login_whose_user_lookup_fails_still_costs_one_bcrypt(client, fast_bcryp
 
 BUSY_ERRORS = [DatabaseBusy("no free DB connection slot within 5s"),
                psycopg.errors.QueryCanceled("canceling statement due to statement timeout"),
-               psycopg.errors.LockNotAvailable("canceling statement due to lock timeout")]
+               psycopg.errors.LockNotAvailable("canceling statement due to lock timeout"),
+               psycopg.OperationalError("connection failed: server closed the connection unexpectedly")]
 
 
 @pytest.mark.parametrize("error", BUSY_ERRORS, ids=[type(e).__name__ for e in BUSY_ERRORS])
@@ -1042,6 +1044,53 @@ def test_register_still_trims_and_accepts_single_line_unicode(client):
     name = "김\N{NO-BREAK SPACE}철수\N{IDEOGRAPHIC SPACE}\N{WOMAN}\N{ZERO WIDTH JOINER}\N{PERSONAL COMPUTER}"
     res = client.post(REGISTER, json={"name": name, "email": new_email("reg"), "password": PASSWORD})
     assert res.status_code == 200 and res.json()["data"]["name"] == name
+
+
+@pytest.mark.parametrize("field,value", [
+    ("name", "abc‮gnp.exe"),        # 오른쪽→왼쪽 바꿈: 화면에 'abcexe.png'처럼 보인다
+    ("name", "ad​min"),             # 폭 없는 공백: 'admin'과 똑같아 보인다
+    ("name", "﻿홍길동"),
+    ("name", "홍⁦길동⁩"),
+    ("email", "ad​min-{tag}@example.test"),
+    ("email", "mx-{tag}﻿@example.test"),
+    ("email", "mx-xss-{tag}<script>alert(1)</script><img src=x onerror=alert(2)>@example.test"),
+    ("email", "a b-{tag}@example.test"),
+    ("email", "a\N{NO-BREAK SPACE}b-{tag}@example.test"),
+    ("email", '"quoted-{tag}"@example.test'),
+    ("email", "a-{tag}@b@example.test"),
+    ("email", "a-{tag}@"),
+    ("email", "a-{tag},b@example.test"),
+    ("email", "a-{tag};b@example.test"),
+    # 폭 0인 미배정 글자·한글 채움 문자 (v-review R10-02)
+    ("name", "홍\U000E0080길동"),
+    ("name", "\u17b4"),
+    ("email", "ad\U000E0080min-{tag}@example.test"),
+    ("email", "a\u3164-{tag}@example.test"),
+    ("email", "a\ufe00-{tag}@example.test"),
+    ("email", "a-{tag}\ufffc@example.test"),
+], ids=["name-rlo", "name-zwsp", "name-bom", "name-isolate", "email-zwsp", "email-bom", "email-html", "email-space",
+        "email-nbsp", "email-quoted", "email-two-at", "email-no-domain", "email-comma", "email-semicolon",
+        "name-unassigned-ignorable", "name-khmer-inherent", "email-unassigned-ignorable", "email-hangul-filler",
+        "email-variation-selector", "email-object-replacement"])
+def test_register_rejects_invisible_format_chars_and_email_specials(client, db, field, value):
+    """회귀(보안 재검토 SEC-05): 가입 API는 이름의 방향 제어·폭 없는 문자를 받았고, 이메일은 '@'만 보아
+    '<script>…@example.com'·폭 없는 공백이 든 이메일이 그대로 계정이 됐다 (FE 가입 화면은 만들 수 없는 값). 이제 422다."""
+    tag = uuid.uuid4().hex[:8]
+    value = value.replace("{tag}", tag)
+    email = new_email("reg")
+    payload = {"name": "홍길동", "email": email, "password": PASSWORD, field: value}
+    res = client.post(REGISTER, json=payload)
+    assert res.status_code == 422 and res.json()["detail"][0]["loc"] == ["body", field], res.text
+    assert db.execute("SELECT count(*) AS n FROM users WHERE email LIKE %s", (f"%{tag}%",)).fetchone()["n"] == 0
+    assert db.execute("SELECT count(*) AS n FROM users WHERE email = %s", (email,)).fetchone()["n"] == 0
+
+
+@pytest.mark.parametrize("email", ["o'brien-{tag}@example.test", "user+news-{tag}@example.test",
+                                   "김철수-{tag}@대학교.kr", "x_{tag}@sub.example.test"])
+def test_register_still_accepts_ordinary_and_international_emails(client, email):
+    email = email.replace("{tag}", uuid.uuid4().hex[:8])
+    res = client.post(REGISTER, json={"name": "홍길동", "email": email, "password": PASSWORD})
+    assert res.status_code == 200 and res.json()["data"]["email"] == email.lower(), res.text
 
 
 NUL, SURROGATE = "a\x00b", "a\ud800b"

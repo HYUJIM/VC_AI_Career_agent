@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/apiClient';
+import { cleanEvidenceText } from '@/lib/text';
 import {
   isPreviewSession,
   previewCareers,
@@ -20,7 +21,9 @@ export async function getCareersByDid(did: string): Promise<CareersResponse> {
   const { data } = await apiClient.get<CareersResponse>(
     `/v1/subjects/${encodeURIComponent(did)}/careers`,
   );
-  return data;
+  // 배지 이름·발급기관은 발급기관이 서명한 문구 그대로라 보이지 않는 글자(방향 제어 등)를 지워 보여 준다 (lib/text.ts).
+  if (!Array.isArray(data?.verified_credentials)) return data;
+  return { ...data, verified_credentials: data.verified_credentials.map(cleanEvidenceText) };
 }
 
 /**
@@ -44,7 +47,9 @@ export async function issueMockBadge(
 export async function verifyCredential(payload: VerifyRequest): Promise<VerifyResponse> {
   if (import.meta.env.DEV && isPreviewSession()) return previewVerify();
   const { data } = await apiClient.post<VerifyResponse>('/v1/verify', payload);
-  return data;
+  return typeof data?.data === 'object' && data.data !== null && 'achievement_name' in data.data
+    ? { ...data, data: cleanEvidenceText(data.data) }
+    : data;
 }
 
 /**
@@ -56,7 +61,7 @@ export async function reverifyCredential(recordId: string): Promise<ReverifyResp
   const { data } = await apiClient.post<ReverifyResponse>(
     `/v1/credentials/${encodeURIComponent(recordId)}/reverify`,
   );
-  return data;
+  return data?.data ? { ...data, data: cleanEvidenceText(data.data) } : data;
 }
 
 /**

@@ -315,6 +315,34 @@ def test_no_free_slot_is_answered_503_with_retry_after(client, register, db_slot
     assert client.get("/api/v1/users/me", headers=user["headers"]).status_code == 200
 
 
+@pytest.mark.parametrize("message, reason", [
+    ("connection failed: server closed the connection unexpectedly",
+     "OperationalError: unclassified database error"),
+    ('connection failed: connection to server at "10.0.0.5", port 5432 failed: Connection refused',
+     "OperationalError: connection refused (check DB_HOST and DB_PORT)"),
+])
+def test_db_connect_failure_is_answered_503_without_a_traceback(client, register, monkeypatch, caplog, message, reason):
+    """회귀(v-chain F1): 요청이 몰려 DB 접속이 실패하면(psycopg.OperationalError) 처리되지 않은 예외로 500이 되고, 실패마다
+    'Unhandled error'와 90여 줄짜리 추적이 로그에 쌓였다 (20초 동안 1361건). 이제 DB 혼잡과 같은 503 + Retry-After이고
+    경고 한 줄만 남긴다. 그 줄에는 오류 원문(호스트·IP·사용자)이 아니라 안전한 요약만 들어간다."""
+    from app.services import database
+
+    user = register()
+
+    def refuse(**_):
+        raise psycopg.OperationalError(message)
+
+    monkeypatch.setattr(database, "get_db_connection", refuse)
+    with caplog.at_level(logging.WARNING):
+        res = client.get("/api/v1/users/me", headers=user["headers"])
+    _assert_busy(res)
+    assert _busy_logs(caplog) == [f"Database busy: method=GET path=/api/v1/users/me reason={reason}"]
+    assert not [r for r in caplog.records if r.exc_info or "Unhandled error" in r.getMessage()]
+    assert "10.0.0.5" not in caplog.text
+    monkeypatch.undo()
+    assert client.get("/api/v1/users/me", headers=user["headers"]).status_code == 200
+
+
 async def test_health_answers_while_every_db_slot_and_worker_thread_is_taken(register, db_slots):
     """회귀: /health가 동기 함수라 워커 스레드를 하나 써야 했다. DB 자리를 기다리는 요청이 워커 스레드(40개)를 모두 잡고
     있으면(각 최대 5초) 상태 확인도 그 뒤에 줄을 서서 ALB·ECS 상태 확인 제한(4~5초)을 넘겼다. 이제 이벤트 루프에서 바로 답한다."""

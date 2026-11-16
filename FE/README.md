@@ -29,10 +29,10 @@ src/
 ## 로컬 실행 방법
 
 BE 서버(`../BE`)가 먼저 `http://localhost:3000` 에서 실행되고 있어야 합니다.
-BE 실행법은 `../BE/README.md` 참고. 아래 둘 중 **하나만** 씁니다 (둘 다 3000번 포트를 쓰며, 먼저 최상위 README의 "환경 변수 설정"대로 `BE/.env` 를 준비합니다).
+BE 실행법은 `../BE/README.md` 참고. 아래 둘 중 **하나만** 씁니다 (둘 다 3000번 포트를 쓰며, 먼저 [서비스 실행 방법](../docs/GETTING_STARTED.md)의 "2. 환경 변수 설정"대로 `BE/.env` 를 준비합니다).
 
 - 전체 컨테이너(DB·BE·AI): `cd BE && docker compose up --build -d` — DB 마이그레이션은 `migrate` 서비스가 자동으로 적용하고, BE가 컨테이너에서 3000번으로 뜨므로 uvicorn을 따로 실행하지 않습니다.
-- BE만 로컬: `cd BE && docker compose up -d postgres` 로 DB만 띄운 뒤 `python -m app.migrate` 로 마이그레이션을 적용하고 `python -m uvicorn main:app --reload --port 3000` 을 실행합니다. `/career` 는 AI 서비스도 필요합니다 (최상위 README의 "Docker 없이 실행").
+- BE만 로컬: `cd BE && docker compose up -d postgres` 로 DB만 띄운 뒤 `python -m app.migrate` 로 마이그레이션을 적용하고 `python -m uvicorn main:app --reload --port 3000` 을 실행합니다. `/career` 는 AI 서비스도 필요합니다 ([서비스 실행 방법](../docs/GETTING_STARTED.md)의 "6. Docker 없이 실행").
 
 ```bash
 cd FE
@@ -48,14 +48,14 @@ npm run dev
 
 - `VITE_API_BASE_URL` 은 빌드(`npm run build`) 때 번들에 들어가는 값이라 바꾸면 다시 빌드해야 합니다. 지정하지 않거나 비워 두면 `/api` 를 씁니다.
 - 기본값 `/api` 는 FE와 BE를 같은 도메인에서 서비스하고 `/api/*` 요청을 BE로 넘기는 구성에서 씁니다 (예: CloudFront 동작 `/api/*` → BE, nginx `location /api/ { proxy_pass http://backend:3000; }`). 환경마다 다시 빌드할 필요가 없고 CORS 설정도 필요 없습니다.
-- CloudFront `/api/*` 동작은 캐시하지 않고(`Managed-CachingDisabled`) `Authorization` 헤더를 BE로 넘겨야 합니다 (예: 원본 요청 정책 `Managed-AllViewerExceptHostHeader`). 기본 설정은 GET 요청의 `Authorization` 을 지우므로 BE가 401을 주고, FE는 이를 로그인 만료로 보고 바로 로그아웃합니다. 자세한 항목은 최상위 README "AWS 배포 체크리스트".
+- CloudFront `/api/*` 동작은 캐시하지 않고(`Managed-CachingDisabled`) `Authorization` 헤더를 BE로 넘겨야 합니다 (예: 원본 요청 정책 `Managed-AllViewerExceptHostHeader`). 기본 설정은 GET 요청의 `Authorization` 을 지우므로 BE가 401을 주고, FE는 이를 로그인 만료로 보고 바로 로그아웃합니다. 자세한 항목은 [AWS 배포 체크리스트](../deploy/CHECKLIST.md)의 "FE".
 - nginx `proxy_pass` 주소 끝에 `/` 를 붙이면 `/api` 가 잘려 모든 요청이 404가 됩니다.
 - BE가 다른 도메인이면 `/api` 까지 넣고(예: `https://api.example.com/api`) BE `CORS_ORIGINS` 에 FE 주소를 추가합니다.
 - 운영은 HTTPS로 서비스합니다 (예: S3+CloudFront, ALB+ACM). HTTPS 페이지에서 `http://` API 호출은 브라우저가 막으므로(mixed content) BE 주소도 `https://` 여야 합니다.
 - **다른 출처의 스크립트를 넣지 않습니다.** 다른 출처 코드는 이 사이트 권한으로 실행되어 localStorage의 로그인 토큰과 비밀번호 입력을 읽을 수 있습니다. Figma html-to-design 캡처 스크립트는 `vite.config.ts`의 개발 서버 전용 플러그인(`apply: 'serve'`)이 `FIGMA_CAPTURE=1 npm run dev`로 켰을 때만 개발 서버 화면에 넣고(기본은 꺼짐), `npm run build`·`npm run preview` 결과(`dist`)에는 들어가지 않습니다. CI FE 작업은 빌드 후 `dist`에 `mcp.figma.com`이나 외부 `<script src>`가 있으면 실패합니다.
 - **웹폰트(Pretendard):** 지금은 jsDelivr CDN(`https://cdn.jsdelivr.net`)에서 받습니다. `<link>`는 `index.html`이 아니라 `main.tsx`가 스크립트로 붙여, CDN이 느리거나 막혀도 첫 화면이 기본 글꼴로 바로 보입니다. 운영 CSP의 `style-src`·`font-src`에 `https://cdn.jsdelivr.net`이 없으면 시스템 글꼴로 바뀝니다. 자체 호스팅은 아래 TODO 참고.
-- **보안 헤더:** HTTP→HTTPS 리디렉션과 HSTS·CSP·`X-Frame-Options` 등은 정적 호스팅(CloudFront 응답 헤더 정책)이 붙이며, 값은 최상위 README "AWS 배포 체크리스트"에 있습니다. CSP는 `script-src 'self'`(eval 불허)로 둘 수 있게, `src/lib/zodConfig.ts`가 `main.tsx`의 첫 import로 zod의 eval 시험(`new Function`)을 끕니다(검증 동작·메시지는 같음). 스키마보다 먼저 실행되어야 하므로 이 import 순서를 바꾸지 않습니다.
-- SPA라서 `/dashboard` 같은 경로를 새로고침하면 정적 호스팅이 `index.html` 을 돌려줘야 합니다. 이때 `/api/*` 의 404·403 응답까지 `index.html` 로 바꾸지 않게 합니다 (CloudFront 사용자 정의 오류 응답은 배포 전체에 적용되므로, 기본(S3) 동작에만 CloudFront Function 등으로 처리).
+- **보안 헤더:** HTTP→HTTPS 리디렉션과 HSTS·CSP·`X-Frame-Options` 등은 정적 호스팅(CloudFront 응답 헤더 정책)이 붙이며, 값은 [AWS 배포 체크리스트](../deploy/CHECKLIST.md)의 "FE"에 있습니다. CSP는 `script-src 'self'`(eval 불허)로 둘 수 있게, `src/lib/zodConfig.ts`가 `main.tsx`의 첫 import로 zod의 eval 시험(`new Function`)을 끕니다(검증 동작·메시지는 같음). 스키마보다 먼저 실행되어야 하므로 이 import 순서를 바꾸지 않습니다.
+- SPA라서 `/dashboard` 같은 경로를 새로고침하면 정적 호스팅이 `index.html` 을 돌려줘야 합니다. 이때 `/api/*` 의 404·403 응답까지 `index.html` 로 바꾸지 않게 합니다 (CloudFront 사용자 정의 오류 응답은 배포 전체에 적용되므로, 기본(S3) 동작에만 CloudFront Function 등으로 처리). 함수는 시험을 거친 [../deploy/cloudfront/spa-fallback.js](../deploy/cloudfront/spa-fallback.js)를 그대로 씁니다(설명·로컬 시험은 같은 폴더의 `spa-fallback.test.cjs`, 연결 순서는 [../deploy/README.md](../deploy/README.md) ⑧). AWS 문서의 SPA 예시 함수(`/dashboard` → `/dashboard/index.html`)는 이 앱에서 S3 403이 됩니다.
 
 ## 구현된 화면과 BE 엔드포인트 매핑
 
@@ -154,6 +154,8 @@ API 계약은 `BE/openapi.yaml`(v0.8.0)을 기준으로 합니다.
 | 로그인·회원가입 (소셜 로그인 버튼) | BE에 그 제공자 설정 없음 / BE가 허용하지 않은 콜백 주소 / 허용하지 않은 인가 주소 | 503 `Google OAuth is not configured`·`GitHub OAuth is not configured`·`Naver OAuth is not configured`(또는 `<Label> OAuth redirect_uri is not configured`) / 400 `Invalid redirect_uri` / (BE 응답의 `authorization_url`이 그 제공자의 `https://` 호스트가 아님) | "<제공자> 로그인을 시작할 수 없습니다." + "<제공자> 로그인을 지금 사용할 수 없습니다." / "허용되지 않은 로그인 경로입니다. 관리자에게 문의해주세요." / "허용되지 않은 소셜 로그인 이동 주소입니다." (개발 서버는 `GOOGLE_*`·`GITHUB_*`·`NAVER_*` 설정 안내) |
 | 소셜 로그인 버튼 · 콜백 | 그 제공자의 토큰 교환 한도(BE 태스크마다 제공자별 분당 300번) 또는 운영 WAF의 IP별 속도 제한 | 429 | "요청이 너무 많습니다." / "로그인 시도가 너무 많습니다." + "보안을 위해 잠시 동안 요청이 제한되었습니다. 잠시 후 다시 시도해주세요." |
 | 전 화면 | 서버 혼잡: DB 연결 한도 / 검증 호출 한도 / AI 동시 호출 한도 | 503 `Service is busy. …` / 429 `Too many verification requests. …` / 503 `code: AI_SERVICE_BUSY` | "요청이 많아 처리가 지연되고 있습니다. …" / "검증 요청이 너무 많습니다. …" / "분석 요청이 많습니다. …" (모두 "잠시 후 다시 시도해주세요."로 끝나며 같은 안내를 덧붙이지 않음) |
+| 직무 비교 (공고 목록·비교·학습 계획) | 사용자별 한도: AI 묶음 요청(동시 2개·분당 30번) / 24시간 직무 비교·학습 계획 각 200건 / LLM 학습 계획 `CURRICULUM_LLM_DAILY_LIMIT`건 / 계정당 동시 LLM 계획 1건 / AI의 동시 LLM 생성 한도 | 429 `Too many analysis requests. …` / 429 `Daily career analysis limit reached. …`·`Daily curriculum limit reached. …` / 429 `Daily LLM curriculum limit reached. …` / 429 `An LLM curriculum is already being generated …` / 503 `code: LLM_BUSY` | "분석 요청이 너무 많습니다. 잠시 후 다시 시도해주세요." / "오늘 만들 수 있는 직무 비교(학습 계획) 수를 모두 썼습니다. 내일 다시 시도해주세요." / "오늘 만들 수 있는 LLM 학습 계획 수를 모두 썼습니다. 템플릿으로 만들거나 내일 다시 시도해주세요." / "이 계정의 LLM 학습 계획을 이미 만들고 있습니다. 끝난 뒤 다시 시도해주세요." / "LLM 학습 계획 요청이 많습니다. 잠시 후 다시 시도해주세요." |
+| 학습 계획 (LLM 모드) | Gemini 연결 실패·시간 초과 / Gemini 429·5xx / LLM 설정 없음 / 배포 중 설정 변경 | 503 `code: LLM_PROVIDER_UNAVAILABLE` / 503 `code: LLM_PROVIDER_REJECTED` / 503 `code: GENERATOR_CONFIGURATION_REQUIRED` / 503 `code: GENERATOR_CONFIGURATION_CHANGED` | "LLM 서비스에 연결하지 못했습니다. 템플릿 모드를 쓰거나 잠시 후 다시 시도해주세요." / "LLM 서비스가 지금 요청을 받지 못했습니다. 템플릿 모드를 쓰거나 잠시 후 다시 시도해주세요." (422면 "LLM이 계획을 만들지 못했습니다. 템플릿 모드를 사용해주세요.") / "지금은 LLM 모드를 사용할 수 없습니다. 템플릿 모드를 사용해주세요." / "LLM 설정이 바뀌는 중입니다. 잠시 후 다시 시도해주세요." |
 | 지갑 (일괄 재검증) | 한 항목이 연결 실패·5xx·429로 실패 | 응답 없음 / 5xx / 429 | 그 항목은 "오류", 남은 항목은 보내지 않고 "미실행"으로 표시 + 제목 "자격증명 일괄 재검증 중단" + "재검증을 중단했습니다. 나머지 N건은 실행하지 않았어요." (마지막·하나뿐인 항목에서 실패하면 남은 항목 없이 "재검증을 중단했습니다."만. 404 등 그 항목만의 오류는 계속 진행) |
 | 지갑 (일괄 재검증) | 검증 서버가 한 자격증명만 확인하지 못함 / 200이지만 재검증 응답이 아닌 본문 | 200 + `success:false`, `message: Re-verification failed: verifier_error` / 200 | 그 항목은 "실패" + "검증 서버가 확인하지 못함 (지갑 상태는 그대로)" / "오류" + "서버 응답이 올바르지 않습니다." 둘 다 다음 항목을 계속 진행. "N건의 자격증명이 '확인 필요' 탭으로 이동했습니다." 안내는 검증 결과로 상태가 정해진 실패만 셈 (요청 오류·검증 서버가 확인하지 못한 항목은 세지 않음) |
 | 포트폴리오·선택 공개 | 사용자별 개수 한도 | 409 `Portfolio limit reached.` / `Share link limit reached. …` | "포트폴리오를 더 만들 수 없습니다." / "공유 링크를 더 만들 수 없습니다. 사용하지 않는 링크를 먼저 폐기해주세요." |

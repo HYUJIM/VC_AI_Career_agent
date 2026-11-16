@@ -23,15 +23,24 @@ from app.api import auth, career, market, mock_issuer, oauth, portfolios, reveri
 from app.core.config import get_settings, log_level  # noqa: E402
 from app.core.text import UNSTORABLE_TEXT_MESSAGE  # noqa: E402
 from app.integrations.ai_service import AIServiceError  # noqa: E402
+
+AI_RETRY_AFTER_SECONDS = 5  # 다시 시도할 수 있는 AI 연동 503에 붙이는 Retry-After (초)
 from app.integrations.ports import ProviderError  # noqa: E402
 from app.services.database import DB_BUSY, DB_BUSY_RETRY_AFTER_SECONDS, DatabaseBusy  # noqa: E402
 from app.services.db_startup_check import DBStartupCheckMiddleware  # noqa: E402
+from app.services.db_startup_check import describe_error as describe_db_error  # noqa: E402
 from app.services.verifier_budget import TOO_MANY_VERIFICATIONS, VerifierBudgetExceeded  # noqa: E402
 
-LOG_LEVEL = log_level()  # 없거나 비우면 INFO
+try:
+    LOG_LEVEL = log_level()  # 없거나 비우면 INFO
+except RuntimeError as exc:
+    # 없는 수준 이름(LOG_LEVEL=verbose 등): 아래 설정 검사와 같이 traceback 대신 이 한 줄(변수 이름과 받는 값만)과 종료 코드 1.
+    print(exc, file=sys.stderr)
+    sys.exit(1)
 logging.basicConfig(level=LOG_LEVEL)
 # httpx는 INFO로 요청마다 전체 URL(비공개 DXWorks 호스트 포함)을, httpcore는 DEBUG로 접속 호스트·응답 헤더를 남긴다.
-# LOG_LEVEL=DEBUG일 때만 그대로 두고, 그 밖의 값(루트가 모든 수준을 남기는 NOTSET 포함)에서는 둘 다 WARNING으로 묶는다.
+# LOG_LEVEL=DEBUG일 때만 그대로 두고, 그 밖의 값에서는 둘 다 WARNING으로 묶는다 (루트가 모든 수준을 남기는 NOTSET은
+# log_level()이 받지 않는다).
 if LOG_LEVEL != "DEBUG":
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
@@ -189,7 +198,7 @@ class SecurityHeadersMiddleware:
     - Cache-Control: no-store: 공유 링크 조회(이름·DID·서명 원본), 로그인 토큰, 개인정보 응답을 브라우저 디스크 캐시·
       프록시·CDN에 남기지 않고, 철회·만료한 공유 링크가 캐시에서 다시 보이지 않게 한다.
     - API를 FE와 다른 도메인(ALB 직접)으로 서비스해도 같은 보호를 받도록 BE가 직접 붙인다.
-      FE(S3+CloudFront) 쪽 헤더는 README "AWS 배포 체크리스트"의 CloudFront 응답 헤더 정책으로 붙인다.
+      FE(S3+CloudFront) 쪽 헤더는 deploy/CHECKLIST.md "FE"의 CloudFront 응답 헤더 정책으로 붙인다.
     - CSP는 frame-ancestors만 둔다: /docs(Swagger UI, development에서만 제공)가 CDN 스크립트·인라인 스크립트를 쓰므로
       불러오기 제한은 넣지 않는다.
     - HSTS는 APP_ENV=production에서만 보낸다. 브라우저는 HTTPS 응답의 HSTS만 따르는데, 개발 중 https://localhost 로 띄운
@@ -256,12 +265,18 @@ class RouteBodyLimitMiddleware:
 
 
 # 설정 검사(app.core.config.get_settings)는 uvicorn이 이 모듈을 불러올 때 한 번 한다 (아래 문서 경로·CORS 설정이 쓴다).
-# 설정 오류(RuntimeError: 운영 설정 검사·범위 검사. 메시지에는 변수 이름만 있고 값은 없다)는 수십 줄 traceback(CloudWatch
-# 이벤트 수십 개) 대신 그 메시지 한 줄만 stderr에 남기고 종료 코드 1로 끝낸다 (uvicorn은 import 중의 SystemExit를 그대로 둔다).
+# 설정 오류(RuntimeError: 운영 설정 검사·범위 검사·HOLDER_KEY_ENCRYPTION_KEY 형식. 메시지에는 변수 이름만 있고 값은 없다)는
+# 수십 줄 traceback(CloudWatch 이벤트 수십 개) 대신 그 메시지 한 줄만 stderr에 남기고 종료 코드 1로 끝낸다
+# (uvicorn은 import 중의 SystemExit를 그대로 둔다). 위의 LOG_LEVEL 오류도 같다.
 try:
     get_settings()
 except RuntimeError as exc:
     print(exc, file=sys.stderr)
+    sys.exit(1)
+except UnicodeError:
+    # 환경변수에 UTF-8이 아닌 바이트가 든 값(비밀값 등)을 바이트로 바꾸다 실패: 오류 문구에는 그 글자가 들어 있으므로 싣지 않는다.
+    print("A setting value is not valid UTF-8 text (check the secret and environment values for stray bytes)",
+          file=sys.stderr)
     sys.exit(1)
 
 # - redirect_slashes=False: 끝에 /가 붙은 경로를 307로 돌려보내지 않는다. 그 Location은 요청의 Host 헤더로 만들어져
@@ -349,13 +364,20 @@ async def verifier_budget_handler(_: Request, exc: VerifierBudgetExceeded):
 @app.exception_handler(DatabaseBusy)
 @app.exception_handler(psycopg.errors.QueryCanceled)
 @app.exception_handler(psycopg.errors.LockNotAvailable)
+@app.exception_handler(psycopg.OperationalError)
 async def database_busy_handler(request: Request, exc: Exception):
     # DB가 바쁜 요청: 앱 DB 연결 자리를 얻지 못했거나(DatabaseBusy), 문장이 세션 시간 제한에 걸렸거나(QueryCanceled), 잠금을
     # 제한 시간 안에 얻지 못했다(LockNotAvailable). 한도는 database.app_db_connection이 건다. 서버 결함(500)이 아니라 잠시 뒤
     # 다시 하면 되는 상태라 503 + Retry-After로 답하고, 요청마다 추적(traceback)을 쌓지 않게 경고 한 줄만 남긴다.
+    # 그 밖의 OperationalError(접속 실패, 서버가 연결을 끊음, 재시작 중 등)도 같은 503이다: 요청이 몰려 접속이 실패할 때마다
+    # 500과 90여 줄짜리 추적이 쌓였다. 그 경우 이유는 db_startup_check.describe_error의 안전한 요약(호스트·사용자 없음)이다.
     # 예외 메시지에는 SQL 조각이 들어 있을 수 있어 예외 클래스 이름만 남긴다.
+    if isinstance(exc, (DatabaseBusy, psycopg.errors.QueryCanceled, psycopg.errors.LockNotAvailable)):
+        reason = type(exc).__name__
+    else:
+        reason = describe_db_error(exc)
     logger.warning("Database busy: method=%s path=%s reason=%s",
-                   request.method, _log_path(request.scope), type(exc).__name__)
+                   request.method, _log_path(request.scope), reason)
     return JSONResponse(status_code=503, content={"detail": DB_BUSY},
                         headers={"Retry-After": str(DB_BUSY_RETRY_AFTER_SECONDS)})
 
@@ -374,8 +396,13 @@ async def ai_service_error_handler(request: Request, exc: AIServiceError):
         request.method, path, exc.status_code, exc.code, exc.retryable, exc.upstream, exc.upstream_status,
         type(cause).__name__ if cause is not None else None,
     )
+    headers = dict(exc.headers or {})
+    if exc.status_code == 503 and exc.retryable and not any(k.lower() == "retry-after" for k in headers):
+        # 다시 하면 될 수 있는 AI 연동 실패(AI 연결 실패·시간 초과 등)에도 기다릴 시간을 알려 준다 (클라이언트가 바로 몰아 다시
+        # 보내지 않게). 자리 부족·LLM 생성 실패처럼 이미 Retry-After를 단 응답은 그 값을 그대로 둔다.
+        headers["Retry-After"] = str(AI_RETRY_AFTER_SECONDS)
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail, "code": exc.code},
-                        headers=exc.headers)
+                        headers=headers or None)
 
 
 # async: I/O가 없으므로 이벤트 루프에서 바로 답한다. 동기 함수면 워커 스레드를 하나 써야 해서, DB 자리·잠금을 기다리는

@@ -5,7 +5,7 @@ import {
   previewListShares,
   previewRevokeShare,
 } from '@/lib/preview';
-import { sanitizeSingleLine } from '@/lib/text';
+import { cleanEvidenceText, sanitizeSingleLine, stripInvisible } from '@/lib/text';
 import type {
   PublicShare,
   ShareCreateRequest,
@@ -57,7 +57,14 @@ export async function getPublicShare(token: string): Promise<PublicShare> {
   if (!Array.isArray(data?.credentials)) {
     throw new Error('서버 응답이 올바르지 않습니다.');
   }
-  return data;
+  // 발급기관이 서명한 문구는 BE가 원본 그대로 돌려준다. 기업 담당자 화면에서 방향 제어 문자(U+202E 등)로 글자 순서를
+  // 뒤집어 보이게 하지 못하도록 보이지 않는 글자만 지워 보여 준다 (React가 글자로 출력하므로 스크립트 실행은 원래 없다).
+  const holderName = data.holder?.name;
+  return {
+    ...data,
+    holder: { ...data.holder, name: typeof holderName === 'string' ? stripInvisible(holderName) : '' },
+    credentials: data.credentials.map(cleanEvidenceText),
+  };
 }
 
 /**

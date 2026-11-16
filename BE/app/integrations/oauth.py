@@ -13,6 +13,7 @@ from urllib.parse import urlencode
 import httpx
 
 from app.core.config import Settings
+from app.core.text import has_visible_text, is_email_confusable, strip_invisible
 from app.integrations.ports import (
     OAuthCodeError, OAuthEmailMissing, OAuthEmailUnverified, OAuthUserInfo, ProviderError,
 )
@@ -99,16 +100,18 @@ def _plain_text(value: Any) -> Optional[str]:
 
 def _display_name(*values: Any, fallback: str) -> str:
     """프로필 이름 정리. 가입 API는 한 줄이 아닌 이름을 거절하지만, 여기서는 거절하지 않고 고친다
-    (프로필 이름 때문에 로그인이 막히지 않게): 제어 문자·줄/문단 구분자는 공백으로 바꾸고, 이어진 공백은 하나로 줄이고,
-    앞뒤 공백을 떼고 100자로 자른다. 후보(values)를 앞에서부터 보고 정리한 결과가 비어 있지 않은 첫 값을 쓰며,
+    (프로필 이름 때문에 로그인이 막히지 않게): 제어 문자·줄/문단 구분자는 공백으로 바꾸고, 방향 제어·보이지 않는 서식
+    문자(U+202E·U+200B 등, app.core.text.BIDI_AND_INVISIBLE: 가입 API는 거절한다)는 지우고, 이어진 공백은 하나로 줄이고,
+    앞뒤 공백을 떼고 100자로 자른다. 후보(values)를 앞에서부터 보고 정리한 결과에 보이는 글자가 있는 첫 값을 쓰며,
     쓸 이름이 없으면 fallback(이메일의 @ 앞부분)을 쓴다."""
     for value in values:
-        text = value if isinstance(value, str) else ""
+        text = strip_invisible(value) if isinstance(value, str) else ""
         text = "".join(" " if unicodedata.category(ch) in _NOT_PLAIN_TEXT else ch for ch in text)
         text = " ".join(text.split())[:_MAX_NAME_CHARS].strip()
-        if text:
+        if text and has_visible_text(text):  # 결합 문자·이형 선택자만 남은 이름은 빈 이름처럼 보이므로 다음 후보로
             return text
-    return fallback[:_MAX_NAME_CHARS]
+    fallback = fallback[:_MAX_NAME_CHARS]
+    return fallback if has_visible_text(fallback) else "사용자"  # 보이는 글자가 없는 이메일 앞부분은 쓰지 않는다
 
 
 def _confusable_email_char(ch: str) -> bool:
@@ -116,7 +119,7 @@ def _confusable_email_char(ch: str) -> bool:
     - 보이지 않는 서식 문자(Cf: U+200B 폭 없는 공백, U+202E 방향 바꿈 등): 화면에서 다른 계정 이메일과 똑같아 보인다.
     - 소문자로 바꾸면 ASCII가 되는 비ASCII 문자(U+212A 켈빈 기호 → k, U+0130 İ → i + 점): 이메일은 소문자로 바꿔
       비교·연동하므로, 다른(비ASCII) 메일함이 ASCII 계정과 같은 이메일로 읽힌다."""
-    if unicodedata.category(ch) == "Cf":
+    if is_email_confusable(ch):  # Cf, 폭 0인 미배정 글자(U+E0080 등)·한글 채움 문자·이형 선택자·CGJ·U+FFFC
         return True
     return not ch.isascii() and any(c.isascii() for c in ch.lower())
 

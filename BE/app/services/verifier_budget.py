@@ -28,6 +28,9 @@
   토큰을 분당 한도만큼 협력사로 흘려보내지 못하게). 부르기 전에 자리를 잡고 나중에 돌려주므로 동시에 몰아 보내도 넘지 못한다.
   통과한 요청, 저장된 배지(폐기·만료 포함), 검증기 장애, 검증기가 답한 뒤의 우리 쪽 실패(DB가 바쁨 등)는 자리를 돌려준다.
 - 모의 발급의 시도 한도(mock_issue_attempts: 사용자별): 성공 건수만 세는 DB 한도와 달리 실패한 발급까지 센다.
+- LLM 모드 학습 계획의 시도 한도(llm_curriculum_attempts: 사용자별 24시간, 한도는 CURRICULUM_LLM_DAILY_LIMIT):
+  외부 LLM(Gemini)을 불렀을 수 있는 시도를 실패까지 센다 (저장된 LLM 계획만 세는 DB 한도와 함께 본다: services/career.py).
+  부르기 전에 자리를 잡으므로 동시에 몰아 보내도 넘지 못한다. 모델을 부르지 않고 끝난 요청은 자리를 돌려준다.
 
 실패 차단기(FailureBreaker)도 여기에 둔다.
 - 모의 발급의 실패 차단기(mock_issue_breaker: 태스크 전체에 하나): 협력사까지 간 실패가 24시간에
@@ -57,6 +60,8 @@ MOCK_ISSUE_WINDOW_SECONDS = 24 * 60 * 60
 # 모의 발급: 태스크 전체의 실패 차단기(mock_issue_breaker)는 실패를 위와 같은 24시간 동안 센다 (한도는 요청마다
 # MOCK_ISSUER_GLOBAL_DAILY_LIMIT에서 읽는다). 한도에 닿은 뒤에는 이 간격(초)마다 요청 하나만 협력사로 보내 본다(탐침).
 MOCK_ISSUE_PROBE_INTERVAL_SECONDS = 60
+# LLM 모드 학습 계획: 사용자별 24시간 시도 수 (한도는 요청마다 CURRICULUM_LLM_DAILY_LIMIT에서 읽는다)
+LLM_CURRICULUM_WINDOW_SECONDS = 24 * 60 * 60
 
 SERVICE_CALLER = "service"  # 서비스 키 주체 (X-Service-Key)는 사용자 id가 없어 한 키를 함께 쓴다
 ANONYMOUS_CALLER = "anonymous"  # 기업용 조회 (감사 로그 표기용. 한도는 public_view_gate가 맡는다)
@@ -289,6 +294,8 @@ verifier_budget = VerifierBudget()
 rejected_verifications = AttemptWindow(REJECTED_VERIFICATIONS, REJECTED_VERIFICATION_WINDOW_SECONDS)
 mock_issue_attempts = AttemptWindow(MOCK_ISSUE_ATTEMPTS, MOCK_ISSUE_WINDOW_SECONDS)
 mock_issue_breaker = FailureBreaker(MOCK_ISSUE_WINDOW_SECONDS, MOCK_ISSUE_PROBE_INTERVAL_SECONDS)
+# max_attempts는 reserve 때마다 설정값(CURRICULUM_LLM_DAILY_LIMIT)으로 넘긴다. 여기 값은 쓰지 않는 자리표시다.
+llm_curriculum_attempts = AttemptWindow(1, LLM_CURRICULUM_WINDOW_SECONDS)
 
 
 def caller_key(principal) -> str:

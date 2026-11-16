@@ -1012,10 +1012,11 @@ print(json.dumps([logging.getLogger(name).level for name in ("httpx", "httpcore"
 """
 
 
-@pytest.mark.parametrize("log_level", ["NOTSET", "INFO", "WARNING", "DEBUG"])
+@pytest.mark.parametrize("log_level", ["INFO", "WARNING", "ERROR", "DEBUG"])
 def test_httpx_and_httpcore_lines_are_not_logged_unless_debug(log_level):
     # 회귀: httpx만 WARNING으로 묶어 LOG_LEVEL=NOTSET(루트가 모든 수준을 남긴다)이면 httpcore DEBUG 줄이 그대로 나갔다.
     # 이제 DEBUG가 아니면 httpx·httpcore 둘 다 WARNING이고, DEBUG면 둘 다 그대로 둔다(루트 수준을 따른다).
+    # NOTSET은 이제 log_level()이 받지 않아 서버가 한 줄로 끝난다 (아래 테스트, tests/test_config.py).
     env = {**os.environ, "LOG_LEVEL": log_level, "PYTHONDONTWRITEBYTECODE": "1"}
     result = subprocess.run([sys.executable, "-B", "-c", _HTTP_LOG_PROBE], cwd=BE_DIR, env=env,
                             capture_output=True, text=True, timeout=120)
@@ -1028,6 +1029,19 @@ def test_httpx_and_httpcore_lines_are_not_logged_unless_debug(log_level):
     else:
         assert levels == [logging.WARNING, logging.WARNING]
         assert "probe.invalid" not in result.stderr
+
+
+@pytest.mark.parametrize("log_level", ["NOTSET", "notset", "verbose", "10"])
+def test_server_refuses_an_unknown_log_level_with_one_line_before_any_request(log_level):
+    # 회귀(E1): 없는 수준 이름이면 main.py를 불러올 때 logging.basicConfig의 'Unknown level' ValueError traceback으로 끝났다
+    # (NOTSET은 받아서 루트가 httpx·httpcore를 포함한 모든 수준을 남겼다). 이제 import 중에 한 줄 + 종료 코드 1이다.
+    env = {**os.environ, "LOG_LEVEL": log_level, "PYTHONDONTWRITEBYTECODE": "1"}
+    result = subprocess.run([sys.executable, "-B", "-c", _HTTP_LOG_PROBE], cwd=BE_DIR, env=env,
+                            capture_output=True, text=True, timeout=120)
+    assert result.returncode == 1 and result.stdout == "", result.stderr[-2000:]
+    assert result.stderr.splitlines() == [
+        "LOG_LEVEL must be one of: DEBUG, INFO, WARNING, ERROR, CRITICAL (empty means INFO)"]
+    assert "probe.invalid" not in result.stderr
 
 
 # ── 저장할 수 없는 문자 (NUL·짝 없는 서로게이트) ───────────────────────

@@ -7,6 +7,7 @@ import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
+import { isSendableSingleLine, NO_VISIBLE_TEXT_MESSAGE } from '@/lib/text';
 import { Modal } from '@/components/ui/Modal';
 import { getApiErrorMessage } from '@/lib/apiClient';
 import { useCopy } from '@/lib/useCopy';
@@ -37,13 +38,16 @@ function PortfolioEditForm({
   if (title.trim() !== portfolio.title) fields.title = title.trim();
   if ((role.trim() || null) !== portfolio.target_role) fields.target_role = role.trim() || null;
   const changed = Object.keys(fields).length > 0;
+  // 바꾼 칸만 검사한다 (보내지 않는 칸에 예전 값이 남아 있어도 저장을 막지 않는다).
+  const titleOk = fields.title === undefined || isSendableSingleLine(title, true);
+  const roleOk = fields.target_role === undefined || isSendableSingleLine(role);
 
   return (
     <form
       className="flex flex-col gap-3 rounded-2xl bg-[var(--color-surface)] p-4"
       onSubmit={(e) => {
         e.preventDefault();
-        if (changed && title.trim()) onSave(fields);
+        if (changed && titleOk && roleOk) onSave(fields);
       }}
     >
       <Input
@@ -51,7 +55,7 @@ function PortfolioEditForm({
         label="제목"
         maxLength={255}
         value={title}
-        error={title.trim() ? undefined : '제목을 입력해주세요.'}
+        error={!title.trim() ? '제목을 입력해주세요.' : titleOk ? undefined : NO_VISIBLE_TEXT_MESSAGE}
         onChange={(e) => setTitle(e.target.value)}
         className="bg-white"
       />
@@ -60,6 +64,7 @@ function PortfolioEditForm({
         label="희망 직무 (비우면 삭제)"
         maxLength={100}
         value={role}
+        error={roleOk ? undefined : NO_VISIBLE_TEXT_MESSAGE}
         onChange={(e) => setRole(e.target.value)}
         className="bg-white"
       />
@@ -71,7 +76,7 @@ function PortfolioEditForm({
         <Button type="button" variant="tertiary" size="sm" className="flex-1" onClick={onCancel}>
           취소
         </Button>
-        <Button type="submit" size="sm" className="flex-1" disabled={!changed || !title.trim()} isLoading={isSaving}>
+        <Button type="submit" size="sm" className="flex-1" disabled={!changed || !titleOk || !roleOk} isLoading={isSaving}>
           저장
         </Button>
       </div>

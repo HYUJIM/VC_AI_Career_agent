@@ -81,14 +81,17 @@ def test_database():
 @pytest.fixture(autouse=True)
 def reset_call_budgets():
     """프로세스 메모리에 두는 호출 한도(검증기 호출 몫, 거절된 배지 검증 창, 모의 발급 시도 수·실패 차단기, 기업용 조회
-    몫·응답, OAuth 제공자(Google·GitHub·Naver)별 토큰 교환 몫)를 테스트마다 비운다.
+    몫·응답, OAuth 제공자(Google·GitHub·Naver)별 토큰 교환 몫, 사용자별 AI 묶음 요청 한도, LLM 학습 계획 시도 창)를
+    테스트마다 비운다.
 
     한 테스트가 쓴 몫이 다음 테스트의 429/503이 되지 않게 한다 (로그인 실패 제한을 test_auth_security가 비우는 것과 같다).
     """
     from app.api.oauth import github_exchange_budget, naver_exchange_budget, oauth_exchange_budget
+    from app.integrations.ai_service import clear_corpus_caller_limits
+    from app.services.career import clear_llm_in_flight
     from app.services.public_view_gate import public_view_gate
     from app.services.verifier_budget import (
-        mock_issue_attempts, mock_issue_breaker, rejected_verifications, verifier_budget,
+        llm_curriculum_attempts, mock_issue_attempts, mock_issue_breaker, rejected_verifications, verifier_budget,
     )
 
     def clear():
@@ -100,6 +103,9 @@ def reset_call_budgets():
         oauth_exchange_budget.clear()
         github_exchange_budget.clear()
         naver_exchange_budget.clear()
+        clear_corpus_caller_limits()
+        llm_curriculum_attempts.clear()
+        clear_llm_in_flight()
 
     clear()
     yield

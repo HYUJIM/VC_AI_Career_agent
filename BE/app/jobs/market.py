@@ -235,10 +235,10 @@ def main(argv: list[str] | None = None) -> int:
     load_dotenv()  # 로컬 실행용 BE/.env. 컨테이너·ECS에서는 이미 있는 환경변수가 우선한다.
     # 서버(main.py)와 같은 규칙: LOG_LEVEL을 따르고(비우면 INFO), 요청마다 전체 URL(출처 공고 주소·AI 서비스 호스트)을 남기는
     # httpx 로그와 접속 호스트·응답 헤더를 남기는 httpcore 로그는 LOG_LEVEL=DEBUG일 때만 낸다.
-    level = log_level()
     try:
+        level = log_level()  # 없는 수준 이름이면 RuntimeError (app.core.config)
         logging.basicConfig(level=level, format="%(levelname)s:%(name)s:%(message)s")
-    except ValueError:
+    except (RuntimeError, ValueError):
         # logging이 모르는 수준 이름(LOG_LEVEL=verbose 등): traceback 대신 인자 오류처럼 한 줄을 남기고 종료 코드 2로 끝낸다.
         parser.error("LOG_LEVEL은 DEBUG, INFO, WARNING, ERROR, CRITICAL 중 하나여야 합니다 (비우면 INFO)")
     if level != "DEBUG":

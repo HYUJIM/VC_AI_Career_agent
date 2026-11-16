@@ -16,6 +16,8 @@ from urllib.parse import urlsplit
 logger = logging.getLogger(__name__)
 
 APP_ENVS = ("development", "production")
+# LOG_LEVEL이 받는 수준 이름 (log_level). 비우면 INFO.
+LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 MIN_JWT_SECRET_BYTES = 32  # HS256 서명 키 최소 길이 (RFC 7518 3.2)
 # 액세스 토큰 수명(분)의 상한이자 기본값. 로그아웃하지 않고 떠난 세션(공용 PC 등)이 살아 있는 시간의 상한이다.
 MAX_JWT_EXPIRES_MINUTES = 1440
@@ -27,8 +29,10 @@ DEFAULT_MOCK_ISSUER_GLOBAL_DAILY_LIMIT = 200
 DEFAULT_DB_MAX_CONNECTIONS = 20
 # 프로세스 하나가 AI 서비스에 동시에 보내는 공고·학습자료 묶음 요청 수의 상한 기본값 (AI_MAX_CONCURRENCY를 비우면 이 값)
 DEFAULT_AI_MAX_CONCURRENCY = 4
+# LLM 모드 학습 계획의 사용자별 24시간 한도 기본값 (CURRICULUM_LLM_DAILY_LIMIT을 비우면 이 값)
+DEFAULT_CURRICULUM_LLM_DAILY_LIMIT = 20
 # production 비밀값의 서로 다른 바이트 수 하한. "x"*32·0x01*32 같은 자리표시 값을 거부한다
-# (README대로 secrets·os.urandom으로 만든 32바이트 이상 값은 사실상 항상 넘는다).
+# (docs/GETTING_STARTED.md 2번대로 secrets·os.urandom으로 만든 32바이트 이상 값은 사실상 항상 넘는다).
 MIN_SECRET_DISTINCT_BYTES = 8
 # 이 공개 저장소에 들어 있는 테스트 비밀값. 누구나 아는 값이므로 production에서는 길이·형식이 맞아도 받지 않는다.
 # 테스트에 고정 비밀값을 새로 넣으면 여기에도 더한다 (tests/test_config.py가 conftest 값으로 확인한다).
@@ -132,8 +136,14 @@ def log_level() -> str:
     """LOG_LEVEL (없거나 비우면 INFO). 서버(main.py)·마이그레이션 실행기·시장 통계 배치가 같은 규칙으로 읽는다.
 
     `LOG_LEVEL=`처럼 비워 둔 줄(.env·작업 정의)이 logging의 'Unknown level' traceback으로 시작을 막지 않게 한다.
+    대소문자는 가리지 않고 LOG_LEVELS의 다섯 이름만 받는다. 그 밖의 값(`verbose`, 숫자, logging만 아는 `NOTSET`·`WARN`·
+    `FATAL` 등)은 시작할 때 RuntimeError로 알린다: 서버·마이그레이션 실행기는 그 한 줄과 종료 코드 1로 끝나고, 시장 통계
+    배치는 인자 오류처럼 한 줄과 종료 코드 2로 끝난다. 메시지에는 변수 이름과 받는 값만 넣고 넣은 값은 싣지 않는다.
     """
-    return os.getenv("LOG_LEVEL", "").strip().upper() or "INFO"
+    level = os.getenv("LOG_LEVEL", "").strip().upper() or "INFO"
+    if level not in LOG_LEVELS:
+        raise RuntimeError(f"LOG_LEVEL must be one of: {', '.join(LOG_LEVELS)} (empty means INFO)")
+    return level
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -285,6 +295,8 @@ class Settings:
     researcher_user_ids: frozenset[str]
     # 커리큘럼 LLM 모드를 쓸 수 있는 사용자 UUID 목록 (LLM 설정 자체는 AI 서비스 .env).
     curriculum_llm_user_ids: frozenset[str]
+    # 허용된 사용자 한 명이 24시간에 만들 수 있는 LLM 모드 학습 계획 수 (1 이상, 기본 20). 외부 LLM(Gemini) 비용·한도 보호.
+    curriculum_llm_daily_limit: int
 
 
 @lru_cache
@@ -312,7 +324,13 @@ def get_settings() -> Settings:
     if raw_master_key:
         from app.services.key_custody import parse_master_key
 
-        holder_key = parse_master_key(raw_master_key)  # 형식이 틀리면 서버 시작 시 바로 실패
+        try:
+            holder_key = parse_master_key(raw_master_key)
+        except ValueError as exc:
+            # 형식 오류(base64가 아님, 32바이트가 아님. `NAME=` 접두사를 붙인 값 등)도 다른 설정 오류처럼 RuntimeError 한 줄로
+            # 알린다: 서버는 traceback 없이 이 줄과 종료 코드 1로 끝난다 (main.py). 메시지는 parse_master_key의 고정 문구
+            # (변수 이름과 규칙)뿐이고 넣은 값은 싣지 않는다. 원래 예외(base64 디코더 오류)는 잇지 않는다.
+            raise RuntimeError(str(exc)) from None
         # 디코딩한 바이트로 비교하므로 base64 표기(표준·URL-safe·패딩 없음)가 달라도 같은 키로 본다.
         if production and _weak_secret(holder_key):
             missing.append(f"HOLDER_KEY_ENCRYPTION_KEY ({_RANDOM_NOT_PUBLISHED})")
@@ -469,6 +487,8 @@ def get_settings() -> Settings:
         db_max_connections=db_max_connections(),
         researcher_user_ids=frozenset(_env_list("RESEARCHER_USER_IDS", "")),
         curriculum_llm_user_ids=frozenset(_env_list("CURRICULUM_LLM_USER_IDS", "")),
+        curriculum_llm_daily_limit=_env_int("CURRICULUM_LLM_DAILY_LIMIT", DEFAULT_CURRICULUM_LLM_DAILY_LIMIT,
+                                            minimum=1),
     )
     if production and settings.mock_issuer_enabled:
         logger.warning(

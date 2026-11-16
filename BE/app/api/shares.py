@@ -10,7 +10,7 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
 from app.core.auth import Principal, require_user
-from app.core.text import ensure_storable
+from app.core.text import ensure_single_line, ensure_storable
 from app.integrations import get_verifier
 from app.integrations.ports import CredentialVerifier
 from app.services.database import db_service
@@ -32,13 +32,23 @@ def _hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
+def _single_line_label(value: Optional[str]) -> Optional[str]:
+    """링크 이름 검사기: 앞뒤 공백을 뗀 값이 한 줄 텍스트가 아니면 ValueError(→ 422). 값은 그대로 돌려준다."""
+    if value is not None:
+        ensure_single_line(value.strip())
+    return value
+
+
 class ShareCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     record_ids: list[UUID] = Field(min_length=1, max_length=50)
     # StorableText와 같은 검사(NUL·짝 없는 서로게이트 → 500 대신 422). 길이 제한을 검사기보다 앞에 두어야
     # 너무 긴 값의 422 메시지가 지금과 같다 (Optional[StorableText] + Field(max_length)는 메시지가 바뀜).
-    label: Optional[Annotated[str, Field(max_length=100), AfterValidator(ensure_storable)]] = None
+    # 링크 이름은 한 줄 텍스트다: 앞뒤 공백을 뗀 값에 줄바꿈·ESC 등 제어 문자·방향 제어 문자가 있으면 422
+    # (포트폴리오 제목과 같은 규칙. 앞뒤 공백·줄바꿈은 지금처럼 create_share가 떼어 저장한다).
+    label: Optional[Annotated[str, Field(max_length=100), AfterValidator(ensure_storable),
+                              AfterValidator(_single_line_label)]] = None
     expires_in_days: int = Field(default=14, ge=1, le=90)
 
 

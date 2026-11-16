@@ -131,7 +131,8 @@ def test_changed_or_missing_generator_configuration_never_calls_model(
 ):
     current, _ = job("llm", {"model": "frozen-at-enqueue"})
     client = ScriptedClient()
-    assert run(current, client).error_code == "UNTRUSTED_OR_UNSUPPORTED_JOB_INPUT"
+    outcome = run(current, client)
+    assert (outcome.error_code, outcome.retryable) == ("GENERATOR_CONFIGURATION_CHANGED", True)
     monkeypatch.setenv("CURRICULUM_LLM_ENABLED", "false")
     assert run(current, client).error_code == "GENERATOR_CONFIGURATION_REQUIRED"
     assert client.calls == 0

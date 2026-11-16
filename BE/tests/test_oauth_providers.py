@@ -1160,7 +1160,11 @@ def test_provider_without_a_callback_address_is_503_even_when_the_fe_sends_one(c
     ("naver", "‮moc.elpmaxe@lee"),         # 방향 바꿈 문자
     ("github", "kim⁠@example.com"),         # 단어 결합자 (Cf)
     ("github", "kim​@example.com"),         # 폭 없는 공백 (Cf)
-], ids=["kelvin", "dotted-i", "zero-width-space", "rtl-override", "word-joiner", "github-zero-width-space"])
+    ("github", "kim\ufe00@example.com"),     # 이형 선택자: 폭 0, 다른 계정 이메일과 똑같아 보인다 (v-review R11-02)
+    ("naver", "kim\U000E0080@example.com"),  # 폭 0인 미배정 글자
+    ("github", "\u034f@example.com"),        # CGJ만 있는 앞부분
+], ids=["kelvin", "dotted-i", "zero-width-space", "rtl-override", "word-joiner", "github-zero-width-space",
+        "variation-selector", "unassigned-ignorable", "cgj-only-local"])
 async def test_confusable_or_invisible_email_characters_are_refused(provider, email):
     # 소문자로 바꿔 비교·연동하므로, 다른 메일함이 ASCII 계정과 같은 이메일로 읽히거나 똑같아 보이는 이메일은 받지 않는다.
     responses = {"emails": with_emails(primary(email=email))} if provider == "github" else {

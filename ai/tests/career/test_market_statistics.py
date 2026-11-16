@@ -373,7 +373,7 @@ def test_posting_must_be_https_and_have_content():
 
 
 def test_bundled_snapshots_still_load_and_match_their_hash():
-    # 저장소에 넣어 둔 집계 결과(README의 import 단계가 읽는다)는 계약 모델이 extra='forbid'라서, 계약이나
+    # 저장소에 넣어 둔 집계 결과(docs/GETTING_STARTED.md 7-1·BE/README의 import 단계가 읽는다)는 계약 모델이 extra='forbid'라서, 계약이나
     # 직렬화가 바뀌면 조용히 못 쓰게 된다. BE가 읽을 때와 같은 검사(형식 → content_hash 재계산)를 한다.
     paths = sorted(SNAPSHOT_DIR.glob("*.json"))
     assert paths, "data/market_snapshots에 스냅샷 파일이 없다"

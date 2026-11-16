@@ -13,8 +13,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 실행에 필요한 파일만 복사한다 (.venv·tests·시드·csv 제외). DB/는 마이그레이션 실행기(python -m app.migrate)가 쓴다.
-# certs/는 RDS CA 묶음(rds-global-bundle.pem, 출처·SHA-256·갱신 방법은 certs/README.md)이다. 서비스·마이그레이션·시장 통계
-# 태스크가 모두 이 이미지를 그대로 쓰므로 따로 파생 이미지를 만들지 않는다.
+# certs/는 RDS CA 묶음(rds-global-bundle.pem, 출처·SHA-256·갱신 방법은 certs/README.md)이다. 서비스·마이그레이션 태스크는 이
+# 이미지를 그대로 쓰고, 시장 통계 반입 태스크는 이 이미지에 스냅샷 파일만 더한 이미지(vc-be:<TAG>-market, deploy/README.md ⑤-1)를
+# 쓰므로 CA 묶음과 PGSSLROOTCERT를 함께 물려받는다. CA 묶음을 넣으려고 따로 파생 이미지를 만들지는 않는다.
 COPY main.py ./
 COPY app ./app
 COPY DB/schema ./DB/schema

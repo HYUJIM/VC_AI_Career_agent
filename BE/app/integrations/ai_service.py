@@ -15,11 +15,19 @@ VC 서명 원본·비밀번호·키는 보내지 않는다. AI는 계산만 하�
   503(code AI_SERVICE_BUSY) + Retry-After로 답한다. 이 요청들은 묶음을 DB에서 읽기 전에 AIServiceClient.corpus_slot으로
   자리를 먼저 잡는다: 자리를 얻지 못할 요청이 묶음을 메모리에 올리지 않는다. 자리를 쥔 채로는 검증기(DXWorks)를 부르지
   않는다 (직무 비교는 자격증명 재검증을 마친 뒤에 자리를 잡는다: 협력사가 느려도 다른 묶음 요청이 그 뒤에 서지 않는다).
+- 묶음 요청은 사용자마다도 묶는다 (corpus_slot(upstream, caller)). 위 자리는 프로세스 전체에 하나라, 무료 계정 하나가
+  공고 목록을 초당 10번씩 부르면 다른 사용자의 학습자료 검색·직무 비교가 자리를 기다리다 503이 됐다.
+  사용자 하나가 동시에 쥘 수 있는 자리는 CORPUS_IN_FLIGHT_PER_USER개, 묶음 요청 수는 분당 CORPUS_REQUESTS_PER_MINUTE번·
+  시간당 CORPUS_REQUESTS_PER_HOUR번(토큰 버킷)이다. 넘으면 기다리지 않고 DB·AI를 부르지 않은 채 429 + Retry-After로 답한다
+  (감사 로그 vc-be.audit 한 줄. 프로세스 메모리라 태스크마다 따로 세고 재시작하면 지워진다: IP별 제한은 WAF가 맡는다).
 """
 import asyncio
 import contextvars
+import logging
+import threading
 import weakref
 from contextlib import asynccontextmanager
+from typing import Optional
 from urllib.parse import urlsplit
 
 import httpx
@@ -47,6 +55,9 @@ from app.ai_contract.career import PreviewRequest, SkillCatalog
 from app.ai_contract.curriculum import PlanningContext
 from app.ai_contract.market import MarketSnapshotOutput, MarketSnapshotRequest
 from app.core.config import get_settings
+from app.services.verifier_budget import MAX_KEYS, VerifierBudget, VerifierBudgetExceeded
+
+audit = logging.getLogger("vc-be.audit")
 
 LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
 NON_RETRYABLE = {"AI_CONFIGURATION_REQUIRED", "AI_SERVICE_TOKEN_NOT_CONFIGURED",
@@ -69,6 +80,23 @@ _corpus_slots: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, tuple[int, 
 # 이 요청(태스크)이 묶음 요청 자리를 이미 잡고 있는지. 잡고 있으면 그 안의 묶음 호출은 자리를 다시 잡지 않는다
 # (자리를 쥔 채 두 번째 자리를 기다리면 요청끼리 서로 막힌다).
 _holds_corpus_slot: contextvars.ContextVar[bool] = contextvars.ContextVar("holds_corpus_slot", default=False)
+
+# 사용자별 묶음 요청 한도 (corpus_slot의 caller). 화면은 공고 목록 다시 불러오기와 직무 비교·학습 계획이 겹칠 수 있어
+# 동시 2개까지 받는다 (기본 AI_MAX_CONCURRENCY 4자리 중 절반: 계정 하나가 자리를 모두 쥐지 못한다).
+CORPUS_IN_FLIGHT_PER_USER = 2
+CORPUS_REQUESTS_PER_MINUTE = 30
+CORPUS_REQUESTS_PER_HOUR = 300
+CORPUS_IN_FLIGHT_RETRY_AFTER_SECONDS = 2
+# FE가 이 문구로 안내를 고른다 (FE/src/lib/apiClient.ts). 바꾸면 FE도 함께 바꾼다.
+TOO_MANY_ANALYSIS_REQUESTS = "Too many analysis requests. Try again later."
+# 사용자별 묶음 요청 수 (분·시간 토큰 버킷: verifier_budget.VerifierBudget과 같은 계산, 키는 MAX_KEYS개까지).
+# 프로세스 전체 상한은 위 자리(AI_MAX_CONCURRENCY)가 맡으므로 이 버킷의 프로세스 몫은 닿지 않을 만큼 크게 둔다.
+corpus_request_budget = VerifierBudget(calls_per_minute=CORPUS_REQUESTS_PER_MINUTE,
+                                       calls_per_hour=CORPUS_REQUESTS_PER_HOUR,
+                                       process_calls_per_minute=CORPUS_REQUESTS_PER_MINUTE * MAX_KEYS)
+# 사용자 id → 지금 묶음 요청 자리를 쥐었거나 기다리는 요청 수 (0이 되면 지운다).
+_corpus_in_flight: dict[str, int] = {}
+_corpus_in_flight_lock = threading.Lock()
 
 
 class AIServiceError(HTTPException):
@@ -122,6 +150,45 @@ async def _take_corpus_slot(upstream: str) -> asyncio.Semaphore:
         error.upstream = upstream  # AI에는 아무것도 보내지 않았다 (upstream_status는 None으로 남는다)
         raise error from None
     return slots
+
+
+def _enter_caller(caller: str, upstream: str) -> None:
+    """사용자별 묶음 요청 한도를 본다: 동시 수(CORPUS_IN_FLIGHT_PER_USER)와 분·시간 몫. 통과하면 동시 수를 하나 올린다.
+
+    넘으면 기다리지 않고 429 + Retry-After (DB의 묶음도 AI도 부르지 않는다). 감사 로그(vc-be.audit) 한 줄을 남긴다.
+    동시 수로 거절한 요청은 몫을 가져가지 않는다.
+    """
+    with _corpus_in_flight_lock:
+        if _corpus_in_flight.get(caller, 0) >= CORPUS_IN_FLIGHT_PER_USER:
+            reason, retry_after = "in_flight", CORPUS_IN_FLIGHT_RETRY_AFTER_SECONDS
+        else:
+            try:
+                corpus_request_budget.reserve(caller, 1)
+            except VerifierBudgetExceeded as exc:
+                reason, retry_after = "rate", exc.retry_after
+            else:
+                _corpus_in_flight[caller] = _corpus_in_flight.get(caller, 0) + 1
+                return
+    audit.info("event=corpus_budget_denied user=%s route=%s reason=%s retry_after=%d",
+               caller, upstream.rsplit(" ", 1)[-1], reason, retry_after)
+    raise HTTPException(status_code=429, detail=TOO_MANY_ANALYSIS_REQUESTS,
+                        headers={"Retry-After": str(retry_after)})
+
+
+def _leave_caller(caller: str) -> None:
+    with _corpus_in_flight_lock:
+        remaining = _corpus_in_flight.get(caller, 0) - 1
+        if remaining > 0:
+            _corpus_in_flight[caller] = remaining
+        else:
+            _corpus_in_flight.pop(caller, None)
+
+
+def clear_corpus_caller_limits() -> None:
+    """사용자별 묶음 요청 한도를 비운다 (테스트용: conftest가 테스트마다 부른다)."""
+    corpus_request_budget.clear()
+    with _corpus_in_flight_lock:
+        _corpus_in_flight.clear()
 
 
 def _settings() -> tuple[str, str]:
@@ -179,24 +246,45 @@ class AIServiceClient:
         self.transport = transport
 
     @asynccontextmanager
-    async def corpus_slot(self, upstream: str):
+    async def caller_slot(self, upstream: str, caller: str):
+        """사용자별 묶음 요청 한도(_enter_caller)를 corpus_slot보다 먼저 잡고 이 구간이 끝날 때 돌려준다.
+
+        묶음 요청 앞에 비싼 일(직무 비교의 검증기 재검증)이 있는 API가 쓴다: 한도를 넘는 요청은 그 일을 하기 전에 429로
+        끝난다. 이 구간 안의 corpus_slot에는 caller를 주지 않는다 (주면 같은 요청을 두 번 센다).
+        """
+        _enter_caller(caller, upstream)
+        try:
+            yield
+        finally:
+            _leave_caller(caller)
+
+    @asynccontextmanager
+    async def corpus_slot(self, upstream: str, caller: Optional[str] = None):
         """묶음 요청 자리 하나를 잡고 이 구간이 끝날 때(오류·취소 포함) 돌려준다. upstream은 로그용 호출 이름이다.
 
         묶음을 DB에서 읽기 전에 이 구간으로 감싸면, 자리를 얻지 못할 요청은 묶음을 읽지 않고 503 AI_SERVICE_BUSY로
         끝난다 (기다리는 시간·응답은 _take_corpus_slot과 같다). 이 구간 안의 묶음 호출(_call(corpus=True))과 겹쳐 쓴
         corpus_slot은 자리를 다시 잡지 않는다. 이 구간 안에서 검증기(DXWorks)처럼 오래 걸릴 수 있는 다른 외부 호출을
         기다리지 않는다 (자리는 모든 묶음 요청이 함께 쓴다).
+        caller(사용자 id)를 주면 프로세스 전체 자리를 기다리기 전에 사용자별 한도(_enter_caller)를 먼저 본다: 넘으면 429.
+        사용자 요청을 받는 API는 모두 caller를 준다.
         """
         if _holds_corpus_slot.get():
             yield
             return
-        slots = await _take_corpus_slot(upstream)
-        held = _holds_corpus_slot.set(True)
+        if caller is not None:
+            _enter_caller(caller, upstream)
         try:
-            yield
+            slots = await _take_corpus_slot(upstream)
+            held = _holds_corpus_slot.set(True)
+            try:
+                yield
+            finally:
+                _holds_corpus_slot.reset(held)
+                slots.release()
         finally:
-            _holds_corpus_slot.reset(held)
-            slots.release()
+            if caller is not None:
+                _leave_caller(caller)
 
     async def _call(self, method: str, path: str, model: type[BaseModel], body: BaseModel | None = None,
                     *, generation: bool = False, corpus: bool = False):
