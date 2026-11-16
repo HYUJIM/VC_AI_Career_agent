@@ -525,28 +525,9 @@ INSERT INTO public.credentials VALUES ('9ca716d1-01a6-41ac-9785-19d71eb746b7', '
 
 
 --
--- Data for Name: student_credential_embeddings; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-
-
---
--- Data for Name: user_skills; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-
-
---
 -- Data for Name: verification_checks; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-
-
---
--- Name: user_skills_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.user_skills_id_seq', 1, false);
 
 
 --

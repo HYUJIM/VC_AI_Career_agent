@@ -12,7 +12,6 @@ from src.career.skill_catalog import (
 )
 
 RESOURCE_FRESHNESS_DAYS = 30
-MAX_RESOURCES = 500
 # 선수지식 주석 하나는 필수 기술 하나만 가리켜야 한다. 공고 요구사항의 "또는" 어휘(OR_PATTERN)에
 # "/"만 더해 그대로 써서 두 검사가 다시 어긋나지 않게 한다.
 AMBIGUOUS_PREREQUISITE_PATTERN = OR_PATTERN + r"|/"

@@ -13,13 +13,21 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 실행에 필요한 파일만 복사한다 (.venv·tests·시드·csv 제외). DB/는 마이그레이션 실행기(python -m app.migrate)가 쓴다.
+# certs/는 RDS CA 묶음(rds-global-bundle.pem, 출처·SHA-256·갱신 방법은 certs/README.md)이다. 서비스·마이그레이션 태스크는 이
+# 이미지를 그대로 쓰고, 시장 통계 반입 태스크는 이 이미지에 스냅샷 파일만 더한 이미지(vc-be:<TAG>-market, deploy/README.md ⑤-1)를
+# 쓰므로 CA 묶음과 PGSSLROOTCERT를 함께 물려받는다. CA 묶음을 넣으려고 따로 파생 이미지를 만들지는 않는다.
 COPY main.py ./
 COPY app ./app
 COPY DB/schema ./DB/schema
 COPY DB/migrations ./DB/migrations
+COPY certs ./certs
 
 # APP_ENV=production이면 필수 비밀값(JWT_SECRET 등)이 없을 때 서버가 뜨지 않는다. 로컬 Compose는 development로 덮어쓴다.
+# PGSSLROOTCERT는 production DB TLS 검사(PGSSLMODE=verify-full 또는 verify-ca + 읽을 수 있는 CA 묶음)가 쓰는 기본값이다
+# (작업 정의에서 덮어쓸 수 있다). PGSSLMODE는 넣지 않는다: 로컬 Compose의 Postgres는 TLS가 없어 libpq 기본값(prefer)으로
+# 접속한다. 운영 작업 정의에는 PGSSLMODE=verify-full을 넣는다 (없으면 APP_ENV=production 검사가 시작을 거부한다).
 ENV APP_ENV=production \
+    PGSSLROOTCERT=/app/certs/rds-global-bundle.pem \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
@@ -28,7 +36,8 @@ USER 10001:10001
 # 포트 노출 (기본 3000)
 EXPOSE 3000
 
-# /health는 DB를 보지 않는 생존 확인용이다 (curl 없이 python으로 확인).
+# /health는 DB를 보지 않는 생존 확인용이다 (curl 없이 python으로 확인). DB 설정은 APP_ENV=production 시작 때 한 번
+# 확인하고, 약 30초 안에 통과하지 못하면 프로세스가 끝난다 (app/services/db_startup_check.py).
 # HTTP_PROXY 같은 프록시 환경변수가 있어도 루프백으로 바로 가도록 ProxyHandler를 비운다 (AI 이미지와 같은 방식).
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD ["python", "-c", "import urllib.request as r; r.build_opener(r.ProxyHandler({})).open('http://127.0.0.1:3000/health', timeout=4)"]

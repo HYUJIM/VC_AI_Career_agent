@@ -13,17 +13,27 @@ import {
   RecentActivityCard,
 } from '@/components/dashboard/SidePanel';
 import { StatsCard } from '@/components/dashboard/StatsCard';
+import { StatusRingCard } from '@/components/dashboard/StatusRingCard';
 import { Alert } from '@/components/ui/Alert';
 import { type StatusFilter, getStatusGroup } from '@/lib/credentialStatus';
 import { hasUsedPortfolio } from '@/lib/onboarding';
+import { isOAuthProviderId, OAUTH_PROVIDERS } from '@/lib/oauthProviders';
 import { useAuthStore } from '@/store/authStore';
-import type { VerifiedCredential } from '@/types/api';
+import type { OAuthProviderId, VerifiedCredential } from '@/types/api';
 
 /** 로그인/회원가입/발급 화면에서 대시보드로 이동할 때 전달하는 상태 */
 export interface DashboardLocationState {
   welcome?: string;
   newUser?: boolean;
+  oauthLinked?: boolean;
+  /** 소셜 로그인 콜백에서 왔을 때 그 제공자 (연동 안내 문구에 이름을 넣는다) */
+  oauthProvider?: OAuthProviderId;
   issued?: string;
+}
+
+/** 라우터 state 는 브라우저 기록에서 오므로 형식을 다시 확인한 뒤 제공자 이름을 고른다. */
+function linkedProviderLabel(provider: unknown): string {
+  return isOAuthProviderId(provider) ? OAUTH_PROVIDERS[provider].label : '소셜';
 }
 
 export function DashboardPage() {
@@ -34,7 +44,7 @@ export function DashboardPage() {
   );
   const [detail, setDetail] = useState<VerifiedCredential | null>(null);
 
-  const { data, isLoading, isError, error, refetch } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['careers', user?.did],
     queryFn: () => getCareersByDid(user!.did),
     enabled: Boolean(user?.did),
@@ -83,7 +93,9 @@ export function DashboardPage() {
         >
           {banner.newUser
             ? `${banner.welcome} 님의 DID가 발급되었습니다. "새 자격증명 발급받기"로 첫 배지를 받아보세요.`
-            : '로그인되었습니다.'}
+            : banner.oauthLinked
+              ? `기존 계정에 ${linkedProviderLabel(banner.oauthProvider)} 계정이 연동되어 로그인되었습니다.`
+              : '로그인되었습니다.'}
         </Alert>
       )}
 
@@ -94,8 +106,8 @@ export function DashboardPage() {
         </p>
       </section>
 
-      <div className="grid items-start gap-4 lg:grid-cols-[1fr_300px]">
-        <div className="flex min-w-0 flex-col gap-4">
+      <div className="grid items-start gap-5 lg:grid-cols-[1fr_340px]">
+        <div className="flex min-w-0 flex-col gap-5">
           <StatsCard
             total={counts.all}
             verified={counts.verified}
@@ -113,7 +125,7 @@ export function DashboardPage() {
             />
           )}
 
-          {isError && <CareersErrorAlert error={error} onRetry={() => refetch()} />}
+          {isError && <CareersErrorAlert error={error} onRetry={() => refetch()} isFetching={isFetching} />}
 
           <CredentialList
             credentials={credentials}
@@ -126,13 +138,20 @@ export function DashboardPage() {
 
         <aside className="flex flex-col gap-4">
           <ProfileCard user={user} />
+          <StatusRingCard
+            total={counts.all}
+            verified={counts.verified}
+            attention={counts.attention}
+            pending={counts.pending}
+          />
           <QuickActionsCard />
           <IssuerStatsCard stats={issuerStats} />
           <RecentActivityCard newestFirst={newestFirst} onSelect={setDetail} />
         </aside>
       </div>
 
-      <CredentialDetailModal credential={detail} onClose={() => setDetail(null)} />
+      {/* key: 다른 자격증명을 열면 이전 재검증 결과를 초기화한다 */}
+      <CredentialDetailModal key={detail?.record_id} credential={detail} onClose={() => setDetail(null)} />
     </div>
   );
 }

@@ -37,6 +37,27 @@ def test_bad_endpoint_is_configuration_error(llm_settings, monkeypatch, endpoint
         LLMConfig.from_env()
 
 
+@pytest.mark.parametrize("key", ["키" * 20, "ａｂｃｄｅｆ", "abc\x7fdef", "abc\x1bdef", "abc def", "abc\tdef"])
+def test_api_key_must_be_printable_ascii_without_spaces(llm_settings, monkeypatch, key):
+    # The key is sent as an HTTP header value; a non-ASCII key used to pass here and then
+    # fail every request with UnicodeEncodeError (reported as an unsupported job input).
+    monkeypatch.setenv("CURRICULUM_LLM_API_KEY", key)
+    with pytest.raises(ConfigurationError):
+        LLMConfig.from_env()
+
+
+@pytest.mark.parametrize("body", [b"[" * 200000, b'{"choices":' + b"[" * 100000])
+def test_deeply_nested_response_is_malformed_not_a_recursion_error(llm_settings, make_analysis, body):
+    analysis = make_analysis()
+    request = request_for(analysis)
+    context = build_context(analysis, [], request, datetime.now(timezone.utc))
+    client = CompatibleLLMClient(
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, content=body))
+    )
+    with pytest.raises(ProviderFailure, match="LLM_MALFORMED_RESPONSE"):
+        asyncio.run(client.generate(context, request))
+
+
 @pytest.mark.parametrize(
     "payload",
     [

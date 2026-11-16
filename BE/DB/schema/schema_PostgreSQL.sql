@@ -1,6 +1,7 @@
 -- PostgreSQL 스키마
 
-CREATE EXTENSION IF NOT EXISTS "pgcrypto"; 
+-- 확장은 만들지 않는다. 기본 키의 gen_random_uuid()는 PostgreSQL 13부터 기본 제공 함수다 (예전에는 pgcrypto·vector를
+-- 만들었지만 쓰는 코드가 없었다. 이미 설치된 DB에는 그대로 둔다). 그래서 마이그레이션 계정에 확장을 만들 권한이 필요 없다.
 -- ====================================================================
 -- 0. ENUM 타입 정의
 -- ====================================================================
@@ -69,24 +70,7 @@ CREATE TABLE verification_checks (
     PRIMARY KEY (record_id, check_name)   -- ★ 1개 자격증명당 체크항목별 1건만 존재 강제
 );
 -- ====================================================================
--- 4. 역량 (VC 코어가 집계한 스킬 목록)
--- ====================================================================
-CREATE TABLE user_skills (
-    id                  BIGSERIAL PRIMARY KEY,
-    user_id             UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    skill_id            VARCHAR(100) NOT NULL,          -- "SK.DEV.BACKEND"
-    label_ko            VARCHAR(100) NOT NULL,          -- "백엔드 개발"
-    label_en            VARCHAR(100),
-    taxonomy_source     VARCHAR(50),                    -- NCS, ESCO 등
-    taxonomy_code       VARCHAR(50),
-    level               NUMERIC,
-    confidence          NUMERIC DEFAULT 1.0,
-    source_record_ids   UUID[] NOT NULL DEFAULT '{}',   -- 이 역량의 근거가 된 record_id 목록
-    updated_at          TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE (user_id, skill_id)
-);
-CREATE INDEX idx_user_skills_user ON user_skills(user_id);
-CREATE INDEX idx_user_skills_sources ON user_skills USING gin(source_record_ids); -- GIN 인덱스
+-- 4. (없음) 역량 표 user_skills는 쓰는 코드가 없어 13 마이그레이션에서 지웠다
 -- ====================================================================
 -- 5. 포트폴리오 (AI 작성본 학생 편집본)
 -- ====================================================================

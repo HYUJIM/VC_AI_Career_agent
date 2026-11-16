@@ -25,6 +25,7 @@ import pytest
 from starlette.concurrency import run_in_threadpool
 
 from app.services import security
+from app.services.database import DatabaseBusy
 from app.services.login_throttle import MAX_FAILURES, WINDOW_SECONDS, LoginThrottle, login_throttle
 from tests.conftest import make_vc_jwt
 
@@ -41,6 +42,8 @@ PUBLIC_ROUTES = {
     ("GET", "/health"),
     ("POST", REGISTER),
     ("POST", LOGIN),
+    *((method, f"/api/v1/users/oauth/{provider}/{action}") for provider in ("google", "github", "naver")
+      for method, action in (("GET", "authorize"), ("GET", "callback"), ("POST", "callback"))),
     ("GET", "/api/v1/public/shares/{token}"),
 }
 DOCS_PATHS = {"/openapi.json", "/docs", "/docs/oauth2-redirect", "/redoc"}  # FastAPI 문서 화면
@@ -337,6 +340,41 @@ def test_repeated_failures_lock_that_account_even_for_the_right_password(client,
     assert login(client, other["email"]).status_code == 200
 
 
+def audit_lines(caplog) -> list[str]:
+    return [r.getMessage() for r in caplog.records if r.name == "vc-be.audit"]
+
+
+def test_locked_login_attempts_leave_an_audit_line_without_the_email(client, register, fast_bcrypt, monkeypatch, caplog):
+    """잠긴 키로 온 시도마다 감사 로그 한 줄: 어느 키가 잠겼는지 접근 로그(401·429 줄뿐)로는 알 수 없었다.
+
+    이메일 원문 대신 실패 기록의 키(이메일의 SHA-256) 앞 12자리 hex를 남긴다 (같은 이메일은 표기가 달라도 같은 값).
+    """
+    now = [1000.0]
+    monkeypatch.setattr(login_throttle, "_clock", lambda: now[0])
+    user = register()
+    key = hashlib.sha256(user["email"].encode()).hexdigest()[:12]
+    with caplog.at_level(logging.INFO, logger="vc-be.audit"):
+        assert fail(client, user["email"], MAX_FAILURES) == [401] * MAX_FAILURES
+        assert audit_lines(caplog) == []  # 잠기기 전의 실패는 남기지 않는다
+        assert login(client, user["email"]).status_code == 429
+        now[0] += 60
+        assert login(client, f" {user['email'].upper()} ", "wrong-password").status_code == 429
+    assert audit_lines(caplog) == [f"event=login_locked key={key} retry_after={WINDOW_SECONDS}",
+                                   f"event=login_locked key={key} retry_after={WINDOW_SECONDS - 60}"]
+    records = [r for r in caplog.records if r.name == "vc-be.audit"]
+    assert all(r.levelno == logging.INFO for r in records)
+    text = " ".join(audit_lines(caplog)).lower()
+    assert user["email"] not in text and user["email"].split("@")[0] not in text and PASSWORD not in text
+
+    # 가입하지 않은 이메일도 같은 모양으로 남는다 (줄만 봐서는 가입 여부를 알 수 없다).
+    caplog.clear()
+    nobody = new_email("nobody")
+    with caplog.at_level(logging.INFO, logger="vc-be.audit"):
+        assert fail(client, nobody, MAX_FAILURES + 1) == [401] * MAX_FAILURES + [429]
+    assert audit_lines(caplog) == [
+        f"event=login_locked key={hashlib.sha256(nobody.encode()).hexdigest()[:12]} retry_after={WINDOW_SECONDS}"]
+
+
 def test_success_clears_failures(client, register, fast_bcrypt):
     user = register()
     for _ in range(2):
@@ -387,7 +425,7 @@ def test_db_case_folding_variant_counts_against_the_same_account(client, fast_bc
 
 
 def test_variant_found_through_a_differently_folding_collation_counts_against_the_stored_email(
-        client, fast_bcrypt, db, monkeypatch, checkpw_calls, collation_mismatch):
+        client, fast_bcrypt, db, monkeypatch, checkpw_calls, collation_mismatch, caplog):
     """대비책: DB 정렬이 키와 다르게 접어(collation_mismatch로 흉내) 다른 키의 표기로 같은 계정을 찾을 때.
 
     그 표기의 실패도 저장된 이메일의 기록에 더하고, 저장된 이메일이 잠겼으면 비밀번호는 확인하지 않고 429 대신 미가입
@@ -403,10 +441,14 @@ def test_variant_found_through_a_differently_folding_collation_counts_against_th
     assert fail(client, variant, 1) == [401]  # 다른 키의 표기지만 계정(저장된 이메일) 기록에도 더해진다
     assert login(client, email).status_code == 429
     checkpw_calls.clear()
-    res = login(client, variant)  # 맞는 비밀번호
+    with caplog.at_level(logging.INFO, logger="vc-be.audit"):
+        res = login(client, variant)  # 맞는 비밀번호
     assert res.status_code == 401 and res.json() == {"detail": "Invalid email or password"}
     assert "retry-after" not in res.headers
     assert checkpw_calls == [(security._DUMMY_PASSWORD_HASH.encode(), False)]
+    # 응답은 401이어도 잠긴 키(저장된 이메일)는 감사 로그에 남는다.
+    [line] = [r.getMessage() for r in caplog.records if r.name == "vc-be.audit"]
+    assert re.fullmatch(rf"event=login_locked key={login_throttle._key(email).hex()[:12]} retry_after=\d+", line)
 
 
 @pytest.mark.parametrize("collation", ["libc", "differs"])
@@ -540,6 +582,24 @@ def test_locked_attempts_do_not_run_bcrypt(client, register, fast_bcrypt, monkey
     monkeypatch.setattr(security.bcrypt, "checkpw", lambda *a: calls.append(1) or real(*a))
     fail(client, user["email"], MAX_FAILURES + 5)
     assert len(calls) == MAX_FAILURES
+
+
+def test_google_only_account_is_throttled_like_any_other_email(client, fast_bcrypt, db, checkpw_calls):
+    # 비밀번호 없이 Google로만 가입한 계정(password_hash NULL)의 이메일로 비밀번호 로그인을 두드리는 경우:
+    # 시도마다 더미 해시와 한 번만 비교하고(가입 여부·가입 방식이 응답 시간으로 드러나지 않는다) 10번 뒤에는 bcrypt 없이 429다.
+    email = new_email("google-only")
+    db.execute("INSERT INTO users (email, name, subject_did) VALUES (%s, %s, %s)",
+               (email, "구글 계정", f"did:key:z6MkGoogleOnly{uuid.uuid4().hex[:8]}"))
+    dummy = security._DUMMY_PASSWORD_HASH.encode()
+    for _ in range(MAX_FAILURES):
+        checkpw_calls.clear()
+        res = login(client, email, "any-password")
+        assert res.status_code == 401 and res.json() == {"detail": "Invalid email or password"}
+        assert checkpw_calls == [(dummy, False)]
+    checkpw_calls.clear()
+    res = login(client, email, "any-password")
+    assert res.status_code == 429 and res.json() == TOO_MANY and "retry-after" in res.headers
+    assert checkpw_calls == []
 
 
 def test_validation_errors_do_not_count_as_failures(client, register, fast_bcrypt):
@@ -761,9 +821,10 @@ def test_overlong_login_password_still_runs_one_full_bcrypt_compare(client, regi
             assert checkpw_calls == [(dummy, False)], (email, len(password))
 
 
-# 조회가 던질 수 있는 예외: DB 연결 수 초과, 끊긴 연결(OperationalError가 아님), DB 오류가 아닌 예외
+# 조회가 던질 수 있는 503이 아닌 예외: DB 내부 오류, 끊긴 연결(OperationalError가 아님), DB 오류가 아닌 예외.
+# 접속 실패·연결 수 초과(OperationalError)는 DB 혼잡과 같은 503이고 실패로 세지 않는다 (아래 BUSY_ERRORS).
 LOOKUP_ERRORS = [
-    (psycopg.OperationalError, "simulated: sorry, too many clients already"),
+    (psycopg.InternalError, "simulated: internal error"),
     (psycopg.InterfaceError, "the connection is closed"),
     (RuntimeError, "simulated: unexpected lookup failure"),
 ]
@@ -772,10 +833,10 @@ LOOKUP_ERRORS = [
 @pytest.mark.parametrize(("error", "message"), LOOKUP_ERRORS, ids=[e.__name__ for e, _ in LOOKUP_ERRORS])
 def test_login_whose_user_lookup_fails_still_costs_one_bcrypt(client, fast_bcrypt, monkeypatch, checkpw_calls, caplog,
                                                                error, message):
-    """조회 단계의 오류(예: 연결 수 초과)도 다른 실패처럼 더미 bcrypt 비교를 한 번 하고, 응답·로그는 지금처럼 500이다.
+    """조회 단계의 오류(예: DB 내부 오류)도 다른 실패처럼 더미 bcrypt 비교를 한 번 하고, 응답·로그는 지금처럼 500이다.
 
     고치기 전에는 bcrypt 없이 실패 기록의 키만 만들어, 이런 요청을 몰아 보내 키 상한을 채우고 잠긴 키를 밀어낼 수 있었다.
-    DB 연결 오류만이 아니라 조회가 던지는 모든 예외가 그렇다 (OperationalError만 잡으면 나머지 예외는 비용 없이 키를 만든다).
+    DB 오류만이 아니라 조회가 던지는 모든 예외가 그렇다 (특정 예외만 잡으면 나머지 예외는 비용 없이 키를 만든다).
     """
     from app.services.database import db_service
 
@@ -800,6 +861,66 @@ def test_login_whose_user_lookup_fails_still_costs_one_bcrypt(client, fast_bcryp
     res = login(client, email)
     assert res.status_code == 429 and res.json() == TOO_MANY
     assert len(lookups) == MAX_FAILURES and checkpw_calls == []
+
+
+BUSY_ERRORS = [DatabaseBusy("no free DB connection slot within 5s"),
+               psycopg.errors.QueryCanceled("canceling statement due to statement timeout"),
+               psycopg.errors.LockNotAvailable("canceling statement due to lock timeout"),
+               psycopg.OperationalError("connection failed: server closed the connection unexpectedly")]
+
+
+@pytest.mark.parametrize("error", BUSY_ERRORS, ids=[type(e).__name__ for e in BUSY_ERRORS])
+def test_login_answered_503_because_the_database_is_busy_is_not_counted_as_a_failure(
+        client, register, fast_bcrypt, monkeypatch, checkpw_calls, error):
+    """회귀: DB가 바빠 계정을 조회하지 못한 로그인(503 '잠시 뒤 다시 시도')도 실패로 세어, 안내대로 다시 시도한 사용자가
+    11번째부터 맞는 비밀번호로도 15분 동안 429였다. 비밀번호를 확인한 적이 없으므로 그 시도는 기록에서 돌려준다."""
+    import main
+    from app.api import auth
+    from app.services.database import db_service
+
+    # 503으로 답하는 예외 세 가지 모두다 (main.py의 처리기 등록과 같은 목록)
+    busy_handled = {cls for cls, handler in main.app.exception_handlers.items() if handler is main.database_busy_handler}
+    assert busy_handled == set(auth._DB_BUSY_ERRORS) and type(error) in busy_handled
+
+    user = register()
+    assert fail(client, user["email"], 3) == [401] * 3  # 실제로 틀린 시도 3번은 그대로 남는다
+    real, lookups = db_service.get_user_by_email, []
+
+    def busy_lookup(email):
+        lookups.append(email)
+        raise error
+
+    monkeypatch.setattr(db_service, "get_user_by_email", busy_lookup)
+    dummy = security._DUMMY_PASSWORD_HASH.encode()
+    for _ in range(MAX_FAILURES + 2):  # 맞는 비밀번호로 12번
+        checkpw_calls.clear()
+        res = login(client, user["email"])
+        assert res.status_code == 503 and res.json() == {"detail": "Service is busy. Try again later."}
+        assert res.headers["retry-after"] == "5"
+        assert checkpw_calls == [(dummy, False)]  # 비용은 다른 실패와 같다: 더미 bcrypt 비교 한 번
+    assert len(lookups) == MAX_FAILURES + 2  # 한 번도 429로 막히지 않았다
+    assert len(login_throttle._failures[login_throttle._key(user["email"])]) == 3
+
+    monkeypatch.setattr(db_service, "get_user_by_email", real)  # DB가 돌아오면 맞는 비밀번호로 바로 로그인된다
+    assert fail(client, user["email"], MAX_FAILURES - 4) == [401] * (MAX_FAILURES - 4)  # 3 + 6 = 9번 실패
+    assert login(client, user["email"]).status_code == 200
+    # 가입하지 않은 이메일도 같다: 기록이 남지 않는다 (빈 키도 남기지 않는다)
+    monkeypatch.setattr(db_service, "get_user_by_email", busy_lookup)
+    unknown = new_email("busy")
+    assert [login(client, unknown).status_code for _ in range(MAX_FAILURES + 2)] == [503] * (MAX_FAILURES + 2)
+    assert login_throttle._key(unknown) not in login_throttle._failures
+
+
+def test_throttle_release_gives_back_one_reserved_attempt_only():
+    throttle = LoginThrottle(max_failures=3, window_seconds=60, clock=lambda: 0.0)
+    throttle.release("nobody@test.com")  # 기록이 없는 키: 아무 일도 없다
+    assert throttle._failures == {}
+    assert [throttle.reserve("a@test.com") for _ in range(2)] == [None, None]
+    throttle.release(" A@TEST.com ")  # 같은 키(공백·대소문자)의 시도 하나만 돌려준다
+    assert len(throttle._failures[throttle._key("a@test.com")]) == 1
+    assert [throttle.reserve("a@test.com") for _ in range(3)] == [None, None, 60]  # 1 + 2 = 한도 3, 그다음은 잠김
+    throttle.release("a@test.com")
+    assert throttle.reserve("a@test.com") is None and throttle.reserve("a@test.com") == 60
 
 
 def test_login_password_check_without_hash_is_always_false(monkeypatch):
@@ -923,6 +1044,53 @@ def test_register_still_trims_and_accepts_single_line_unicode(client):
     name = "김\N{NO-BREAK SPACE}철수\N{IDEOGRAPHIC SPACE}\N{WOMAN}\N{ZERO WIDTH JOINER}\N{PERSONAL COMPUTER}"
     res = client.post(REGISTER, json={"name": name, "email": new_email("reg"), "password": PASSWORD})
     assert res.status_code == 200 and res.json()["data"]["name"] == name
+
+
+@pytest.mark.parametrize("field,value", [
+    ("name", "abc‮gnp.exe"),        # 오른쪽→왼쪽 바꿈: 화면에 'abcexe.png'처럼 보인다
+    ("name", "ad​min"),             # 폭 없는 공백: 'admin'과 똑같아 보인다
+    ("name", "﻿홍길동"),
+    ("name", "홍⁦길동⁩"),
+    ("email", "ad​min-{tag}@example.test"),
+    ("email", "mx-{tag}﻿@example.test"),
+    ("email", "mx-xss-{tag}<script>alert(1)</script><img src=x onerror=alert(2)>@example.test"),
+    ("email", "a b-{tag}@example.test"),
+    ("email", "a\N{NO-BREAK SPACE}b-{tag}@example.test"),
+    ("email", '"quoted-{tag}"@example.test'),
+    ("email", "a-{tag}@b@example.test"),
+    ("email", "a-{tag}@"),
+    ("email", "a-{tag},b@example.test"),
+    ("email", "a-{tag};b@example.test"),
+    # 폭 0인 미배정 글자·한글 채움 문자 (v-review R10-02)
+    ("name", "홍\U000E0080길동"),
+    ("name", "\u17b4"),
+    ("email", "ad\U000E0080min-{tag}@example.test"),
+    ("email", "a\u3164-{tag}@example.test"),
+    ("email", "a\ufe00-{tag}@example.test"),
+    ("email", "a-{tag}\ufffc@example.test"),
+], ids=["name-rlo", "name-zwsp", "name-bom", "name-isolate", "email-zwsp", "email-bom", "email-html", "email-space",
+        "email-nbsp", "email-quoted", "email-two-at", "email-no-domain", "email-comma", "email-semicolon",
+        "name-unassigned-ignorable", "name-khmer-inherent", "email-unassigned-ignorable", "email-hangul-filler",
+        "email-variation-selector", "email-object-replacement"])
+def test_register_rejects_invisible_format_chars_and_email_specials(client, db, field, value):
+    """회귀(보안 재검토 SEC-05): 가입 API는 이름의 방향 제어·폭 없는 문자를 받았고, 이메일은 '@'만 보아
+    '<script>…@example.com'·폭 없는 공백이 든 이메일이 그대로 계정이 됐다 (FE 가입 화면은 만들 수 없는 값). 이제 422다."""
+    tag = uuid.uuid4().hex[:8]
+    value = value.replace("{tag}", tag)
+    email = new_email("reg")
+    payload = {"name": "홍길동", "email": email, "password": PASSWORD, field: value}
+    res = client.post(REGISTER, json=payload)
+    assert res.status_code == 422 and res.json()["detail"][0]["loc"] == ["body", field], res.text
+    assert db.execute("SELECT count(*) AS n FROM users WHERE email LIKE %s", (f"%{tag}%",)).fetchone()["n"] == 0
+    assert db.execute("SELECT count(*) AS n FROM users WHERE email = %s", (email,)).fetchone()["n"] == 0
+
+
+@pytest.mark.parametrize("email", ["o'brien-{tag}@example.test", "user+news-{tag}@example.test",
+                                   "김철수-{tag}@대학교.kr", "x_{tag}@sub.example.test"])
+def test_register_still_accepts_ordinary_and_international_emails(client, email):
+    email = email.replace("{tag}", uuid.uuid4().hex[:8])
+    res = client.post(REGISTER, json={"name": "홍길동", "email": email, "password": PASSWORD})
+    assert res.status_code == 200 and res.json()["data"]["email"] == email.lower(), res.text
 
 
 NUL, SURROGATE = "a\x00b", "a\ud800b"

@@ -3,11 +3,18 @@
     python -m app.migrate           # 빈 DB면 기본 스키마부터, 아니면 아직 적용하지 않은 마이그레이션만 적용
     python -m app.migrate --seed    # 빈 DB를 처음 만들 때만 시드(테스트 계정)도 넣는다. 운영(RDS)에서는 쓰지 않는다.
 
-- 접속 정보는 앱과 같은 DB_HOST·DB_PORT·DB_USER·DB_PASSWORD·DB_NAME 환경변수다 (PGSSLMODE 등 libpq 변수도 그대로 적용).
-  APP_ENV=production(운영 이미지 기본값)에서 DB_PASSWORD가 비었거나 로컬 기본값이면 접속하지 않고 실패한다 (종료 코드 1).
+- 접속 정보는 앱과 같은 DB_HOST·DB_PORT·DB_USER·DB_PASSWORD·DB_NAME 환경변수다 (그 밖의 libpq 변수도 그대로 적용).
+  TLS(PGSSLMODE·PGSSLROOTCERT)도 앱과 같다: 비워 둔 값은 없는 것으로 보고 PGSSLMODE는 앞뒤 공백을 뗀다
+  (app.core.config.db_tls_options).
+  APP_ENV=production(운영 이미지 기본값)에서 DB_PASSWORD가 비었거나 로컬 기본값이면, 또는 PGSSLMODE가 verify-full·verify-ca가
+  아니거나 PGSSLROOTCERT가 읽을 수 있는 파일이 아니면 접속하지 않고 오류 한 줄(변수 이름만)을 남기고 실패한다 (종료 코드 1).
+- CLI는 DB가 막 뜨는 중이면(연결 거부·시간 초과·시작 중 등) 60초 동안 2초마다 다시 접속한다. 다시 해도 같은 오류(인증서
+  확인 실패·호스트 이름 불일치·비밀번호·없는 역할·DB·pg_hba)는 기다리지 않는다. 기다리는 줄과 실패 줄에는 운영 시작 DB 점검과
+  같은 안전한 요약(app.services.db_startup_check.describe_error)만 싣는다 (DB 호스트·IP·사용자 이름·인증서 경로 없음).
 - 원장 public.schema_migrations(filename, checksum, applied_at)에 적용한 DB/migrations 파일을 남기고 다시 실행하지 않는다.
   적용한 뒤 SQL이 바뀐 파일이 있으면 아무것도 적용하지 않고 실패한다 (CLI 종료 코드 1). 바꿀 내용은 다음 번호 파일로 추가한다.
-- 빈 DB(public.users 없음): DB/schema의 기본 스키마 두 개(--seed면 DB/seeds/03_seed_data.sql까지)와 원장을 한 트랜잭션으로 만든다.
+- 빈 DB(public.users 없음): DB/schema의 기본 스키마(--seed면 DB/seeds/03_seed_data.sql까지)와 원장을 한 트랜잭션으로 만든다.
+  기본 스키마는 확장을 만들지 않는다 (예전 버전이 만든 pgcrypto·vector가 있는 DB에서는 그대로 둔다).
 - 원장 없이 이미 만들어진 DB(docker-compose initdb·수동 psql): 마이그레이션을 모두 다시 적용하고 기록한다.
   그래서 마이그레이션은 여러 번 실행해도 안전하게 쓴다 (IF NOT EXISTS 등). 새 Compose 볼륨은 initdb가 같은 파일을 먼저 실행한다.
 - DB/migrations/NN_*.sql은 번호 순으로, 파일마다 새 연결(시드 덤프가 search_path를 비우므로)의 한 트랜잭션에서 원장 기록과
@@ -65,13 +72,15 @@ from dotenv import load_dotenv
 from psycopg import sql
 from psycopg.rows import tuple_row
 
+from app.core.config import log_level
 from app.services.database import get_db_connection
+from app.services.db_startup_check import describe_error
 
 logger = logging.getLogger("app.migrate")
 
 DB_DIR = Path(__file__).resolve().parents[1] / "DB"
 # 빈 DB에 마이그레이션보다 먼저 넣는 파일. 기본 스키마에는 04~07 내용이 이미 들어 있다.
-BASELINE = ("schema/schema_PostgreSQL.sql", "schema/schema_pgvector.sql")
+BASELINE = ("schema/schema_PostgreSQL.sql",)
 SEED = "seeds/03_seed_data.sql"  # 로컬·테스트 전용 (테스트 계정). 운영 이미지에는 넣지 않는다.
 # 04 마이그레이션이 시드 테스트 계정(user001~user045@example.com)에 넣는 bcrypt 해시 (평문 비밀번호는 README에 공개).
 # 운영 DB에 이 해시를 쓰는 계정이 있으면 누구나 로그인할 수 있으므로 운영 마이그레이션을 실패시킨다 (값은 로그에 남기지 않는다).
@@ -302,9 +311,6 @@ FROM pg_catalog.pg_roles r CROSS JOIN pg_catalog.pg_namespace s
 JOIN pg_catalog.pg_roles o ON o.oid = s.nspowner
 WHERE r.rolname = %s AND pg_catalog.pg_has_role(r.oid, s.nspowner, 'MEMBER')
 ORDER BY 1 LIMIT 10"""
-# 빈 DB의 기본 스키마가 만드는 확장 중 아직 없는 것이 있는지 (슈퍼유저가 아닌 계정이 확장을 만들려면 DB CREATE가 필요하다)
-_MISSING_EXTENSIONS = """
-SELECT pg_catalog.count(*) < 2 FROM pg_catalog.pg_extension e WHERE e.extname IN ('pgcrypto', 'vector')"""
 
 
 class MigrationError(RuntimeError):
@@ -378,8 +384,8 @@ def _create_refusal(conn: psycopg.Connection, role: str, *, schema: bool, db: bo
         name, is_self, can = owners["db owner"]
         also = ", pg_database_owner로 public 스키마도 소유" if schema_owner == "pg_database_owner" else ""
         regrant = ""
-        # DB CREATE는 확장(pgcrypto·vector)을 아직 만들지 않았거나 public 스키마의 소유자도 바꿀 때만 필요하다.
-        if not can and (schema_fix or conn.execute(_MISSING_EXTENSIONS).fetchone()[0]):
+        # DB CREATE는 public 스키마의 소유자도 바꿀 때만 필요하다 (기본 스키마가 확장을 만들지 않으므로 그 밖에는 쓰지 않는다).
+        if not can and schema_fix:
             regrant += f" GRANT CREATE ON DATABASE {db_q} TO {migrator_q};"
         if also and not owners["schema owner"][2]:  # 새 DB 소유자는 pg_database_owner로 public 스키마를 받는다
             regrant += " GRANT CREATE ON SCHEMA public TO pg_database_owner;"
@@ -538,9 +544,44 @@ def grant_app_role(conn: psycopg.Connection, role: str) -> None:
             conn.execute(sql.SQL(statement).format(**names))
 
 
+class DBConnectError(MigrationError):
+    """DB에 접속하지 못함. 메시지는 운영 시작 DB 점검과 같은 안전한 요약(db_startup_check.describe_error)만 담는다.
+
+    libpq 접속 오류 원문에는 DB 호스트(해석한 IP)·사용자 이름·DB 이름·인증서 경로가 들어 있으므로 로그에 싣지 않는다
+    (비밀번호는 원문에도 없다). 원래 예외는 __cause__로 남는다(로그에는 쓰지 않는다).
+    transient: 다시 시도하면 풀릴 수 있는 오류인지 (_connect_waiting이 기다릴지 정한다).
+    """
+
+    def __init__(self, exc: psycopg.OperationalError) -> None:
+        super().__init__(f"DB에 접속하지 못했습니다: {describe_error(exc)}")
+        message = str(exc).lower()
+        self.transient = not any(all(fragment in message for fragment in fragments)
+                                 for fragments in _PERMANENT_CONNECT_ERRORS)
+
+
+# 다시 시도해도 같은 결과인 접속 오류(libpq 원문을 소문자로 바꿔 비교, 조각이 모두 들어 있으면 해당). 설정·인증서·계정 문제라
+# 60초를 기다리지 않고 바로 한 줄로 끝낸다. 조각은 db_startup_check._CONNECT_ERRORS와 같다 (요약도 그 표에서 나온다).
+# 그 밖(연결 거부·시간 초과·DB가 시작·복구 중·연결 수 초과·이름 해석 실패·그 밖의 SSL 오류 등)은 지금처럼 기다리며 다시 시도한다:
+# Compose의 Postgres가 막 뜨는 중이거나 RDS가 재시작·장애 조치 중일 수 있다.
+_PERMANENT_CONNECT_ERRORS = (
+    ("root certificate file",),           # PGSSLROOTCERT 파일 없음·읽을 수 없음
+    ("does not match host name",),        # DB_HOST가 IP·CNAME (verify-full)
+    ("certificate verify failed",),       # CA 묶음에 서버 인증서의 CA가 없음
+    ("server does not support ssl",),     # TLS 없는 서버에 sslmode require 이상
+    ("pg_hba.conf",),                     # 서버가 이 접속(TLS 없음 등)을 받지 않음
+    ("password authentication failed",),  # DB_USER·DB_PASSWORD
+    ('role "', "does not exist"),         # DB_USER
+    ('database "', "does not exist"),     # DB_NAME
+)
+
+
 def _connect(conn_kwargs: dict[str, Any]) -> psycopg.Connection:
     # 접속 인자가 없으면 앱과 같은 DB_* 환경변수(get_db_connection)로 접속한다.
-    conn = psycopg.connect(**conn_kwargs) if conn_kwargs else get_db_connection()
+    # 접속 실패(psycopg.OperationalError)는 원문 대신 안전한 요약을 담은 DBConnectError로 바꾼다.
+    try:
+        conn = psycopg.connect(**conn_kwargs) if conn_kwargs else get_db_connection()
+    except psycopg.OperationalError as exc:
+        raise DBConnectError(exc) from exc
     conn.autocommit = True
     conn.row_factory = tuple_row
     # DB·역할에 건 search_path 설정(ALTER DATABASE/ROLE ... SET)이나 마이그레이션 계정 이름의 스키마("$user")가 아니라 public만
@@ -551,16 +592,19 @@ def _connect(conn_kwargs: dict[str, Any]) -> psycopg.Connection:
 
 
 def _connect_waiting(conn_kwargs: dict[str, Any], wait_seconds: float) -> psycopg.Connection:
-    """DB가 막 뜨는 중이면(Compose initdb 직후 등) wait_seconds 동안 다시 시도한다."""
+    """DB가 막 뜨는 중이면(Compose initdb 직후 등) wait_seconds 동안 다시 시도한다.
+
+    다시 해도 같은 오류(인증서·호스트 이름·비밀번호·없는 역할·DB, pg_hba)는 기다리지 않고 바로 DBConnectError를 올린다.
+    기다리는 동안 남기는 줄과 마지막 오류에는 안전한 요약만 싣는다 (DB 호스트·IP·사용자 이름·경로 없음).
+    """
     deadline = time.monotonic() + wait_seconds
     while True:
         try:
             return _connect(conn_kwargs)
-        except psycopg.OperationalError as exc:
-            if time.monotonic() >= deadline:
+        except DBConnectError as exc:
+            if not exc.transient or time.monotonic() >= deadline:
                 raise
-            reason = (str(exc).strip().splitlines() or [type(exc).__name__])[0]
-            logger.info("DB 연결 대기 중: %s", reason)
+            logger.info("DB 연결 대기 중: %s", describe_error(exc.__cause__))
             time.sleep(2)
 
 
@@ -634,7 +678,7 @@ def migrate(*, seed: bool = False, production: bool = False, db_dir: Path = DB_D
             if seeded:
                 raise MigrationError(
                     f"운영 DB(APP_ENV=production)에 공개된 시드 테스트 비밀번호(04 마이그레이션의 해시)를 쓰는 계정이 {seeded}개"
-                    " 있습니다. 시드·개발 DB 데이터가 들어간 것이니 그 계정을 지운 뒤 다시 실행하세요 (README 'AWS 배포 체크리스트').")
+                    " 있습니다. 시드·개발 DB 데이터가 들어간 것이니 그 계정을 지운 뒤 다시 실행하세요 (deploy/CHECKLIST.md 'DB 마이그레이션').")
         if app_role:
             grant_app_role(lock_conn, app_role)
             logger.info("서비스 계정 권한 적용: %s (앱 테이블 DML만)", app_role)
@@ -658,12 +702,22 @@ def main(argv: list[str] | None = None) -> int:
                         help="빈 DB를 처음 만들 때 시드(테스트 계정)도 넣는다. 로컬·테스트 전용이며 APP_ENV=production에서는 거부한다.")
     args = parser.parse_args(argv)
     load_dotenv()  # 로컬 실행용 BE/.env. 컨테이너·ECS에서는 이미 있는 환경변수가 우선한다.
-    logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO").upper())
+    try:
+        level = log_level()  # 없거나 비우면 INFO
+    except RuntimeError as exc:
+        # 없는 수준 이름(LOG_LEVEL=verbose 등): traceback 대신 다른 실패와 같은 `마이그레이션 실패:` 한 줄과 종료 코드 1.
+        logging.basicConfig(level=logging.INFO)
+        logger.error("마이그레이션 실패: %s", exc)
+        return 1
+    logging.basicConfig(level=level)
     try:
         # APP_ENV·DB_APP_ROLE은 .env를 읽은 뒤에 본다 (로컬 BE/.env는 development, 운영 이미지·ECS 태스크는 production).
         done = migrate(seed=args.seed, production=_production(), wait_seconds=60,
                        app_role=os.getenv("DB_APP_ROLE", "").strip() or None)
-    # RuntimeError: MigrationError와 APP_ENV·DB_PASSWORD 설정 오류(app.core.config, 변수 이름만 담는다)
+    # RuntimeError: MigrationError와 APP_ENV·DB_PASSWORD·PGSSLMODE·PGSSLROOTCERT 설정 오류(app.core.config, 변수 이름만
+    # 담는다). 설정 오류는 접속 전에 나므로 60초 접속 대기 없이 바로 이 한 줄과 종료 코드 1로 끝난다.
+    # 접속 실패는 DBConnectError(MigrationError)의 안전한 요약이다: 인증서·호스트 이름·비밀번호·없는 역할·DB 같은 오류는
+    # 기다리지 않고 바로, 연결 거부·시간 초과 등은 60초 동안 다시 시도한 뒤 이 한 줄로 끝난다.
     except (RuntimeError, psycopg.Error, OSError) as exc:
         logger.error("마이그레이션 실패: %s", exc)
         return 1

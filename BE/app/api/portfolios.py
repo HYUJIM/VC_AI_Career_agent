@@ -15,6 +15,9 @@ from app.services.reverify import raise_on_verifier_outage, reverify_rows
 
 router = APIRouter()
 
+# FE가 이 문구로 안내를 고른다 (FE/src/lib/apiClient.ts). 바꾸면 FE도 함께 바꾼다.
+PORTFOLIO_LIMIT_REACHED = "Portfolio limit reached."
+
 # 선택 입력용 문자열: StorableText와 같은 검사(NUL·짝 없는 서로게이트 → 500 대신 422)를 길이 제한 뒤에 붙인다.
 # Optional[StorableText] + Field(max_length)로 쓰면 pydantic이 길이 검사를 검사기 뒤로 미뤄 422 메시지가 바뀐다.
 OptionalTitle = Optional[Annotated[str, Field(min_length=1, max_length=255), AfterValidator(ensure_storable)]]
@@ -106,9 +109,12 @@ async def create_portfolio(
     rows = await run_in_threadpool(db_service.get_credential_rows, principal.user_id, ids)
     if len(rows) != len(ids):
         raise HTTPException(status_code=404, detail="Credential not found")
+    # 이미 상한까지 만든 사용자는 검증기(DXWorks)를 부르기 전에 돌려보낸다. 동시 요청까지 막는 검사는 저장할 때 한다.
+    if await run_in_threadpool(db_service.portfolio_limit_reached, principal.user_id):
+        raise HTTPException(status_code=409, detail=PORTFOLIO_LIMIT_REACHED)
 
     # 생성 시점에 서명 원본을 다시 검증해 통과한 것만 근거로 쓴다.
-    outcomes = await reverify_rows(rows, verifier)
+    outcomes = await reverify_rows(rows, verifier, caller=principal.user_id, route="portfolio_create")
     # 검증기 장애면 사용자 탓인 422 대신 502/503으로 끝내고 저장하지 않는다.
     raise_on_verifier_outage(outcomes)
     evidence = [o.evidence for o in outcomes if o.verified]
@@ -127,6 +133,9 @@ async def create_portfolio(
         sections={"source": "VC_ONLY", "generator": writer.name, "evidence": evidence, "excluded": excluded},
         referenced_record_ids=[e["record_id"] for e in evidence],
     )
+    if row is None:
+        # 사용자별 상한(database.MAX_PORTFOLIOS_PER_USER)에 닿았다 (위 검사 뒤에 동시 요청이 먼저 채운 경우 포함).
+        raise HTTPException(status_code=409, detail=PORTFOLIO_LIMIT_REACHED)
     return {"success": True, "message": "Portfolio created.", "data": _detail(row)}
 
 

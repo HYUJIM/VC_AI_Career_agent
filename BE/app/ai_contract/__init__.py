@@ -11,7 +11,7 @@ from pathlib import Path
 
 CONTRACT_VERSION = "career-ai/2"
 CONTRACT_HEADER = "X-Career-AI-Contract"
-CONTRACT_FILES = ("api.py", "career.py", "curriculum.py", "verification.py")
+CONTRACT_FILES = ("api.py", "career.py", "curriculum.py", "market.py", "verification.py")
 
 
 def _fingerprint() -> str:

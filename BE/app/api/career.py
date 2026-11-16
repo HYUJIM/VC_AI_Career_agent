@@ -44,30 +44,34 @@ async def get_skill_catalog(_: Principal = Depends(require_user), ai: AIServiceC
 
 # ── 연구자: 공고·학습자료 반입 ────────────────────────────────────
 
+def researcher(principal: Principal = Depends(require_user)) -> Principal:
+    """연구자만 통과시키는 의존성. 의존성은 본문 형식 검사보다 먼저 실행되므로, 연구자가 아닌 계정이 보낸 큰 본문(이 API들의
+    본문 상한은 2 MiB다)은 검사하지 않고 403으로 끝난다."""
+    require_researcher(principal.user_id)
+    return principal
+
+
 @router.post("/research/job-postings/preview")
-async def preview_job_requirements(req: PreviewRequest, principal: Principal = Depends(require_user),
+async def preview_job_requirements(req: PreviewRequest, _: Principal = Depends(researcher),
                                    ai: AIServiceClient = Depends(get_ai_service)):
     """원문에서 기술 후보만 뽑는다. 필수/우대·경력 판단은 연구자가 검토해 주석으로 넣는다."""
-    require_researcher(principal.user_id)
     candidates = (await ai.preview_requirements(req.raw_text)).candidates
     return _ok({"candidates": [c.model_dump(mode="json") for c in candidates[:50]],
                 "truncated": len(candidates) > 50})
 
 
 @router.post("/research/job-postings", status_code=201)
-async def import_job_posting(req: JobPostingInput, principal: Principal = Depends(require_user),
+async def import_job_posting(req: JobPostingInput, principal: Principal = Depends(researcher),
                              ai: AIServiceClient = Depends(get_ai_service)):
     """원문 인용·주석을 검토한 공고를 새 버전으로 저장한다 (URL을 방문·인증하지는 않음)."""
-    require_researcher(principal.user_id)
     await ai.validate_job(req)
     version = await run_in_threadpool(career_store.import_job, req, principal.user_id)
     return _ok(version.model_dump(mode="json"), "Job posting version saved.")
 
 
 @router.post("/research/learning-resources", status_code=201)
-async def import_learning_resource(req: LearningResourceInput, principal: Principal = Depends(require_user),
+async def import_learning_resource(req: LearningResourceInput, principal: Principal = Depends(researcher),
                                    ai: AIServiceClient = Depends(get_ai_service)):
-    require_researcher(principal.user_id)
     await ai.validate_resource(req)
     version = await run_in_threadpool(career_store.import_resource, req, principal.user_id)
     return _ok(version.model_dump(mode="json"), "Learning resource version saved.")
@@ -79,13 +83,16 @@ async def import_learning_resource(req: LearningResourceInput, principal: Princi
 async def search_job_postings(
     region: Optional[str] = Query(default=None, min_length=1, max_length=80),
     seniority: Optional[Seniority] = None,
-    _: Principal = Depends(require_user),
+    principal: Principal = Depends(require_user),
     ai: AIServiceClient = Depends(get_ai_service),
 ):
     request = CareerAnalysisRequest(region=region, seniority=seniority)
-    candidates = await run_in_threadpool(career_store.market_candidates, request.target_role_id,
-                                         datetime.now(timezone.utc))
-    return _ok((await ai.search_jobs(request, candidates)).model_dump(mode="json"))
+    # 공고 묶음을 읽기 전에 AI 묶음 요청 자리를 잡는다 (자리를 기다리는 요청이 묶음을 메모리에 올려 두지 않게).
+    # 사용자별 한도(동시 2개, 분당 30번)를 넘으면 429 (ai_service.corpus_slot).
+    async with ai.corpus_slot("POST /v1/job-postings/search", caller=principal.user_id):
+        candidates = await run_in_threadpool(career_store.market_candidates, request.target_role_id,
+                                             datetime.now(timezone.utc))
+        return _ok((await ai.search_jobs(request, candidates)).model_dump(mode="json"))
 
 
 @router.get("/job-postings/{posting_id}")
@@ -100,11 +107,13 @@ async def get_job_posting(posting_id: UUID, version_id: Optional[UUID] = None,
 async def search_learning_resources(
     skill_id: Optional[SkillID] = None,
     budget_krw: Optional[int] = Query(default=None, ge=0, le=100000000),
-    _: Principal = Depends(require_user),
+    principal: Principal = Depends(require_user),
     ai: AIServiceClient = Depends(get_ai_service),
 ):
-    resources = await run_in_threadpool(career_store.resources)
-    found = await ai.search_resources(resources, skill_id, budget_krw)
+    # 학습자료 묶음을 읽기 전에 자리를 잡는다 (사용자별 한도를 넘으면 429)
+    async with ai.corpus_slot("POST /v1/learning-resources/search", caller=principal.user_id):
+        resources = await run_in_threadpool(career_store.resources)
+        found = await ai.search_resources(resources, skill_id, budget_krw)
     return _ok([item.model_dump(mode="json", exclude=RESOURCE_INTERNAL_FIELDS) for item in found])
 
 

@@ -2,11 +2,13 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createCareerAnalysis, createCurriculum, getJobPostings, getSkillCatalog } from '@/api/career';
+import { MarketTrendsCard } from '@/components/MarketTrendsCard';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { getApiErrorKind, getApiErrorMessage } from '@/lib/apiClient';
 import { isPreviewSession } from '@/lib/preview';
+import { safeExternalHref } from '@/lib/text';
 import { randomUUID } from '@/lib/uuid';
 import { useAuthStore } from '@/store/authStore';
 import type {
@@ -65,7 +67,8 @@ const ACTION_LABEL: Record<LearningChoice['action'], string> = {
   collect_evidence: '기존 증빙 정리',
 };
 
-const text = (code: string) => CODE_TEXT[code] ?? code;
+// Object.hasOwn: 표에 없는 코드가 Object.prototype 의 이름(__proto__ 등)이어도 객체가 아니라 코드 문자열을 돌려준다.
+const text = (code: string) => (Object.hasOwn(CODE_TEXT, code) ? CODE_TEXT[code] : code);
 const refOf = (c: RequirementComparison) => `${c.version_id}:${c.requirement.key}`;
 const formatTime = (iso: string) =>
   new Date(iso).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
@@ -105,7 +108,21 @@ function gapSkills(analysis: CareerAnalysis, alternatives: Record<string, SkillI
   return [...gaps].sort();
 }
 
-function ErrorAlert({ error, title }: { error: unknown; title: string }) {
+/**
+ * onRetry: 조회 오류일 때 그 조회를 다시 부르는 "다시 시도" 버튼을 붙인다. 401 은 다시 불러도 같으므로 "다시 로그인"만 보여 준다.
+ * isFetching: 그 조회를 다시 부르는 중이면 버튼을 잠근다 (누를 때마다 같은 GET 이 또 나가지 않게).
+ */
+function ErrorAlert({
+  error,
+  title,
+  onRetry,
+  isFetching,
+}: {
+  error: unknown;
+  title: string;
+  onRetry?: () => void;
+  isFetching?: boolean;
+}) {
   const logout = useAuthStore((state) => state.logout);
   const navigate = useNavigate();
   const unauthorized = getApiErrorKind(error) === 'unauthorized';
@@ -123,6 +140,10 @@ function ErrorAlert({ error, title }: { error: unknown; title: string }) {
             }}
           >
             다시 로그인
+          </Button>
+        ) : onRetry ? (
+          <Button variant="outline" size="sm" disabled={isFetching} onClick={onRetry}>
+            다시 시도
           </Button>
         ) : undefined
       }
@@ -144,7 +165,7 @@ function WarningList({ codes }: { codes: string[] }) {
 }
 
 export function CareerPlanPage() {
-  const preview = isPreviewSession();
+  const preview = import.meta.env.DEV && isPreviewSession();
   const [target, setTarget] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<CareerAnalysis | null>(null);
   const [alternatives, setAlternatives] = useState<Record<string, SkillId>>({});
@@ -161,7 +182,7 @@ export function CareerPlanPage() {
     () => Object.fromEntries((catalog.data?.skills ?? []).map((s) => [s.skill_id, s.label])),
     [catalog.data],
   );
-  const label = (skill: SkillId) => labels[skill] ?? skill;
+  const label = (skill: SkillId) => (Object.hasOwn(labels, skill) ? labels[skill] : skill);
 
   const analyze = useMutation({
     mutationFn: () => createCareerAnalysis(target),
@@ -219,6 +240,8 @@ export function CareerPlanPage() {
         </p>
       </section>
 
+      <MarketTrendsCard />
+
       <Card className="flex flex-col gap-4">
         <div className="flex items-baseline justify-between gap-2">
           <h2 className="text-[17px] font-bold">1. 비교할 공고</h2>
@@ -229,7 +252,14 @@ export function CareerPlanPage() {
           )}
         </div>
         {postings.isLoading && <p className="text-[13px] text-[var(--color-text-muted)]">불러오는 중...</p>}
-        {postings.isError && <ErrorAlert error={postings.error} title="공고를 불러오지 못했어요" />}
+        {postings.isError && (
+          <ErrorAlert
+            error={postings.error}
+            title="공고를 불러오지 못했어요"
+            onRetry={() => postings.refetch()}
+            isFetching={postings.isFetching}
+          />
+        )}
         {postings.data && sources.length === 0 && (
           <p className="text-[14px] text-[var(--color-text-sub)]">
             아직 비교에 쓸 수 있는 공고가 없어요. 연구자가 원문을 검토해 공고를 반입하면 여기에 나타나요.
@@ -265,10 +295,19 @@ export function CareerPlanPage() {
                     </span>
                     <span className="block text-[13px] text-[var(--color-text-muted)]">
                       {s.posted_at ? `${new Date(s.posted_at).toLocaleDateString('ko-KR')} 게시` : '게시일 미상'}
-                      {' · '}
-                      <a href={s.source_url} target="_blank" rel="noreferrer" className="hover:underline">
-                        원문
-                      </a>
+                      {safeExternalHref(s.source_url) && (
+                        <>
+                          {' · '}
+                          <a
+                            href={safeExternalHref(s.source_url)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="hover:underline"
+                          >
+                            원문
+                          </a>
+                        </>
+                      )}
                     </span>
                   </span>
                 </label>
@@ -307,7 +346,9 @@ export function CareerPlanPage() {
           )}
           <ul className="flex flex-col divide-y divide-[var(--color-border)]">
             {analysis.comparisons.map((c) => {
-              const status = STATUS_LABEL[c.status];
+              // 이 화면이 아직 모르는 상태 값(공유 형식에 새로 생긴 값 등)은 '판단 보류'로 보여 준다.
+              // Object.hasOwn: Object.prototype 의 이름(constructor 등)인 값도 표에 없는 값으로 본다.
+              const status = Object.hasOwn(STATUS_LABEL, c.status) ? STATUS_LABEL[c.status] : STATUS_LABEL.unknown;
               return (
                 <li key={refOf(c)} className="flex flex-col gap-1 py-3">
                   <div className="flex flex-wrap items-center gap-2">
@@ -422,8 +463,9 @@ export function CareerPlanPage() {
               onChange={(e) => setUseLlm(e.target.checked)}
               className="mt-0.5 h-4 w-4 accent-[var(--color-primary)]"
             />
-            LLM으로 단계 순서·시간을 배분할게요. 허용된 계정만 사용할 수 있고, 계획 옵션(기술·자료 ID·시간)이 AI 서버의
-            모델로 전달되는 것에 동의해요. 자격증명 원문과 개인정보는 전달되지 않아요.
+            LLM(외부 서비스 Google Gemini API)으로 단계 순서·시간을 배분할게요. 허용된 계정만 사용할 수 있고, 계획
+            옵션(기술·자료 ID·시간·비용, 학습자료 설명 일부)이 Google Gemini API로 전달되는 것에 동의해요. 자격증명 원문과
+            개인정보는 전달되지 않아요. 서비스 설정에 따라 전달된 내용이 Google의 정책대로 서비스 개선에 쓰일 수 있어요.
           </label>
           <div className="flex flex-wrap items-center gap-3">
             <Button
@@ -474,14 +516,18 @@ export function CareerPlanPage() {
                 {step.resource && (
                   <p className="mt-1 text-[13px]">
                     자료:{' '}
-                    <a
-                      href={step.resource.resource.source_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="font-semibold text-[var(--color-primary)] hover:underline"
-                    >
-                      {step.resource.resource.title}
-                    </a>{' '}
+                    {safeExternalHref(step.resource.resource.source_url) ? (
+                      <a
+                        href={safeExternalHref(step.resource.resource.source_url)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-semibold text-[var(--color-primary)] hover:underline"
+                      >
+                        {step.resource.resource.title}
+                      </a>
+                    ) : (
+                      <span className="font-semibold">{step.resource.resource.title}</span>
+                    )}{' '}
                     ({step.resource.resource.provider},{' '}
                     {step.resource.resource.cost_krw === null
                       ? '비용 미상'

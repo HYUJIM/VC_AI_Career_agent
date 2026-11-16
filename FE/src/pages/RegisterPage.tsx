@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { registerUser } from '@/api/auth';
+import { SocialLoginButtons } from '@/components/SocialLoginButton';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -15,9 +16,11 @@ import {
   getApiErrorMessage,
   getApiErrorStatus,
   getConnectionHint,
+  needsRetryHint,
   RETRY_LATER_MESSAGE,
 } from '@/lib/apiClient';
-import { useAuthStore } from '@/store/authStore';
+import { SINGLE_LINE_PATTERN } from '@/lib/text';
+import { startSession } from '@/store/authStore';
 
 interface RegisterError {
   kind: ApiErrorKind;
@@ -31,8 +34,17 @@ interface RegisterError {
 const MAX_PASSWORD_BYTES = 72;
 
 const registerSchema = z.object({
-  name: z.string().min(1, '이름을 입력해주세요.'),
-  email: z.string().email('올바른 이메일 형식이 아닙니다.'),
+  name: z
+    .string()
+    .trim()
+    .min(1, '이름을 입력해주세요.')
+    .max(100, '이름은 100자 이하여야 합니다.')
+    .regex(SINGLE_LINE_PATTERN, '이름에는 줄바꿈·제어 문자·보이지 않는 글자를 쓸 수 없고, 보이는 글자가 하나 이상 있어야 합니다.'),
+  email: z
+    .string()
+    .trim()
+    .email('올바른 이메일 형식이 아닙니다.')
+    .max(255, '이메일은 255자 이하여야 합니다.'),
   password: z
     .string()
     .min(8, '비밀번호는 8자 이상이어야 합니다.')
@@ -51,7 +63,6 @@ export function RegisterPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const prefillEmail = (location.state as { email?: string } | null)?.email ?? '';
-  const setUser = useAuthStore((state) => state.setUser);
   const [registerError, setRegisterError] = useState<RegisterError | null>(null);
 
   const {
@@ -67,8 +78,8 @@ export function RegisterPage() {
   const mutation = useMutation({
     mutationFn: registerUser,
     onSuccess: (res) => {
-      // BE가 가입과 동시에 사용자 정보(DID 포함)를 내려주므로 바로 로그인 상태로 전환
-      setUser(res.data, res.access_token, res.expires_in);
+      // BE가 가입과 동시에 사용자 정보(DID 포함)와 액세스 토큰을 내려주므로 바로 로그인 상태로 전환
+      startSession(res);
       navigate('/dashboard', { state: { welcome: res.data.name, newUser: true } });
     },
     onError: (error, variables) => {
@@ -116,6 +127,12 @@ export function RegisterPage() {
             {err.message}
           </Alert>
         );
+      case 'rateLimited':
+        return (
+          <Alert variant="warning" title="회원가입 시도가 너무 많습니다." onClose={() => setRegisterError(null)}>
+            보안을 위해 잠시 동안 요청이 제한되었습니다. 잠시 후 다시 시도해주세요.
+          </Alert>
+        );
       case 'network':
         return (
           <Alert variant="warning" title="서버에 연결할 수 없습니다." onClose={() => setRegisterError(null)}>
@@ -126,8 +143,8 @@ export function RegisterPage() {
         return (
           <Alert variant="error" title="회원가입 중 오류가 발생했습니다." onClose={() => setRegisterError(null)}>
             {err.message}
-            {/* 429(시도 횟수 초과, 운영 WAF)는 메시지가 이미 "잠시 후 다시 시도"를 안내한다 */}
-            {err.status !== 429 && (
+            {/* 429(시도 횟수 초과, 운영 WAF)·혼잡 안내는 메시지가 이미 "잠시 후 다시 시도"를 안내한다 */}
+            {needsRetryHint(err.status, err.message) && (
               <>
                 <br />
                 {import.meta.env.DEV
@@ -154,6 +171,7 @@ export function RegisterPage() {
             id="name"
             label="이름"
             placeholder="홍길동"
+            maxLength={100}
             error={errors.name?.message}
             {...register('name')}
           />
@@ -162,6 +180,7 @@ export function RegisterPage() {
             type="email"
             label="이메일"
             placeholder="hong@test.com"
+            maxLength={255}
             error={errors.email?.message}
             {...register('email')}
           />
@@ -187,6 +206,8 @@ export function RegisterPage() {
             가입하기
           </Button>
         </form>
+        {/* Google 은 가입 화면 문구, GitHub·네이버는 버튼의 기본 문구("GitHub로 로그인"·"네이버 로그인")를 쓴다 */}
+        <SocialLoginButtons disabled={mutation.isPending} labels={{ google: 'Google로 가입·시작하기' }} />
         <p className="mt-5 text-center text-[15px] text-[var(--color-text-muted)]">
           이미 계정이 있으신가요?{' '}
           <Link to="/login" className="font-semibold text-[var(--color-primary)] hover:underline">

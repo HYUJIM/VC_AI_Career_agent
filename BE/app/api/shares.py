@@ -10,12 +10,13 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
 from app.core.auth import Principal, require_user
-from app.core.text import ensure_storable
+from app.core.text import ensure_single_line, ensure_storable
 from app.integrations import get_verifier
 from app.integrations.ports import CredentialVerifier
 from app.services.database import db_service
 from app.services.public_view_gate import BudgetExceeded, public_view_gate
 from app.services.reverify import reverify_rows
+from app.services.verifier_budget import ANONYMOUS_CALLER
 
 router = APIRouter()
 public_router = APIRouter()
@@ -23,10 +24,19 @@ logger = logging.getLogger(__name__)
 
 NOT_FOUND = "Share link not found or expired"
 VERIFIER_BUSY = "Share verification is busy. Try again later."
+# FE가 이 문구로 안내를 고른다 (FE/src/lib/apiClient.ts). 바꾸면 FE도 함께 바꾼다.
+SHARE_LIMIT_REACHED = "Share link limit reached. Revoke unused links first."
 
 
 def _hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _single_line_label(value: Optional[str]) -> Optional[str]:
+    """링크 이름 검사기: 앞뒤 공백을 뗀 값이 한 줄 텍스트가 아니면 ValueError(→ 422). 값은 그대로 돌려준다."""
+    if value is not None:
+        ensure_single_line(value.strip())
+    return value
 
 
 class ShareCreateRequest(BaseModel):
@@ -35,7 +45,10 @@ class ShareCreateRequest(BaseModel):
     record_ids: list[UUID] = Field(min_length=1, max_length=50)
     # StorableText와 같은 검사(NUL·짝 없는 서로게이트 → 500 대신 422). 길이 제한을 검사기보다 앞에 두어야
     # 너무 긴 값의 422 메시지가 지금과 같다 (Optional[StorableText] + Field(max_length)는 메시지가 바뀜).
-    label: Optional[Annotated[str, Field(max_length=100), AfterValidator(ensure_storable)]] = None
+    # 링크 이름은 한 줄 텍스트다: 앞뒤 공백을 뗀 값에 줄바꿈·ESC 등 제어 문자·방향 제어 문자가 있으면 422
+    # (포트폴리오 제목과 같은 규칙. 앞뒤 공백·줄바꿈은 지금처럼 create_share가 떼어 저장한다).
+    label: Optional[Annotated[str, Field(max_length=100), AfterValidator(ensure_storable),
+                              AfterValidator(_single_line_label)]] = None
     expires_in_days: int = Field(default=14, ge=1, le=90)
 
 
@@ -64,6 +77,9 @@ def create_share(req: ShareCreateRequest, principal: Principal = Depends(require
         user_id=principal.user_id, token_hash=_hash(token), record_ids=ids, label=label,
         expires_at=datetime.now(timezone.utc) + timedelta(days=req.expires_in_days),
     )
+    if row is None:
+        # 유효한(철회·만료되지 않은) 링크가 사용자별 상한(database.MAX_ACTIVE_SHARES_PER_USER)에 닿았다.
+        raise HTTPException(status_code=409, detail=SHARE_LIMIT_REACHED)
     return {
         "success": True,
         "message": "Share link created. The token is shown only once.",
@@ -87,9 +103,10 @@ def revoke_share(share_id: UUID, principal: Principal = Depends(require_user)):
 async def view_share(token: str, verifier: CredentialVerifier = Depends(get_verifier)):
     """기업용 조회. 로그인 없이 링크로 열고, 열 때 서명 원본을 다시 검증한다.
 
-    로그인 없는 요청이라 검증기 호출 양을 묶고(public_view_gate.py: 같은 원본은 60초 동안 다시 묻지 않음, 태스크마다
-    분당 300번까지, 모자라면 503 + Retry-After), 결과를 학생의 DB 사본에 저장하지 않는다(익명 요청이 남의 레코드를
-    고쳐 쓰지 않게). 학생 지갑의 상태는 본인의 재검증·근거 조회·포트폴리오 생성·직무 비교 때 갱신된다.
+    로그인 없는 요청이라 검증기 호출 양을 묶고(public_view_gate.py: 같은 원본은 60초 동안 다시 묻지 않음, 다른 조회가
+    묻고 있는 원본은 그 응답을 기다림, 태스크마다 분당 300번까지, 모자라면 503 + Retry-After), 결과를 학생의 DB 사본에
+    저장하지 않는다(익명 요청이 남의 레코드를 고쳐 쓰지 않게). 학생 지갑의 상태는 본인의 재검증·근거 조회·포트폴리오
+    생성·직무 비교 때 갱신된다.
     """
     if len(token) > 128:
         raise HTTPException(status_code=404, detail=NOT_FOUND)
@@ -101,7 +118,9 @@ async def view_share(token: str, verifier: CredentialVerifier = Depends(get_veri
     user = await run_in_threadpool(db_service.get_user_by_id, user_id)
     rows = await run_in_threadpool(db_service.get_credential_rows, user_id, [str(r) for r in share["record_ids"]])
     try:
-        outcomes = await reverify_rows(rows, verifier, persist=False, gate=public_view_gate)
+        # 호출 양은 public_view_gate가 묶는다 (로그인 사용자용 verifier_budget과 따로, 두 번 세지 않는다).
+        outcomes = await reverify_rows(rows, verifier, caller=ANONYMOUS_CALLER, route="share_view", persist=False,
+                                       gate=public_view_gate)
     except BudgetExceeded as exc:
         # 링크 토큰은 로그에 남기지 않는다 (공유 ID만).
         logger.warning("Public share view rejected: verifier call budget exceeded (share=%s retry_after=%s)",

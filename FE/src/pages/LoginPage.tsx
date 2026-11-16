@@ -1,10 +1,11 @@
-﻿import { zodResolver } from '@hookform/resolvers/zod';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { loginUser } from '@/api/auth';
+import { SocialLoginButtons } from '@/components/SocialLoginButton';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -15,10 +16,11 @@ import {
   getApiErrorMessage,
   getApiErrorStatus,
   getConnectionHint,
+  needsRetryHint,
   RETRY_LATER_MESSAGE,
 } from '@/lib/apiClient';
 import { PREVIEW_ENABLED, PREVIEW_USER } from '@/lib/preview';
-import { useAuthStore } from '@/store/authStore';
+import { startSession, useAuthStore } from '@/store/authStore';
 
 /** 다른 화면(회원가입 등)에서 로그인 화면으로 넘어올 때 전달하는 상태 */
 export interface LoginLocationState {
@@ -34,9 +36,21 @@ interface LoginError {
   status?: number;
 }
 
+/** BE는 bcrypt 제약으로 UTF-8 기준 72바이트를 넘는 비밀번호를 거부한다(422). */
+const MAX_PASSWORD_BYTES = 72;
+
 const loginSchema = z.object({
-  email: z.string().email('올바른 이메일 형식이 아닙니다.'),
-  password: z.string().min(1, '비밀번호를 입력해주세요.'),
+  email: z
+    .string()
+    .trim()
+    .email('올바른 이메일 형식이 아닙니다.')
+    .max(255, '이메일은 255자 이하여야 합니다.'),
+  password: z
+    .string()
+    .min(1, '비밀번호를 입력해주세요.')
+    .refine((v) => new TextEncoder().encode(v).length <= MAX_PASSWORD_BYTES, {
+      message: `비밀번호가 너무 깁니다. (최대 ${MAX_PASSWORD_BYTES}바이트)`,
+    }),
 });
 
 type LoginForm = z.infer<typeof loginSchema>;
@@ -45,7 +59,7 @@ export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const locationState = (location.state ?? {}) as LoginLocationState;
-  const setUser = useAuthStore((state) => state.setUser);
+  const setSession = useAuthStore((state) => state.setSession);
   const clearLogoutReason = useAuthStore((state) => state.clearLogoutReason);
   const [loginError, setLoginError] = useState<LoginError | null>(null);
   // 로그아웃/세션 만료 안내는 스토어에서 한 번만 읽고 바로 비운다.
@@ -71,7 +85,7 @@ export function LoginPage() {
   const mutation = useMutation({
     mutationFn: loginUser,
     onSuccess: (res) => {
-      setUser(res.data, res.access_token, res.expires_in);
+      startSession(res);
       navigate('/dashboard', { state: { welcome: res.data.name } });
     },
     onError: (error, variables) => {
@@ -115,6 +129,7 @@ export function LoginPage() {
           >
             <ul className="list-inside list-disc">
               <li>비밀번호를 다시 확인해주세요. (대소문자 구분)</li>
+              <li>Google·GitHub·네이버 계정으로 가입했다면 아래 소셜 로그인 버튼을 이용해주세요.</li>
               <li>
                 <span className="font-mono-did">{err.email}</span> 로 가입한 적이 없다면 먼저
                 회원가입을 해주세요.
@@ -134,12 +149,18 @@ export function LoginPage() {
             {err.message}
           </Alert>
         );
+      case 'rateLimited':
+        return (
+          <Alert variant="warning" title="로그인 시도가 너무 많습니다." onClose={() => setLoginError(null)}>
+            보안을 위해 잠시 동안 로그인이 제한되었습니다. 잠시 후 다시 시도해주세요.
+          </Alert>
+        );
       default:
         return (
           <Alert variant="error" title="로그인 중 오류가 발생했습니다." onClose={() => setLoginError(null)}>
             {err.message}
-            {/* 429(시도 횟수 초과)는 메시지가 이미 "잠시 후 다시 시도"를 안내한다 */}
-            {err.status !== 429 && (
+            {/* 429(시도 횟수 초과)·혼잡 안내는 메시지가 이미 "잠시 후 다시 시도"를 안내한다 */}
+            {needsRetryHint(err.status, err.message) && (
               <>
                 <br />
                 {import.meta.env.DEV
@@ -163,7 +184,7 @@ export function LoginPage() {
         </p>
         {notice === 'sessionExpired' && (
           <Alert variant="warning" title="로그인 정보가 만료되었습니다." className="mb-4" onClose={() => setNotice(null)}>
-            저장된 계정 정보를 서버에서 찾을 수 없습니다. 다시 로그인해주세요.
+            로그인 유효 시간이 지났거나 서버에서 계정 정보를 찾을 수 없습니다. 다시 로그인해주세요.
           </Alert>
         )}
         {notice === 'tokenExpired' && (
@@ -180,6 +201,7 @@ export function LoginPage() {
             type="email"
             label="이메일"
             placeholder="hong@test.com"
+            maxLength={255}
             error={errors.email?.message}
             {...register('email')}
           />
@@ -197,6 +219,7 @@ export function LoginPage() {
             로그인
           </Button>
         </form>
+        <SocialLoginButtons disabled={mutation.isPending} />
         <p className="mt-5 text-center text-[15px] text-[var(--color-text-muted)]">
           계정이 없으신가요?{' '}
           <Link to="/register" className="font-semibold text-[var(--color-primary)] hover:underline">
@@ -216,7 +239,7 @@ export function LoginPage() {
             variant="tertiary"
             className="mt-3 w-full"
             onClick={() => {
-              setUser(PREVIEW_USER);
+              setSession(PREVIEW_USER, null);
               navigate('/dashboard');
             }}
           >

@@ -1,5 +1,4 @@
-node_modules/
-dist/
+.DS_Store
 .env
 *.log
 
@@ -13,3 +12,4 @@ __pycache__/
 .ruff_cache/
 
 test_users_did_list.csv.*.tmp
+market_snapshots/

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { UserProfile } from '@/types/api';
+import { OAUTH_CALLBACK_PATHS } from '@/lib/oauthProviders';
+import type { AuthResponse, UserProfile } from '@/types/api';
 
 /**
  * 로그인 화면에 안내 배너를 띄우기 위한 로그아웃 사유
@@ -17,20 +18,65 @@ const MAX_TIMER_MS = 2_147_483_647;
 
 interface AuthState {
   user: UserProfile | null;
-  /** BE가 로그인·가입 때 준 액세스 토큰. 미리보기 세션이나 이전 버전 로그인은 null */
+  /** BE가 로그인·가입(이메일 또는 소셜 로그인) 때 준 JWT 액세스 토큰. 개발용 미리보기 세션은 null */
   accessToken: string | null;
-  /** 토큰 만료 시각(이 기기 시계 기준 ms). 로그인·가입 응답의 expires_in으로 계산한다. 모르면 null (BE의 401로만 판단) */
+  /** 토큰 만료 시각(이 기기 시계 기준 ms). 응답의 expires_in으로 계산한다. 모르면 null (BE의 401로만 판단) */
   expiresAt: number | null;
   isAuthenticated: boolean;
   logoutReason: LogoutReason | null;
-  setUser: (user: UserProfile, accessToken?: string | null, expiresIn?: number | null) => void;
+  /** 로그인·회원가입·소셜 로그인 성공 시 프로필과 토큰(및 만료까지 남은 초)을 함께 저장한다. */
+  setSession: (user: UserProfile, accessToken: string | null, expiresIn?: number | null) => void;
   logout: (reason?: LogoutReason) => void;
   clearLogoutReason: () => void;
 }
 
+type PersistedAuthState = Pick<AuthState, 'user' | 'accessToken' | 'expiresAt' | 'isAuthenticated'>;
+
+const EMPTY_SESSION: PersistedAuthState = { user: null, accessToken: null, expiresAt: null, isAuthenticated: false };
+
+/** 저장 형식 버전. v0 = 토큰 없이 프로필만 저장(BE v0.3.0) 또는 만료 시각 없이 토큰만 저장하던 시절 */
+const AUTH_STORAGE_VERSION = 1;
+
+function toExpiresAt(expiresIn: number | null | undefined): number | null {
+  return typeof expiresIn === 'number' && Number.isFinite(expiresIn) && expiresIn > 0
+    ? Date.now() + expiresIn * 1000
+    : null;
+}
+
+const isNonEmptyString = (value: unknown): value is string => typeof value === 'string' && value !== '';
+
+/**
+ * 화면이 그대로 쓰는 프로필인지: id·did·name 은 빈 문자열이 아닌 문자열, email 은 문자열.
+ * 로그인 응답(startSession)과 저장된 세션(persist merge)을 같은 기준으로 본다. 머리글의 프로필 메뉴가 이름을 그대로 쓰므로
+ * 이름이 없는 프로필을 받아들이면 머리글·로그아웃 버튼까지 그려지지 않는 빈 화면이 새로고침해도 계속된다.
+ * (persist 가 스토어를 만들면서 바로 merge 를 부르므로 스토어보다 위에 둔다.)
+ */
+function isUserProfile(value: unknown): value is UserProfile {
+  const user = value as Partial<UserProfile> | null | undefined;
+  return (
+    isNonEmptyString(user?.id) &&
+    isNonEmptyString(user?.did) &&
+    isNonEmptyString(user?.name) &&
+    typeof user?.email === 'string'
+  );
+}
+
+/**
+ * 예전 형식의 저장값을 지금 형식으로 바꾼다.
+ * 토큰이 없는 세션은 BE(AUTH_REQUIRED=true)가 모든 요청을 401로 거절하므로 버리고 다시 로그인하게 한다.
+ * 토큰은 있지만 만료 시각이 없으면 BE의 401로만 만료를 판단한다(expiresAt: null).
+ */
+function migrateStoredSession(persisted: unknown): PersistedAuthState {
+  const old = (persisted ?? {}) as Partial<PersistedAuthState>;
+  if (!old.isAuthenticated || !old.user || typeof old.accessToken !== 'string' || !old.accessToken) {
+    return EMPTY_SESSION;
+  }
+  return { user: old.user, accessToken: old.accessToken, expiresAt: null, isAuthenticated: true };
+}
+
 /**
  * 로그인·가입 응답의 프로필(did 포함)과 액세스 토큰을 로컬에 보관해 로그인 상태를 유지한다.
- * 토큰은 apiClient가 모든 요청의 Authorization 헤더에 붙인다 (직무 비교·커리큘럼 API는 토큰 필수).
+ * 토큰은 `lib/apiClient.ts` 인터셉터가 공개 API를 뺀 모든 요청의 Authorization 헤더에 붙인다.
  *
  * logoutReason 은 라우터 state 대신 스토어에 둔다. 로그아웃 직후 ProtectedRoute 가 즉시
  * /login 으로 리다이렉트하면서 navigate(..., { state }) 의 state 가 유실될 수 있기 때문이다.
@@ -38,40 +84,49 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
-      user: null,
-      accessToken: null,
-      expiresAt: null,
-      isAuthenticated: false,
+      ...EMPTY_SESSION,
       logoutReason: null,
-      setUser: (user, accessToken = null, expiresIn = null) =>
-        set({
-          user,
-          accessToken,
-          expiresAt:
-            typeof expiresIn === 'number' && Number.isFinite(expiresIn) && expiresIn > 0
-              ? Date.now() + expiresIn * 1000
-              : null,
-          isAuthenticated: true,
-          logoutReason: null,
-        }),
-      logout: (reason) =>
-        set({ user: null, accessToken: null, expiresAt: null, isAuthenticated: false, logoutReason: reason ?? null }),
+      setSession: (user, accessToken, expiresIn = null) =>
+        set({ user, accessToken, expiresAt: toExpiresAt(expiresIn), isAuthenticated: true, logoutReason: null }),
+      logout: (reason) => set({ ...EMPTY_SESSION, logoutReason: reason ?? null }),
       clearLogoutReason: () => set({ logoutReason: null }),
     }),
     {
       name: AUTH_STORAGE_KEY,
+      version: AUTH_STORAGE_VERSION,
+      migrate: migrateStoredSession,
       // 일회성 안내인 logoutReason 은 새로고침 후까지 남기지 않는다.
-      partialize: (state) => ({
+      partialize: (state): PersistedAuthState => ({
         user: state.user,
         accessToken: state.accessToken,
         expiresAt: state.expiresAt,
         isAuthenticated: state.isAuthenticated,
       }),
-      // 저장된 세션이 세션 필드를 모두 정한다 (예전 버전이 저장해 expiresAt 이 없으면 null).
-      merge: (persisted, current) => ({ ...current, expiresAt: null, ...(persisted as Partial<AuthState>) }),
+      // 저장된 세션이 세션 필드를 모두 정한다 (expiresAt 이 없으면 null).
+      // 로그인 상태라고 적혀 있는데 사용자 정보가 프로필이 아닌(없음·이름 없음 등, isUserProfile) 저장값은 버린다. 그대로 쓰면
+      // 메뉴·로그아웃 버튼이 없는 빈 화면이 새로고침해도 계속된다. 프로필은 맞고 토큰만 없는 세션(개발용 미리보기 등)은
+      // 그대로 둔다: BE의 401로 로그아웃된다.
+      merge: (persisted, current) => {
+        const stored = persisted as Partial<AuthState> | undefined;
+        const session = stored?.isAuthenticated && !isUserProfile(stored.user) ? EMPTY_SESSION : stored;
+        return { ...current, expiresAt: null, ...session };
+      },
     },
   ),
 );
+
+/**
+ * BE 인증 응답(`AuthResponse`)으로 세션을 시작한다. 이메일 로그인·회원가입·소셜 로그인이 같은 경로를 쓴다.
+ * 200 이지만 인증 응답이 아닌 본문(예: /api 요청이 SPA 의 index.html 로 넘어가는 배포 설정, 빈 객체, 이름 없는 프로필)은
+ * 저장하지 않고 오류로 알린다. 저장하면 사용자·토큰 없이 "로그인됨" 상태만 남는다. 각 화면의 onError·catch 가 이 문구를 보여 준다.
+ */
+export function startSession(res: AuthResponse): void {
+  const user = res?.data;
+  if (!isUserProfile(user) || !isNonEmptyString(res.access_token)) {
+    throw new Error('서버 응답이 올바르지 않습니다.');
+  }
+  useAuthStore.getState().setSession(user, res.access_token, res.expires_in);
+}
 
 let expiryTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -121,11 +176,15 @@ function adoptStoredSession() {
   // localStorage 는 동기 저장소라 여기서 바로 반영된다. rehydrate 는 저장소에 다시 쓰지 않는다.
   void useAuthStore.persist.rehydrate();
   const after = useAuthStore.getState();
-  // 로그아웃돼 로그인·회원가입 화면에 있던 탭: 다른 탭에서 로그인했으면 그 계정의 대시보드로 새로 연다
+  // 로그아웃돼 로그인·회원가입·OAuth 콜백(Google·GitHub·네이버) 화면에 있던 탭: 다른 탭에서 로그인했으면 그 계정의 대시보드로 새로 연다
   // (그대로 두면 로그인 화면과 "로그아웃되었습니다" 배너 위에 새 계정의 메뉴가 함께 보인다).
   // 라우터처럼 경로의 %인코딩을 풀고 대소문자와 끝의 '/'는 무시한다 (/login/, /LOGIN, /%6Cogin 도 로그인 화면을 보여 준다).
   const path = decodePathLikeRouter(window.location.pathname).replace(/\/+$/, '').toLowerCase();
-  if (!before.isAuthenticated && after.isAuthenticated && (path === '/login' || path === '/register')) {
+  if (
+    !before.isAuthenticated &&
+    after.isAuthenticated &&
+    (path === '/login' || path === '/register' || OAUTH_CALLBACK_PATHS.has(path))
+  ) {
     window.location.replace('/dashboard');
     return;
   }

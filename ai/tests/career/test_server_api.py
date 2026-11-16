@@ -1,14 +1,26 @@
 """HTTP boundary of the AI service: auth, contract, redaction and route wiring."""
 
 import asyncio
+import json
 import os
+import subprocess
+import sys
+from pathlib import Path
 
 import httpx
 import pytest
 from fastapi.testclient import TestClient
 
 from src.career.contracts import CONTRACT_HEADER, CONTRACT_ID
-from src.server.app import create_app
+from src.career.errors import ConfigurationError
+from src.server.app import (
+    CORPUS_ROUTES,
+    DEFAULT_MAX_BODY_BYTES,
+    MAX_REPORTED_ERRORS,
+    SMALL_BODY_BYTES,
+    create_app,
+    max_body_bytes,
+)
 
 
 @pytest.fixture
@@ -68,10 +80,87 @@ def test_validation_errors_never_echo_inputs(client, headers):
     assert secret not in response.text
 
 
+def test_validation_errors_are_capped_in_count_and_key_length(client, headers):
+    # 모르는 키 하나마다 오류 하나가 생기고 loc에 그 키 이름이 실린다: 요청보다 몇 배 큰 422가 되지 않게
+    # 앞의 20개만, 64자를 넘는 키 이름은 자리표시로 돌려준다.
+    many = {"raw_text": "SQL", **{f"unknown_{i}": i for i in range(500)}}
+    response = client.post("/v1/job-postings/preview", headers=headers, json=many)
+    assert response.status_code == 422 and response.json()["code"] == "REQUEST_SCHEMA_INVALID"
+    detail = response.json()["detail"]
+    assert len(detail) == MAX_REPORTED_ERRORS == 20
+    assert detail[0] == {
+        "loc": ["body", "unknown_0"],
+        "msg": "Extra inputs are not permitted",
+        "type": "extra_forbidden",
+    }
+
+    marker = "PII-" + "k" * 61  # 65자: 상한을 1자 넘는다
+    body = {"raw_text": "SQL", marker: 1, marker[:64]: 1, "K" * 100000: 1}
+    response = client.post("/v1/job-postings/preview", headers=headers, json=body)
+    assert response.status_code == 422
+    assert sorted(item["loc"][1] for item in response.json()["detail"]) == sorted(
+        ["<long key>", marker[:64], "<long key>"]
+    )
+    assert marker not in response.text and len(response.content) < 1024
+
+    # 필드 이름·목록 위치 같은 정상 loc는 그대로다.
+    response = client.post("/v1/job-postings/preview", headers=headers, json={"raw_text": 1})
+    assert [item["loc"] for item in response.json()["detail"]] == [["body", "raw_text"]]
+
+
 def test_oversized_body_is_rejected(client, headers, monkeypatch):
     monkeypatch.setenv("AI_MAX_BODY_BYTES", "64")
     response = client.post("/v1/job-postings/preview", headers=headers, json={"raw_text": "x" * 200})
     assert response.status_code == 413
+
+
+@pytest.mark.parametrize("value", ["", "   ", " 33554432 ", "0033554432"])
+def test_blank_body_limit_means_the_default(headers, monkeypatch, value):
+    # .env에 이름만 두고 값을 비워도(AI_MAX_BODY_BYTES=) 기본값으로 뜬다. 전에는 모든 경로가 500이었다.
+    # 앞뒤 공백이나 앞의 0이 붙은 숫자는 전처럼 받는다(여기서는 기본값과 같은 수).
+    monkeypatch.setenv("AI_MAX_BODY_BYTES", value)
+    assert max_body_bytes() == DEFAULT_MAX_BODY_BYTES == 32 * 1024 * 1024
+    with TestClient(create_app()) as current:
+        assert current.get("/health").status_code == 200
+        response = current.post(
+            "/v1/job-postings/preview", headers=headers, json={"raw_text": "x" * 200}
+        )
+        assert response.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "value", ["32MiB", "3.3e7", "0", "-1", "+64", "１２３４５", "1_000", "9" * 19, "9" * 5000]
+)
+def test_invalid_body_limit_is_a_configuration_error_not_a_500(client, headers, monkeypatch, value):
+    monkeypatch.setenv("AI_MAX_BODY_BYTES", value)
+    # 시작할 때: 앱을 만들지 못하고(import 실패) 변수 이름이 든 오류가 난다. 값은 싣지 않는다.
+    with pytest.raises(ConfigurationError, match="AI_MAX_BODY_BYTES must be a positive integer") as exc:
+        create_app()
+    assert value not in str(exc.value)
+    # 떠 있는 앱에서 값이 바뀐 경우(테스트만 가능): 처리되지 않은 500이 아니라 503.
+    for response in (
+        client.get("/health"),
+        client.post("/v1/job-postings/preview", headers=headers, json={"raw_text": "SQL"}),
+    ):
+        assert response.status_code == 503
+        assert response.json() == {
+            "detail": "AI service configuration required",
+            "code": "AI_CONFIGURATION_REQUIRED",
+        }
+        assert response.headers[CONTRACT_HEADER] == CONTRACT_ID
+
+
+@pytest.mark.parametrize("value", ["32MiB", "0", "９" * 3])
+def test_service_import_ends_an_invalid_body_limit_with_one_line_and_exit_code_1(value):
+    # 운영 이미지의 CMD(`uvicorn src.server.app:app`)가 하는 import 그대로. 예전에는 ConfigurationError traceback(수십 줄)으로
+    # 끝났다. 이제 변수 이름만 든 한 줄 + 종료 코드 1이다 (ECS 태스크는 그 줄을 남기고 멈춘다).
+    ai_dir = Path(__file__).resolve().parents[2]
+    env = {**os.environ, "AI_MAX_BODY_BYTES": value, "CAREER_AI_SKIP_DOTENV": "true", "PYTHONDONTWRITEBYTECODE": "1"}
+    result = subprocess.run([sys.executable, "-B", "-c", "import src.server.app"], cwd=ai_dir, env=env,
+                            capture_output=True, text=True, timeout=120)
+    assert result.returncode == 1 and result.stdout == "", result.stderr[-2000:]
+    assert result.stderr.splitlines() == ["AI_MAX_BODY_BYTES must be a positive integer (bytes)"]
+    assert value not in result.stderr
 
 
 TOO_LARGE = {"detail": "Request too large for the AI service", "code": "REQUEST_TOO_LARGE"}
@@ -182,6 +271,87 @@ def test_chunked_body_within_the_limit_is_served(headers):
     assert response.status_code == 200 and pulled == 2
     assert response.json()["candidates"][0]["skill_ids"] == ["sql"]
     assert response.headers[CONTRACT_HEADER] == CONTRACT_ID
+
+
+# ── 경로별 본문 상한 (SEC-03) ─────────────────────────────────────────────
+# 회귀: 모든 /v1 경로가 AI_MAX_BODY_BYTES(32 MiB)까지 읽었다. 서비스 토큰을 가진 쪽이 모르는 키를 가득 채운 본문을 보내면
+# 형식 오류 객체가 1 MiB마다 약 85~90 MB를 써 7.9 MiB 하나로 RSS가 748 MB였다(32 MiB면 약 3 GB, AI 태스크는 1 GB).
+# 이제 묶음 경로만 32 MiB이고, 공고 하나·자료 하나·미리보기 같은 경로는 4 MiB에서 본문을 읽기 전에(선언된 크기) 또는
+# 4 MiB를 넘는 순간(청크) 413이다.
+SMALL_ROUTES = ["/v1/job-postings/preview", "/v1/job-postings/validate", "/v1/learning-resources/validate"]
+FIVE_MIB_CHUNKS = [b"[" * (64 * 1024)] * 80  # 64 KiB × 80 = 5 MiB (JSON으로는 깊은 배열이라 다 읽으면 400)
+
+
+@pytest.mark.parametrize("path", SMALL_ROUTES)
+def test_single_item_routes_cap_bodies_at_4_mib(headers, path):
+    response, pulled = post_chunked(path, headers, FIVE_MIB_CHUNKS)
+    assert response.status_code == 413 and response.json() == TOO_LARGE
+    assert pulled == SMALL_BODY_BYTES // (64 * 1024) + 1  # 4 MiB까지 받고 넘는 첫 조각에서 끊는다 (80개 전부가 아니라)
+    declared = post_asgi(path, {**headers, "Content-Length": str(SMALL_BODY_BYTES + 1)}, b"{}")
+    assert declared.status_code == 413 and declared.json() == TOO_LARGE  # 선언된 크기만 보고 읽기 전에 413
+
+
+@pytest.mark.parametrize("path", sorted(CORPUS_ROUTES))
+def test_corpus_routes_keep_the_configured_limit(headers, path):
+    # 묶음 경로는 지금처럼 AI_MAX_BODY_BYTES(기본 32 MiB)까지 읽는다: 5 MiB는 끝까지 읽고 JSON이 아니어서 400/422다.
+    response, pulled = post_chunked(path, headers, FIVE_MIB_CHUNKS)
+    assert response.status_code in (400, 422) and pulled == len(FIVE_MIB_CHUNKS)
+
+
+def test_small_routes_also_respect_a_lower_configured_limit(headers, monkeypatch):
+    monkeypatch.setenv("AI_MAX_BODY_BYTES", "4096")
+    for path in [*SMALL_ROUTES, "/v1/job-postings/search"]:
+        response, pulled = post_chunked(path, headers, [b"x" * 1024] * 10)
+        assert response.status_code == 413 and pulled == 5, path
+
+
+def _widest_text(length):
+    """JSON 한 글자가 가장 길어지는 문자(제어 문자 → \\u0001, 6바이트)로 채운 문자열."""
+    return "\x01" * length
+
+
+def test_largest_single_item_bodies_from_be_fit_under_4_mib():
+    """BE가 단건 경로로 보내는 본문은 계약의 길이 상한을 모두 채우고 모든 글자를 가장 긴 이스케이프(6바이트)로 써도
+    4 MiB보다 작다 (BE의 httpx 0.28은 ensure_ascii=False, 구분자 공백 없이 보낸다). 계약 상한을 올리면 이 테스트가 알린다."""
+    from src.career.contracts.api import JobValidationRequest, ResourceValidationRequest
+    from src.career.contracts.career import PreviewRequest
+
+    def size(model):
+        return len(json.dumps(model.model_dump(mode="json"), ensure_ascii=False, separators=(",", ":"),
+                              allow_nan=False).encode("utf-8"))
+
+    now = "2026-11-02T00:00:00+00:00"
+    raw = _widest_text(100000)
+    posting = {
+        "source": "s" * 50, "external_id": _widest_text(255), "source_url": "https://e.example/" + "a" * 2000,
+        "company": _widest_text(200), "title": _widest_text(255), "region": _widest_text(80), "seniority": "unspecified",
+        "posted_at": now, "captured_at": now, "closes_at": None, "dataset_kind": "real",
+        "rights_basis": "research_authorization", "review_note": _widest_text(2000), "raw_text": raw,
+        "requirements": [{"key": f"{index:02d}" + "k" * 78, "kind": "skill", "importance": "preferred",
+                          "quote": raw[:4000], "start": 0, "end": 4000,
+                          "skill_ids": ["data_modeling", "sql", "python", "scala", "spark", "kafka", "airflow",
+                                        "etl", "git", "linux", "aws", "docker"],
+                          "match": "unspecified", "minimum_evidence": "experience"} for index in range(50)],
+    }
+    text = _widest_text(50000)
+    skills = ["data_modeling", "sql", "python", "scala", "spark", "kafka", "airflow", "etl", "git", "linux", "aws",
+              "docker"]
+    spans = [{"skill_id": skill, "quote": text[:2000], "start": 0, "end": 2000} for skill in skills]
+    resource = {
+        "source": "s" * 50, "external_id": _widest_text(255), "source_url": "https://e.example/" + "a" * 2000,
+        "title": _widest_text(255), "provider": _widest_text(200), "raw_text": text, "skill_annotations": spans,
+        "prerequisite_annotations": spans, "prerequisites_reviewed": True, "level": "advanced",
+        "minimum_study_hours": 40, "cost_krw": 100000000,
+        "cost_annotation": {"quote": text[:2000], "start": 0, "end": 2000}, "captured_at": now,
+        "available": True, "dataset_kind": "real", "rights_basis": "research_authorization",
+        "review_note": _widest_text(2000),
+    }
+    sizes = {
+        "job": size(JobValidationRequest.model_validate({"posting": posting})),
+        "resource": size(ResourceValidationRequest.model_validate({"resource": resource})),
+        "preview": size(PreviewRequest(raw_text=raw)),
+    }
+    assert all(value < SMALL_BODY_BYTES * 0.6 for value in sizes.values()), sizes
 
 
 @pytest.mark.parametrize("path", ["/health", "/openapi.json", "/docs", "/redoc"])

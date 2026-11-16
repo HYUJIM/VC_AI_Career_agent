@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: VC AI Career Agent — BE API
-  version: 0.7.0
+  version: 0.8.0
   description: |
     BE(FastAPI) 파트의 OpenAPI 명세. FE(`FE/src/api/*.ts`, `FE/src/types/api.ts`)가 실제로 호출하는
     계약을 기준으로 작성했다.
@@ -15,27 +15,80 @@ info:
       `{ success, message, ... }` 봉투(envelope)를 쓴다. 조회 계열(`careers`)은 봉투 없이 본문을 바로 반환한다.
     - 에러는 FastAPI 기본 형식 `{ "detail": "..." }` 으로 반환한다.
       FE는 `detail → message → error` 순서로 메시지를 읽는다 (`FE/src/lib/apiClient.ts`).
-    - AI 서비스 연동 오류(직무 비교·커리큘럼 API)와 발급·검증 인프라(DXWorks) 오류에만 기계용 사유 코드 `code`가 더 붙는다:
-      `{ "detail": "...", "code": "..." }`. AI 연동 오류의 상태 코드와 `detail`은 그대로다.
-    - 요청 본문 검증 실패는 FastAPI 기본 422 응답(`detail` 배열)이다. DB에 저장할 수 없는 문자열이 가입 이름·이메일,
+    - AI 서비스 연동 오류(직무 비교·커리큘럼 API)와 발급·검증 인프라(DXWorks)·소셜 로그인(Google·GitHub·네이버) 오류에만 기계용 사유 코드
+      `code`가 더 붙는다: `{ "detail": "...", "code": "..." }`. AI 연동 오류의 상태 코드와 `detail`은 그대로다.
+    - 요청 검증 실패는 422 `{ "detail": [ { "type", "loc", "msg" } ] }`다. FastAPI 기본 형식에서 입력값(`input`)과 `ctx`를
+      뺀 것이다: 받은 값을 되돌려 주지 않는다. 오류는 앞에서부터 20개까지만 싣고, `loc`에 들어가는 키 이름이 64자를 넘으면
+      `<long key>`로 바꾸며, 본문은 항상 ASCII다(한글·짝 없는 서로게이트는 `\uXXXX` 이스케이프).
+      DB에 저장할 수 없는 문자열이 가입 이름·이메일,
       로그인 이메일, 검증 `token`, 모의 발급 필드, 공유 `label`, 포트폴리오 제목·희망 직무에 있으면 422이고 `loc`은 그 필드다.
       NUL(`\u0000`)은 `Value error, must not contain NUL or unpaired surrogate characters`(`type: value_error`),
       짝 없는 서로게이트(예: JSON `\ud800`)는 FastAPI(pydantic) 기본 메시지
       `Input should be a valid string, unable to parse raw data as a unicode string`(`type: string_unicode`)이다.
       DID 경로의 NUL(`%00`)은 첫 메시지의 422(`loc: ["path", "did"]`)이고, 그 밖의 입력이 DB 단계에서 같은 이유로 걸려도
-      첫 메시지의 422(`loc: []`)다. 한 줄 필드(가입 이름·이메일, 포트폴리오 제목·희망 직무)의 앞뒤 공백을 자른 값 안에
-      줄바꿈·탭 같은 제어 문자나 U+2028·U+2029가 있으면 `Value error, must be a single line without control characters`로 422다.
-    - 요청 본문 상한은 2 MiB(2,097,152바이트)다. `Content-Length`가 이보다 크면 경로·인증과 관계없이 본문을 읽지 않고
-      413 텍스트 `Content Too Large`로 답한다(본문을 받지 않는 API는 처리한 뒤 응답만 413으로 바뀐다). `Content-Length` 없는
-      chunked 전송은 읽은 양이 2 MiB를 넘는 순간 413 `{ "detail": "Content Too Large" }`로 끊고(본문을 받지 않는 API는 본문을
-      읽지 않으므로 413 없이 그대로 처리한다), 어느 쪽이든 요청 하나가 읽는 본문은 2 MiB 남짓까지다.
+      첫 메시지의 422(`loc: []`)다. 한 줄 필드(가입 이름·이메일, 포트폴리오 제목·희망 직무, 공유 링크 이름)의 앞뒤 공백을 자른
+      값 안에 줄바꿈·탭 같은 제어 문자, U+2028·U+2029, 글자 방향 제어·보이지 않는 서식 문자(Unicode Cf 전부: U+202E·U+200B·
+      U+FEFF·소프트 하이픈 U+00AD·태그 문자 U+E0000대 등), 빈칸처럼 보이는 글자(U+115F·U+1160·U+3164·U+FFA0·U+2800), 폭 0으로
+      그려지는 그 밖의 Default_Ignorable 글자(U+17B4·U+17B5·U+2065·U+FFF0–U+FFF8·U+E0000–U+E00FF·U+E01F0–U+E0FFF)가 있거나,
+      비어 있지 않은데 보이는 글자(문자·숫자·문장부호·기호)가 하나도 없으면
+      `Value error, must be a single line without control characters`로 422다 (서식 문자 중 이모지 결합 문자 ZWJ U+200D만 받는다.
+      그래서 태그 문자로 만드는 지역 깃발 이모지는 받지 않는다).
+    - 요청 본문 상한은 경로에 따라 네 가지다 (v0.8.0에서 기본 상한을 2 MiB에서 64 KiB로 낮췄다).
+      기본 64 KiB(65,536바이트): 아래에 없는 모든 경로·메서드.
+      16 KiB(16,384바이트): 토큰 없이 부르는 `POST /api/v1/users/register`, `POST /api/v1/users/login`,
+      `POST /api/v1/users/oauth/google/callback`, `POST /api/v1/users/oauth/github/callback`, `POST /api/v1/users/oauth/naver/callback`.
+      320 KiB(327,680바이트): `POST /api/v1/verify` (`token`이 256 KiB까지).
+      2 MiB(2,097,152바이트): `POST /api/v1/research/job-postings/preview`, `POST /api/v1/research/job-postings`,
+      `POST /api/v1/research/learning-resources`.
+      `Content-Length`가 그 경로의 상한보다 크면 인증과 관계없이 본문을 읽지 않고 413 텍스트 `Content Too Large`로 답한다
+      (본문을 받지 않는 API는 처리한 뒤 응답만 413으로 바뀐다). `Content-Length` 없는 chunked 전송은 읽은 양이 상한을 넘는 순간
+      413 `{ "detail": "Content Too Large" }`로 끊는다(본문을 받지 않는 API는 본문을 읽지 않으므로 413 없이 그대로 처리한다).
+      413의 형식은 네 상한 모두 같다. 각 경로의 가장 큰 정상 본문(소셜 로그인 콜백 약 6.3 KB, 커리큘럼 요청 약 35 KB,
+      공고 반입 약 1.75 MiB)은 그 경로의 상한 안이다.
+    - 끝에 `/`가 붙은 경로(예: `/api/v1/portfolios/`)는 리다이렉트하지 않고 404다. 줄바꿈으로 끝나는 경로
+      (예: `/api/v1/users/login%0A`)도 어느 API로도 보내지 않고 404 `{ "detail": "Not Found" }`다.
     - DXWorks 호출 실패는 502 `{ "detail": "Credential service error", "code": "PROVIDER_ERROR" }`, 설정 누락·사용 불가
       (`DXWORKS_API_HOST`가 없거나 `https://` 주소가 아님, API 키·기본 템플릿 ID 없음)는 503
       `{ "detail": "Credential service is not configured", "code": "PROVIDER_NOT_CONFIGURED" }`이다.
       협력사 오류 코드·메시지와 빠진 설정 이름은 응답에 싣지 않고 BE 로그(`Provider error: ...`)에만 남긴다.
+      소셜 로그인 API(`/api/v1/users/oauth/{google,github,naver}/*`)의 같은 경우는 상태 코드와 `code`는 같고 문구만 다르다:
+      502 `{ "detail": "<Label> OAuth error", "code": "PROVIDER_ERROR" }`,
+      503 `{ "detail": "<Label> OAuth is not configured", "code": "PROVIDER_NOT_CONFIGURED" }` (`<Label>`은 `Google`·`GitHub`·`Naver`).
       그 외 내부 오류는 500 `Internal server error` (내부 예외 메시지는 응답에 싣지 않는다).
-    - 직무 비교·포트폴리오 생성 중 재검증에서 검증기 장애(설정 누락·연결 실패·시간 초과·5xx·408·429)가 나면
-      결과를 저장하지 않고 502/503으로 답한다. 특정 자격증명에 대한 거절(그 밖의 4xx)은 그 자격증명만 제외한다.
+    - 직무 비교·포트폴리오 생성 중 재검증에서 검증기 장애(설정 누락·연결 실패·시간 초과·5xx·408·429·401·403·3xx)가 나면
+      결과를 저장하지 않고 502/503으로 답한다. 특정 자격증명에 대한 거절(400·404·422 등)과 형식이 틀린 2xx는 그 자격증명만
+      제외한다. 다만 서명 원본이 둘 이상인데 하나도 빠짐없이 검증기 오류로 끝났으면 장애로 보고 502로 답한다.
+      장애가 한 번 확인되면 그 요청의 남은 자격증명은 검증기를 부르지 않고 같은 사유(`verifier_error`)로 제외한다.
+    - DXWorks 호출 양 제한: 로그인 사용자(와 서비스 키)가 검증기를 부르는 API(`POST /api/v1/verify`, 재검증, 근거 조회,
+      포트폴리오 생성, 직무 비교)는 부르기 전에 필요한 호출 수만큼 몫을 가져간다. 호출자마다 분당 120번과 시간당 1,200번,
+      서버 프로세스(태스크) 전체로 분당 600번이며, 하나라도 모자라면 검증기를 한 번도 부르지 않고
+      429 `Too many verification requests. Try again later.` + `Retry-After`(초)로 답한다 (`TooManyVerifications`).
+      `Retry-After`는 모자란 몫들이 다시 찰 때까지의 시간 가운데 가장 긴 값이다. 한 요청이 한도보다 많이 필요하면(자격증명이
+      아주 많은 사용자) 몫이 가득 찼을 때 한 번 받아 주고 그만큼 다음 요청이 늦어진다.
+      배지 검증(`POST /api/v1/verify`의 `type: badge`)은 검증기까지 가서 그 토큰이 거절된 요청을 호출자마다
+      10분에 10번까지만 받고, 넘으면 검증기를 부르지 않고 같은 429 + `Retry-After`로 답한다 (`POST /api/v1/verify` 참고).
+      기업용 조회(공유 링크)는 자기 한도(503)를 따로 쓴다.
+      협력사에 동시에 보내는 요청은 프로세스마다 16개까지다. 협력사 응답은 1 MiB까지만 받고(`gzip`·`deflate`로 온 응답은
+      전송된 크기와 풀어낸 크기 각각 1 MiB까지, 그 밖의 압축 방식은 받지 않는다), 시간은 교환(연결·전송·본문 수신. 연결 재시도
+      포함)이 `DXWORKS_TIMEOUT_SECONDS`의 2배까지, 그 전에 동시 호출 자리를 기다리는 시간도 2배까지다(호출 한 번은 최악의 경우 4배).
+    - DB가 바쁠 때: 서버 프로세스(태스크)는 DB 연결을 동시에 `DB_MAX_CONNECTIONS`개(기본 20)까지만 연다. 요청이 몰려 연결 자리를
+      5초 안에 얻지 못했거나, DB 문장이 15초를 넘거나 잠금을 5초 안에 얻지 못하면(잠긴 테이블·느린 쿼리) 500 대신
+      503 `{ "detail": "Service is busy. Try again later." }` + `Retry-After`(초)로 답한다 (`ServiceBusy`).
+      DB를 쓰는 모든 API에 해당하므로 경로별 응답 목록에는 따로 적지 않는다 (`/health`는 DB를 쓰지 않는다).
+    - 사용자별 상한: 유효한(철회·만료되지 않은) 공유 링크 100개, 포트폴리오 100개. 넘으면 만들지 않고 409다
+      (`Share link limit reached. Revoke unused links first.` / `Portfolio limit reached.`).
+      목록 조회(`GET /api/v1/shares`, `GET /api/v1/portfolios`)는 한 번에 200개까지 돌려준다.
+    - AI 서비스로 보내는 묶음 요청(공고 검색·직무 비교·학습자료 검색·커리큘럼 계획: 검토된 공고·학습자료 전체를 싣는다)은
+      프로세스마다 동시에 `AI_MAX_CONCURRENCY`개(기본 4)까지다. 자리가 10초 안에 나지 않으면 AI를 부르지 않고 503
+      `{ "detail": "AI service is busy. Try again later.", "code": "AI_SERVICE_BUSY" }` + `Retry-After`(초)로 답한다.
+      자리를 쥔 채로는 검증기(DXWorks)를 부르지 않는다: 직무 비교는 자격증명 재검증을 마친 뒤에 자리를 잡는다.
+      사용자마다도 묶는다: 한 사용자가 동시에 쥐는 자리는 2개, 묶음 요청 수는 분당 30번·시간당 300번까지다. 넘으면 기다리지 않고
+      DB·AI를 부르지 않은 채 429 `{ "detail": "Too many analysis requests. Try again later." }` + `Retry-After`(초)다.
+    - 사용자별 24시간 저장 상한: 직무 비교 200건, 학습 계획 200건(같은 `idempotency_key`로 다시 받는 계획은 세지 않는다),
+      LLM 모드 학습 계획 `CURRICULUM_LLM_DAILY_LIMIT`건(기본 20. 외부 LLM까지 간 실패한 시도도 센다). 넘으면 검증기·AI·LLM을
+      부르지 않고 429 + `Retry-After`(초)다 (`Daily career analysis limit reached. Try again later.` /
+      `Daily curriculum limit reached. Try again later.` /
+      `Daily LLM curriculum limit reached. Use the template mode or try again later.`).
     - 모든 응답에 `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`,
       `X-Frame-Options: DENY`, `Content-Security-Policy: frame-ancestors 'none'`이 붙고, 서버가 `APP_ENV=production`이면
       `Strict-Transport-Security: max-age=31536000`도 붙는다 (CORS 사전 요청(OPTIONS) 응답은 제외).
@@ -51,13 +104,42 @@ info:
 
     토큰도 서비스 키도 없으면 서버 설정과 관계없이 401 `Authentication required` + `WWW-Authenticate: Bearer`다
     (`Bearer`가 아닌 `Authorization`, 예: Basic도 토큰 없음으로 본다). 토큰 없이 부를 수 있는 API는 `security: []`로 표시한 것
-    (회원가입·로그인·`/health`·공유 링크 조회)과 API 문서(`/docs`, `/redoc`, `/openapi.json`)뿐이다.
+    (회원가입·로그인·소셜 로그인·`/health`·공유 링크 조회)과 API 문서(`/docs`, `/redoc`, `/openapi.json`)뿐이다.
+    API 문서는 `APP_ENV=development`에서만 제공한다 (`APP_ENV=production`에서는 세 경로 모두 404).
 
     사용자 토큰은 서명·만료와 함께 `ver` 클레임이 계정의 현재 토큰 버전(`users.token_version`)과 같아야 받는다.
     로그아웃(`POST /api/v1/users/logout`)하면 버전이 올라가 그 계정에 발급한 토큰이 모두(다른 탭·브라우저·기기 포함)
     401 `Invalid token`이 된다. 계정이 없어진 토큰도 401 `Invalid token`, 만료된 토큰은 401 `Token expired`다.
     `ver`가 없는 예전 토큰은 0으로 본다. 토큰 수명은 서버 `JWT_EXPIRES_MINUTES`(1~1440분, 기본 1440)다.
     같은 이메일로 15분 안에 10번 로그인에 실패하면 그 이메일의 로그인은 429(`Retry-After`)다 (`POST /api/v1/users/login` 참고).
+
+    ## 소셜 로그인 (Google·GitHub·네이버 OAuth 2.0)
+    제공자(`google`·`github`·`naver`)마다 고정 경로 세 개가 있다: `GET /api/v1/users/oauth/<제공자>/authorize`,
+    `POST /api/v1/users/oauth/<제공자>/callback`(SPA용), `GET /api/v1/users/oauth/<제공자>/callback`(development 전용, production 404).
+    모두 토큰 없이 부르고 요청·응답 형식(`OAuthAuthorizeResponse`, `OAuthCallbackRequest`, `AuthResponse`)이 같다.
+    제공자 설정(`<GOOGLE|GITHUB|NAVER>_CLIENT_ID`·`_CLIENT_SECRET`)이 없으면 그 제공자만 503 `<Label> OAuth is not configured`다
+    (`<Label>`은 `Google`·`GitHub`·`Naver`).
+    - 이메일: 제공자가 이메일을 주지 않으면(동의 거절, GitHub 이메일 권한 `user:email` 거절 등) 400 `OAuth email is required`다.
+      Google·GitHub는 제공자가 인증한 이메일만 받는다(아니면 400 `OAuth email is not verified`. GitHub는 기본(primary) 이메일만 쓰고
+      그 이메일이 인증돼 있어야 한다). 네이버는 인증 여부를 알리지 않으므로 막지 않고 인증되지 않은 이메일로 본다.
+    - 계정 규칙 (계정은 이메일 하나에 하나, 이메일은 대소문자를 구분하지 않는다):
+      1. 이 제공자 계정(Google `sub`, GitHub 사용자 `id`, 네이버 `id`)이 이미 연동된 계정이 있으면 그 계정으로 로그인한다
+         (제공자 쪽 이메일이 바뀌어도 같은 계정).
+      2. 같은 이메일의 계정이 없으면 관리형 `did:key`(또는 임시 DID)를 발급해 비밀번호 없는 계정으로 가입시킨다(제공자와 관계없이).
+      3. 같은 이메일의 계정이 있으면 차례로: 같은 제공자의 다른 계정이 이미 연동되어 있으면 409
+         `User is already linked to another account for this provider`(같은 제공자 계정의 로그인이 동시에 들어와 한쪽이 먼저
+         연동을 마친 경우는 409가 아니라 그 계정의 로그인), 비밀번호가 있으면 연동하지 않고 409
+         `This email is registered with a password. Log in with your email and password.`(가입은 이메일 소유를 확인하지 않으므로,
+         남의 주소로 먼저 가입해 둔 계정에 그 주소의 주인을 넣지 않는다). 그 밖에는 이번 이메일이 인증됐고(Google·GitHub) 그 계정에
+         같은 이메일의 Google 또는 GitHub 연동이 있을 때만 연동하고, 아니면 409
+         `This email is already used by another sign-in method. Log in with that method.`다 (네이버 로그인은 같은 이메일의 기존
+         계정에 붙지 않고, 네이버로 만든 계정에는 다른 제공자가 붙지 않는다).
+    - 콜백은 `state`(서명·만료·제공자)와 `redirect_uri` 일치를 확인한 요청만 제공자의 토큰 엔드포인트로 보낸다. 그 호출은 서버
+      프로세스(태스크)마다 제공자별로 분당 300번까지이고, 넘으면 제공자를 부르지 않고 429 `Too many attempts. Try again later.` +
+      `Retry-After`다 (`TooManyOAuthExchanges`. 한 제공자에 몰아 보내도 다른 제공자는 막히지 않는다).
+    - 성공 `message`: 가입 `<Label> OAuth 회원가입 및 로그인 완료`, 연동 `기존 계정에 <Label> 계정 연동 및 로그인 성공`, 그 밖
+      `<Label> OAuth 로그인 성공` (FE가 `회원가입`·`연동` 포함 여부로 환영 안내를 고른다). `GET /api/v1/users/me`의 `oauth_providers`는
+      연동된 제공자 이름을 이름순으로 돌려준다.
 
     ## 실행 시점 재검증 준비 (v0.4.0)
     배지 검증 시(검증기가 발급자 서명·신뢰를 확인한 배지만 저장) 서명된 원본 VC-JWT를 `credentials.raw_token`에,
@@ -99,6 +181,9 @@ paths:
     get:
       tags: [health]
       summary: 서버 상태 확인
+      description: |
+        인증 없이 프로세스가 떠 있는지만 답한다 (DB·외부 서비스는 확인하지 않는다). 워커 스레드를 쓰지 않고 이벤트 루프에서
+        바로 답하므로, DB 연결 자리나 잠금을 기다리는 요청이 몰려 있어도 함께 밀리지 않는다.
       operationId: getHealth
       security: []
       responses:
@@ -120,9 +205,12 @@ paths:
         - 설정이 없으면(`APP_ENV=development`에서만) 홀더 키 없이 임시 DID(`did:key:z6MkMock...`)를 발급한다.
           `APP_ENV=production`에서는 이 값이 없으면 서버가 시작하지 않는다.
         비밀번호는 bcrypt 해시로 저장한다. 8자 미만 또는 72바이트 초과면 422 (1,024자를 넘으면 바이트를 세기 전에 길이 검사로 422).
-        이름(1~100자)·이메일(3~255자, `@` 포함)은 앞뒤 공백·줄바꿈을 잘라 낸 한 줄 텍스트다. 안쪽에 줄바꿈·탭 같은 제어 문자나
-        U+2028·U+2029가 있으면 422 `Value error, must be a single line without control characters`, NUL이 있으면 422.
-        이모지·NBSP는 받는다. 이메일은 소문자로 저장하며, 소문자로 바꾸면 길어지는 글자(예: `İ`(U+0130)는 두 글자가 됨) 때문에
+        이름(1~100자)·이메일(3~255자, `@` 포함)은 앞뒤 공백·줄바꿈을 잘라 낸 한 줄 텍스트다. 안쪽에 줄바꿈·탭 같은 제어 문자,
+        U+2028·U+2029, 방향 제어·보이지 않는 서식 문자(U+202E·U+200B·U+FEFF 등)가 있으면 422
+        `Value error, must be a single line without control characters`, NUL이 있으면 422. 이름의 이모지·NBSP는 받는다.
+        이메일은 `@`가 하나이고 앞뒤에 보이는 글자가 있어야 하며, 공백(NBSP 포함)·`"(),:;<>[\]`·이름에는 받는 폭 0 글자(이형 선택자
+        U+FE00–U+FE0F·U+E0100–U+E01EF, CGJ, 몽골 자유 이형 선택자, U+FFFC)가 있으면 422 `Value error, Invalid email`이다
+        (서식 문자(Cf)와 그 밖의 보이지 않는 글자는 위 한 줄 검사가 먼저 422로 거절한다) (국제화 이메일의 비ASCII 글자는 받는다. 로그인 요청에는 이 검사가 없다). 이메일은 소문자로 저장하며, 소문자로 바꾸면 길어지는 글자(예: `İ`(U+0130)는 두 글자가 됨) 때문에
         바꾼 값이 255자를 넘으면 422 `Value error, Email must be at most 255 characters`다.
         가입과 동시에 로그인 토큰(`access_token`)을 준다. FE는 응답의 `data`를 그대로 로그인 상태로 저장한다.
       operationId: registerUser
@@ -174,7 +262,7 @@ paths:
       summary: 로그인
       description: |
         이메일과 비밀번호를 확인한다. 이메일이 없거나, 비밀번호가 틀리거나,
-        비밀번호가 설정되지 않은 사용자(신원 VP 검증으로 생성된 사용자 등)는 모두 같은 401을 반환한다.
+        비밀번호가 설정되지 않은 사용자(소셜 로그인으로만 가입한 계정 등)는 모두 같은 401을 반환한다.
         응답 시간도 같다: 세 경우 모두(비밀번호가 72바이트를 넘어도) 같은 비용의 bcrypt 비교를 한 번 한다(가입 여부가 시간으로
         드러나지 않음).
         시드 테스트 계정(`user001@example.com` ~ `user045@example.com`)의 비밀번호는 `test1234` (로컬 시드 DB 전용).
@@ -183,7 +271,9 @@ paths:
         같은 이메일로 15분 안에 10번 실패하면, 가장 오래된 실패가 15분을 지날 때까지 그 이메일의 로그인은 비밀번호가 맞아도
         429다(비밀번호를 확인하지 않음). 로그인에 성공하면 다시 센다. 가입하지 않은 이메일도 똑같이 세므로 429로 가입 여부가
         드러나지 않고, 422(형식 오류)는 세지 않는다. DB 오류로 계정을 조회하지 못한 시도(500, 이때도 같은 비용의 bcrypt 비교를
-        한 번 한다)는 실패로 센다. BE 프로세스(태스크)마다 메모리에서 따로 세고 재시작하면 지워진다.
+        한 번 한다)는 실패로 센다. 다만 DB가 바빠 503 `Service is busy. Try again later.`(`ServiceBusy`)로 답한 시도는 세지 않는다
+        (비밀번호를 확인한 적이 없고 잠시 뒤 다시 하라고 답하므로, 다시 시도해도 잠기지 않는다. bcrypt 비교는 똑같이 한 번 한다).
+        BE 프로세스(태스크)마다 메모리에서 따로 세고 재시작하면 지워진다.
         이메일은 DB 조회(`lower(email)`)처럼 앞뒤 공백을 떼고 글자마다 소문자로 접어서 센다(PostgreSQL 기본(libc) 정렬의
         `lower()`와 같게 `İ`(U+0130) → `i`, 어말을 포함한 모든 `Σ` → `σ`). 그래서 DB가 같은 이메일로 보는 표기(예: `kİm@…`와
         `kim@…`. 이런 글자는 API를 직접 부를 때만 쓸 수 있고 FE 입력 검사는 받지 않음)는 같은 기록을 쓴다: 표기를 섞어 실패해도
@@ -307,6 +397,13 @@ paths:
                       key_type:
                         type: [string, "null"]
                         example: Ed25519
+                  oauth_providers:
+                    type: array
+                    items:
+                      type: string
+                    description: "연동된 소셜 로그인 제공자 목록 (`google`·`github`·`naver`, 이름순. 예: `[\"github\", \"google\"]`).
+                      DB에 지금은 로그인 경로가 없는 예전 제공자의 연동 행이 남아 있으면 그 이름도 그대로 들어간다 (FE는 모르는 이름을 무시한다)"
+                    example: [github, google]
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -315,6 +412,361 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/users/oauth/google/authorize:
+    get:
+      tags: [users]
+      summary: Google OAuth 인가 URL 발급 (또는 리다이렉트)
+      description: |
+        Google OAuth 2.0 로그인 시작 URL과 CSRF 방지용 서명된 `state`를 발급한다 (공통 규칙은 info.description "소셜 로그인").
+        - `redirect=true`면 JSON 대신 302 Redirect로 Google 로그인 페이지로 보낸다.
+        - `redirect_uri`를 생략하면 서버 `GOOGLE_REDIRECT_URI`를 쓰며, 지정 시 허용 목록(`GOOGLE_REDIRECT_URI` +
+          `GOOGLE_ALLOWED_REDIRECT_URIS`)에 글자 그대로 있어야 한다.
+          `APP_ENV=production`은 `GOOGLE_REDIRECT_URI`를 localhost 기본값으로 대신하지 않고, 허용 목록은 모두 `https://` 주소다.
+        - PKCE를 쓸 경우 `code_challenge`와 `code_challenge_method=S256`을 전달할 수 있다. `code_challenge`는 S256 값
+          (SHA-256의 base64url, 패딩 없는 43자)이어야 하고, 그 밖의 값은 400 `Invalid code_challenge`다.
+        - 인가 주소는 `https://accounts.google.com/o/oauth2/v2/auth`이고 `scope=openid email profile`, `prompt=select_account`를 싣는다.
+        - `GOOGLE_CLIENT_ID` 또는 `GOOGLE_CLIENT_SECRET`이 없으면 503 `Google OAuth is not configured`를 반환한다.
+      operationId: googleOAuthAuthorize
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/OAuthRedirectUri"
+        - $ref: "#/components/parameters/OAuthCodeChallenge"
+        - $ref: "#/components/parameters/OAuthCodeChallengeMethod"
+        - $ref: "#/components/parameters/OAuthRedirect"
+      responses:
+        "200":
+          $ref: "#/components/responses/OAuthAuthorized"
+        "302":
+          description: "`redirect=true`일 때 Google 로그인 페이지로 리다이렉트"
+        "400":
+          $ref: "#/components/responses/OAuthAuthorizeBadRequest"
+        "503":
+          description: Google OAuth 설정 누락 (`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`), 또는 기본 콜백 주소 없음
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                notConfigured:
+                  value: { detail: Google OAuth is not configured, code: PROVIDER_NOT_CONFIGURED }
+                noRedirectUri:
+                  value: { detail: Google OAuth redirect_uri is not configured }
+
+  /api/v1/users/oauth/google/callback:
+    get:
+      tags: [users]
+      summary: Google OAuth 콜백 처리 (GET, development 전용)
+      description: |
+        BE 단독 테스트용이다 (FE는 아래 POST만 쓴다). **`APP_ENV=production`에서는 쿼리와 관계없이 404 `Not Found`다**:
+        `code`·`state`·`code_verifier`가 URL에 실려 접근 로그에 남고, 다른 사이트에서도 걸 수 있는 요청이기 때문이다.
+        (BE 접근 로그는 이 경로의 쿼리를 `[redacted]`로 가린다.)
+
+        Google이 리다이렉트한 `code`와 `state`를 검증해 로그인/회원가입을 완료하고 JWT(`AuthResponse`)를 반환한다.
+        입력 한도·계정 연동 규칙·오류는 POST와 같다. `error`가 있으면 400 `OAuth authorization failed: <error의 앞 200자>`,
+        `code`나 `state`가 없으면 400 `Missing OAuth code or state`다.
+      operationId: googleOAuthCallbackGet
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/OAuthCode"
+        - $ref: "#/components/parameters/OAuthState"
+        - $ref: "#/components/parameters/OAuthError"
+        - $ref: "#/components/parameters/OAuthCodeVerifier"
+      responses:
+        "200":
+          $ref: "#/components/responses/OAuthLoggedIn"
+        "400":
+          $ref: "#/components/responses/OAuthCallbackBadRequest"
+        "404":
+          $ref: "#/components/responses/OAuthDevelopmentOnly"
+        "409":
+          $ref: "#/components/responses/OAuthAccountConflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/TooManyOAuthExchanges"
+        "502":
+          $ref: "#/components/responses/OAuthProviderError"
+        "503":
+          $ref: "#/components/responses/OAuthNotConfigured"
+    post:
+      tags: [users]
+      summary: Google OAuth 콜백 코드 교환 (POST, SPA용)
+      description: |
+        프론트엔드(SPA) 콜백 페이지(`/auth/google/callback`)가 Google로부터 받은 `code`와 `state`를 전달해 로그인/회원가입을
+        완료하고 JWT(`AuthResponse`)를 반환한다. `message`는 가입이면 `Google OAuth 회원가입 및 로그인 완료`, 연동이면
+        `기존 계정에 Google 계정 연동 및 로그인 성공`, 그 밖에는 `Google OAuth 로그인 성공`이다
+        (FE가 `회원가입`·`연동` 포함 여부로 환영 안내를 고른다).
+
+        Google이 인증한 이메일(`email_verified=true`)만 받는다(아니면 400 `OAuth email is not verified`, 이메일이 없으면 400
+        `OAuth email is required`). 계정 규칙·호출 한도는 info.description "소셜 로그인"과 같다.
+
+        **Google을 부르기 전의 검사**: `code`·`state`·`redirect_uri`는 2,048자까지, `code_verifier`는 RFC 7636 형식
+        (`[A-Za-z0-9._~-]` 43~128자. 비어 있으면 없는 것으로 본다)이어야 하고 아니면 422다. `state`의 서명·만료·제공자와
+        `redirect_uri` 일치를 확인한 요청만 Google 토큰 엔드포인트로 간다(`code_verifier`는 함께 보낸다). 그 호출은 서버
+        프로세스(태스크)마다 분당 300번까지이고, 넘으면 Google을 부르지 않고 429 `Too many attempts. Try again later.` +
+        `Retry-After`다 (Google 로그인의 모든 사용자가 함께 쓰는 한도). 본문 상한은 16 KiB다.
+      operationId: googleOAuthCallbackPost
+      security: []
+      requestBody:
+        $ref: "#/components/requestBodies/OAuthCallback"
+      responses:
+        "200":
+          $ref: "#/components/responses/OAuthLoggedIn"
+        "400":
+          $ref: "#/components/responses/OAuthCallbackBadRequest"
+        "409":
+          $ref: "#/components/responses/OAuthAccountConflict"
+        "413":
+          $ref: "#/components/responses/ContentTooLarge"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/TooManyOAuthExchanges"
+        "502":
+          $ref: "#/components/responses/OAuthProviderError"
+        "503":
+          $ref: "#/components/responses/OAuthNotConfigured"
+
+  /api/v1/users/oauth/github/authorize:
+    get:
+      tags: [users]
+      summary: GitHub 로그인 인가 URL 발급 (또는 리다이렉트)
+      description: |
+        GitHub 로그인(OAuth App, OAuth 2.0) 시작 URL과 서명된 `state`를 발급한다. 요청·응답 형식은 Google과 같다
+        (공통 규칙은 info.description "소셜 로그인").
+        - 인가 주소는 `https://github.com/login/oauth/authorize`이고 `client_id`·`redirect_uri`·`scope=user:email`·`state`를 싣는다.
+          `allow_signup`·`prompt`·`login`은 싣지 않는다.
+        - PKCE: `code_challenge`(S256 43자, 형식이 틀리면 400 `Invalid code_challenge`)를 보내면 `code_challenge_method=S256`과 함께 싣는다.
+        - `redirect_uri`를 생략하면 `GITHUB_REDIRECT_URI`를 쓰고, 지정하면 그 값과 글자 그대로 같아야 한다(추가 허용 목록은 없다).
+          `APP_ENV=production`은 localhost 기본값을 대신 쓰지 않고 `https://` 주소만 받는다. 이 주소는 GitHub OAuth App에 등록한
+          Authorization callback URL과도 글자 그대로 같아야 한다.
+        - `redirect=true`면 JSON 대신 302 Redirect로 GitHub 로그인 페이지로 보낸다.
+        - `GITHUB_CLIENT_ID` 또는 `GITHUB_CLIENT_SECRET`이 없으면 503 `GitHub OAuth is not configured`를 반환한다.
+      operationId: githubOAuthAuthorize
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/OAuthRedirectUri"
+        - $ref: "#/components/parameters/OAuthCodeChallenge"
+        - $ref: "#/components/parameters/OAuthCodeChallengeMethod"
+        - $ref: "#/components/parameters/OAuthRedirect"
+      responses:
+        "200":
+          $ref: "#/components/responses/OAuthAuthorized"
+        "302":
+          description: "`redirect=true`일 때 GitHub 로그인 페이지로 리다이렉트"
+        "400":
+          $ref: "#/components/responses/OAuthAuthorizeBadRequest"
+        "503":
+          description: GitHub 로그인 설정 누락 (`GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`), 또는 기본 콜백 주소(`GITHUB_REDIRECT_URI`) 없음
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                notConfigured:
+                  value: { detail: GitHub OAuth is not configured, code: PROVIDER_NOT_CONFIGURED }
+                noRedirectUri:
+                  value: { detail: GitHub OAuth redirect_uri is not configured }
+
+  /api/v1/users/oauth/github/callback:
+    get:
+      tags: [users]
+      summary: GitHub 로그인 콜백 처리 (GET, development 전용)
+      description: |
+        BE 단독 테스트용이다 (FE는 아래 POST만 쓴다). **`APP_ENV=production`에서는 쿼리와 관계없이 404 `Not Found`다.**
+        (BE 접근 로그는 이 경로의 쿼리를 `[redacted]`로 가린다.) BE는 GitHub 콜백 주소를 `GITHUB_REDIRECT_URI` 하나만 받으므로,
+        이 경로로 시험하려면 그 값을 이 BE 주소로 바꾸고 GitHub OAuth App의 Authorization callback URL에도 등록한다.
+        입력 한도·계정 연동 규칙·오류는 POST와 같다. `error`가 있으면 400 `OAuth authorization failed: <error의 앞 200자>`,
+        `code`나 `state`가 없으면 400 `Missing OAuth code or state`다.
+      operationId: githubOAuthCallbackGet
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/OAuthCode"
+        - $ref: "#/components/parameters/OAuthState"
+        - $ref: "#/components/parameters/OAuthError"
+        - $ref: "#/components/parameters/OAuthCodeVerifier"
+      responses:
+        "200":
+          $ref: "#/components/responses/OAuthLoggedIn"
+        "400":
+          $ref: "#/components/responses/OAuthCallbackBadRequest"
+        "404":
+          $ref: "#/components/responses/OAuthDevelopmentOnly"
+        "409":
+          $ref: "#/components/responses/OAuthAccountConflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/TooManyOAuthExchanges"
+        "502":
+          $ref: "#/components/responses/OAuthProviderError"
+        "503":
+          $ref: "#/components/responses/OAuthNotConfigured"
+    post:
+      tags: [users]
+      summary: GitHub 로그인 콜백 코드 교환 (POST, SPA용)
+      description: |
+        FE 콜백 페이지(`/auth/github/callback`)가 GitHub으로부터 받은 `code`와 `state`를 전달해 로그인/회원가입을 완료하고
+        JWT(`AuthResponse`)를 반환한다. `message`는 `GitHub OAuth 회원가입 및 로그인 완료` / `기존 계정에 GitHub 계정 연동 및 로그인 성공` /
+        `GitHub OAuth 로그인 성공`이다. 입력 검사·`state` 확인·본문 상한(16 KiB)·계정 규칙은 Google과 같다.
+
+        - 토큰 요청(`https://github.com/login/oauth/access_token`)은 `Accept: application/json` 헤더를 붙이고 본문
+          (`application/x-www-form-urlencoded`)에 `client_id`·`client_secret`·`code`·`redirect_uri`(state에 든 값)와 (보냈으면)
+          `code_verifier`를 싣는다(주소에는 싣지 않는다. `grant_type`은 싣지 않는다).
+        - GitHub은 실패한 토큰 요청에도 HTTP 200에 `error`를 담아 답할 수 있어 상태 코드와 관계없이 `error`가 있으면 오류로 본다
+          (함께 온 `access_token`은 쓰지 않는다). 2xx·4xx 응답의 `bad_verification_code`(만료·재사용된 코드)·`redirect_uri_mismatch`·
+          `invalid_grant`는 400 `Invalid or expired OAuth authorization code`, `unverified_user_email`(기본 이메일이 인증되지 않은 계정)은
+          400 `OAuth email is not verified`이고, 그 밖의 오류(`incorrect_client_credentials` 등, 3xx·5xx 응답의 `error` 포함)는 502다.
+        - 사용자 정보는 두 번 읽는다: `https://api.github.com/user`(`id`·`login`·`name`)와
+          `https://api.github.com/user/emails?per_page=100`(이메일 목록). 헤더는 `Authorization: Bearer <토큰>`,
+          `Accept: application/vnd.github+json`, `X-GitHub-Api-Version: 2022-11-28`, `User-Agent: vc-career-agent-be`다.
+          `/user`의 `email`(공개 프로필 이메일일 수 있다)은 쓰지 않는다.
+        - `id`는 1~2^63-1의 JSON 정수여야 한다(아니면 502이고 이메일 목록은 읽지 않는다). 두 요청 중 하나라도 401이면 400
+          `Invalid OAuth access token`이고, `/user`의 그 밖의 2xx가 아닌 응답(403 포함)은 502다.
+        - 이메일은 목록에서 `primary`가 `true`인 첫 항목만 쓴다. 그런 항목이 첫 100개 안에 없거나(빈 목록 포함) 그 항목에 이메일이 없으면
+          400 `OAuth email is required`, 그 항목의 `verified`가 `true`가 아니면 400 `OAuth email is not verified`다. 이메일 목록이
+          403·404(사용자가 `user:email` 권한을 주지 않음)면 400 `OAuth email is required`, 그 밖의 2xx가 아닌 응답이나 JSON 배열이
+          아닌 본문은 502다. `users.noreply.github.com` 주소도 기본·인증 이메일이면 그대로 쓴다.
+        - 이름은 `name` → `login` → 이메일의 `@` 앞부분 순으로 쓴다. GitHub 액세스 토큰은 이 두 요청에만 쓰고 저장·로그하지 않으며
+          폐기 API는 부르지 않는다.
+        - 토큰 교환은 서버 프로세스(태스크)마다 GitHub 로그인끼리 분당 300번까지다(다른 제공자와 따로 센다).
+      operationId: githubOAuthCallbackPost
+      security: []
+      requestBody:
+        $ref: "#/components/requestBodies/OAuthCallback"
+      responses:
+        "200":
+          $ref: "#/components/responses/OAuthLoggedIn"
+        "400":
+          $ref: "#/components/responses/OAuthCallbackBadRequest"
+        "409":
+          $ref: "#/components/responses/OAuthAccountConflict"
+        "413":
+          $ref: "#/components/responses/ContentTooLarge"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/TooManyOAuthExchanges"
+        "502":
+          $ref: "#/components/responses/OAuthProviderError"
+        "503":
+          $ref: "#/components/responses/OAuthNotConfigured"
+
+  /api/v1/users/oauth/naver/authorize:
+    get:
+      tags: [users]
+      summary: 네이버 로그인 인가 URL 발급 (또는 리다이렉트)
+      description: |
+        네이버 로그인(기존 OAuth 2.0 엔드포인트) 시작 URL과 서명된 `state`를 발급한다. 요청·응답 형식은 Google과 같다
+        (공통 규칙은 info.description "소셜 로그인").
+        - 인가 주소는 `https://nid.naver.com/oauth2.0/authorize`이고 `response_type=code`·`client_id`·`redirect_uri`·`state`를 싣는다.
+        - PKCE: `code_challenge`는 형식만 검사하고(틀리면 400 `Invalid code_challenge`) 인가 주소에는 싣지 않는다
+          (이 엔드포인트의 문서에 PKCE가 없다). FE는 제공자와 관계없이 보낸다.
+        - `redirect_uri`를 생략하면 `NAVER_REDIRECT_URI`를 쓰고, 지정하면 그 값과 글자 그대로 같아야 한다(추가 허용 목록은 없다).
+          `APP_ENV=production`은 localhost 기본값을 대신 쓰지 않고 `https://` 주소만 받는다.
+        - `redirect=true`면 JSON 대신 302 Redirect로 네이버 로그인 페이지로 보낸다.
+        - `NAVER_CLIENT_ID` 또는 `NAVER_CLIENT_SECRET`이 없으면 503 `Naver OAuth is not configured`를 반환한다.
+      operationId: naverOAuthAuthorize
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/OAuthRedirectUri"
+        - $ref: "#/components/parameters/OAuthCodeChallenge"
+        - $ref: "#/components/parameters/OAuthCodeChallengeMethod"
+        - $ref: "#/components/parameters/OAuthRedirect"
+      responses:
+        "200":
+          $ref: "#/components/responses/OAuthAuthorized"
+        "302":
+          description: "`redirect=true`일 때 네이버 로그인 페이지로 리다이렉트"
+        "400":
+          $ref: "#/components/responses/OAuthAuthorizeBadRequest"
+        "503":
+          description: 네이버 로그인 설정 누락 (`NAVER_CLIENT_ID`/`NAVER_CLIENT_SECRET`), 또는 기본 콜백 주소(`NAVER_REDIRECT_URI`) 없음
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                notConfigured:
+                  value: { detail: Naver OAuth is not configured, code: PROVIDER_NOT_CONFIGURED }
+                noRedirectUri:
+                  value: { detail: Naver OAuth redirect_uri is not configured }
+
+  /api/v1/users/oauth/naver/callback:
+    get:
+      tags: [users]
+      summary: 네이버 로그인 콜백 처리 (GET, development 전용)
+      description: |
+        BE 단독 테스트용이다 (FE는 아래 POST만 쓴다). **`APP_ENV=production`에서는 쿼리와 관계없이 404 `Not Found`다.**
+        (BE 접근 로그는 이 경로의 쿼리를 `[redacted]`로 가린다.) 네이버는 콜백 주소를 `NAVER_REDIRECT_URI` 하나만 받으므로,
+        이 경로로 시험하려면 그 값을 이 BE 주소로 바꾸고 네이버 개발자센터의 Callback URL에도 등록한다.
+        입력 한도·계정 연동 규칙·오류는 POST와 같다. `error`가 있으면 400 `OAuth authorization failed: <error의 앞 200자>`,
+        `code`나 `state`가 없으면 400 `Missing OAuth code or state`다.
+      operationId: naverOAuthCallbackGet
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/OAuthCode"
+        - $ref: "#/components/parameters/OAuthState"
+        - $ref: "#/components/parameters/OAuthError"
+        - $ref: "#/components/parameters/OAuthCodeVerifier"
+      responses:
+        "200":
+          $ref: "#/components/responses/OAuthLoggedIn"
+        "400":
+          $ref: "#/components/responses/OAuthCallbackBadRequest"
+        "404":
+          $ref: "#/components/responses/OAuthDevelopmentOnly"
+        "409":
+          $ref: "#/components/responses/OAuthAccountConflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/TooManyOAuthExchanges"
+        "502":
+          $ref: "#/components/responses/OAuthProviderError"
+        "503":
+          $ref: "#/components/responses/OAuthNotConfigured"
+    post:
+      tags: [users]
+      summary: 네이버 로그인 콜백 코드 교환 (POST, SPA용)
+      description: |
+        FE 콜백 페이지(`/auth/naver/callback`)가 네이버로부터 받은 `code`와 `state`를 전달해 로그인/회원가입을 완료하고
+        JWT(`AuthResponse`)를 반환한다. `message`는 `Naver OAuth 회원가입 및 로그인 완료` / `기존 계정에 Naver 계정 연동 및 로그인 성공` /
+        `Naver OAuth 로그인 성공`이다. 입력 검사·`state` 확인·본문 상한(16 KiB)은 Google과 같다.
+
+        - 토큰 요청(`https://nid.naver.com/oauth2.0/token`)은 본문(`application/x-www-form-urlencoded`)에 `grant_type`·`client_id`·
+          `client_secret`·`code`·`state`를 싣는다(주소에는 싣지 않는다). `code_verifier`는 형식만 검사하고 보내지 않는다.
+          사용자 정보는 `https://openapi.naver.com/v1/nid/me`에서 읽는다.
+        - 네이버는 HTTP 200에 `error`를 담아 답할 수 있어 상태 코드와 관계없이 `error`가 있으면 오류로 본다:
+          `invalid_request`·`unauthorized_client`·`invalid_grant`는 400 `Invalid or expired OAuth authorization code`, 그 밖은 502다.
+          사용자 정보의 `resultcode`가 `"00"`이 아니면 502다.
+        - `response.email`이 없거나 비어 있으면 400 `OAuth email is required`다. 네이버는 이메일 인증 여부를 알리지 않으므로 이메일을
+          막지 않되 인증되지 않은 이메일로 본다: 같은 이메일의 계정이 없으면 새 계정을 만들고, 있으면 연동하지 않고 409다
+          (비밀번호 계정은 `This email is registered with a password. …`, 같은 제공자의 다른 계정이 연동된 계정은
+          `User is already linked to another account for this provider`, 그 밖에는 `This email is already used by another sign-in method. …`).
+        - 토큰 교환은 서버 프로세스(태스크)마다 네이버 로그인끼리 분당 300번까지다(다른 제공자와 따로 센다).
+      operationId: naverOAuthCallbackPost
+      security: []
+      requestBody:
+        $ref: "#/components/requestBodies/OAuthCallback"
+      responses:
+        "200":
+          $ref: "#/components/responses/OAuthLoggedIn"
+        "400":
+          $ref: "#/components/responses/OAuthCallbackBadRequest"
+        "409":
+          $ref: "#/components/responses/OAuthAccountConflict"
+        "413":
+          $ref: "#/components/responses/ContentTooLarge"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/TooManyOAuthExchanges"
+        "502":
+          $ref: "#/components/responses/OAuthProviderError"
+        "503":
+          $ref: "#/components/responses/OAuthNotConfigured"
 
   /api/v1/subjects/{did}/careers:
     get:
@@ -381,6 +833,10 @@ paths:
         `type`에 따라 DXWorks 검증 API를 호출한다. 사용자 토큰이 필요하다(토큰 없으면 401, 서비스 키는 403).
 
         - `identity`: VP 토큰을 검증하고 결과만 돌려준다. **사용자를 만들거나 바꾸지 않는다** (v0.4.0 변경).
+          **기본은 꺼져 있다**: 이 제품의 화면은 쓰지 않고 회사 API 키가 붙는 호출이라, 서버 설정
+          `IDENTITY_VERIFICATION_ENABLED=true`일 때만 받는다. 꺼져 있으면 검증기를 부르지 않고 400
+          `Identity verification is disabled`. 켜져 있어도 `token`이 compact JWS 모양(아래)이 아니면 검증기를 부르지 않고
+          422 `Invalid token format`.
           검증기가 알려 준 VP 홀더 DID가 토큰 사용자의 DID와 같아야 한다. 다르거나, 홀더 DID가 없거나(빈 값·문자열이 아닌 값 포함)
           누구의 신원인지 정할 수 없으면 403 `Forbidden: presentation holder is not you`이고 클레임을 돌려주지 않는다.
         - `badge`: OB3 VC-JWT를 검증하고 토큰 사용자의 자격증명으로 저장/갱신한다
@@ -402,6 +858,29 @@ paths:
 
         검증 실패는 HTTP 200에 `success: false`로 응답한다. `token`은 256 KiB(262,144자)까지이고, 넘거나 NUL이 있으면
         검증기를 부르지 않고 422.
+
+        `token`은 compact JWS(JWT) 모양이어야 검증기로 보낸다 (서명·내용은 보지 않는다).
+        - ASCII 문자뿐이고, 점(`.`)으로 나뉜 비어 있지 않은 base64url 조각이 정확히 셋이다. 조각 끝의 base64 패딩 `=`는
+          조각마다 둘까지 받는다.
+        - 첫 조각(머리말)은 UTF-8 JSON 객체이고 같은 키가 두 번 나오지 않으며, `alg`가 `[A-Za-z0-9_-]` 1~32자의 문자열이고
+          `none`(대소문자 무시)이 아니다.
+        - SD-JWT(`<jws>~<disclosure>~...~[<kb-jwt>]`)도 받는다: 첫 부분이 위 규칙을 지키고, 공개 항목(disclosure)은 비어 있지 않은
+          base64url 문자열(패딩 없음)이며, 마지막 `~` 뒤는 비어 있거나 조각 셋의 키 바인딩 JWT다.
+        아니면 검증기를 부르지 않고
+        `badge`는 200 `success: false`, 메시지 `Badge verification failed.`, `data.record_id: null`(`signature` 점검 `fail`),
+        `identity`는 422 `Invalid token format`으로 답한다. `badge`를 모양 때문에 거절하면 서버 감사 로그에
+        `event=verify_shape_refused user=<사용자 UUID>` 한 줄이 남는다 (응답만으로는 검증기가 거절한 토큰과 구분되지 않는다).
+
+        검증기를 부르는 요청은 호출 몫 1을 쓴다. 몫이 모자라면 검증기를 부르지 않고 429 + `Retry-After` (info "응답/에러 규칙").
+        `badge`에는 한도가 하나 더 있다: 검증기까지 가서 그 토큰이 거절된 요청은 호출자마다 10분에 10번까지다
+        (서버 프로세스마다 셈). 저장하지 않는 `success: false`(해석할 수 없는 원본, 수신자를 알 수 없는 배지, 검증기가 발급자
+        서명·신뢰를 확인하지 못한 토큰), 그 토큰 하나에 대한 검증기 오류(502), 다른 DID에 발급된 배지(403), 다른 사용자가 등록한
+        배지(409), 검증기에 묻는 동안 끊긴 요청이 여기에 남는다. 통과한 검증·저장된 배지(폐기·만료 상태로 저장돼 `success: false`인
+        것 포함)·검증기 장애(502/503)·호출 몫 부족(429)·검증기를 부르기 전에 끝난 요청(모양 검사에 걸린 토큰 포함)·검증기가 답한
+        뒤 서버 쪽 문제로 끝난 요청(DB가 바빠 503 등)은 남지 않는다. 창이 차면 호출 몫을 쓰지 않고
+        검증기도 부르지 않은 채 같은 429(`Too many verification requests. Try again later.`) + `Retry-After`(가장 오래된 기록이
+        창을 벗어날 때까지의 초)로 답한다. 자리는 검증기를 부르기 전에 잡으므로, 한 호출자의 배지 검증이 동시에 10개 넘게 진행
+        중이면 11번째부터는 통과할 토큰이어도 429다.
       operationId: verifyCredential
       requestBody:
         required: true
@@ -498,13 +977,16 @@ paths:
                       holder_did: did:key:z6MkMock1a2b3c4d5e6f
                       claims: { name: 홍길동 }
         "400":
-          description: 지원하지 않는 `type`
+          description: "지원하지 않는 `type`, 또는 `type: identity`인데 서버에서 신원 검증을 켜지 않음 (기본값)"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-              example:
-                detail: 'Invalid type. Use "identity" or "badge"'
+              examples:
+                invalidType:
+                  value: { detail: 'Invalid type. Use "identity" or "badge"' }
+                identityDisabled:
+                  value: { detail: Identity verification is disabled }
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -531,7 +1013,19 @@ paths:
         "413":
           $ref: "#/components/responses/ContentTooLarge"
         "422":
-          $ref: "#/components/responses/ValidationError"
+          description: |
+            요청 검증 실패 (`ValidationError` 참고), 또는 `type: identity`의 `token`이 compact JWS 모양이
+            아님 (`{ "detail": "Invalid token format" }`, 검증기를 부르지 않는다)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ValidationErrorResponse"
+                  - $ref: "#/components/schemas/ErrorResponse"
+              example:
+                detail: Invalid token format
+        "429":
+          $ref: "#/components/responses/TooManyVerifications"
         "500":
           $ref: "#/components/responses/InternalError"
         "502":
@@ -557,11 +1051,32 @@ paths:
            403 `Template not allowed`.
         4. `holderDid`가 토큰 사용자 본인 DID가 아니면 403 `Forbidden: can only issue to your own DID`.
         5. 사용자별로 최근 24시간 동안의 발급이 `MOCK_ISSUER_DAILY_LIMIT`건(기본 10)에 닿았으면 협력사 API를 부르지 않고 429
-           `Mock issuance limit reached; try again later` (`Retry-After` 헤더 없음). 발급 전에 자리를 잡아 동시 요청·여러 태스크에서도
-           넘지 않고, 협력사 호출이 실패한 발급(502/503)은 세지 않는다(잡아 둔 자리를 지우는 DB 작업까지 실패하면 그 502/503은
-           그대로 돌려주되 그 자리는 24시간 한도에 남는다).
+           `Mock issuance limit reached; try again later`, 모든 사용자를 합친 발급(최근 24시간의 성공한 발급과, 상태와 관계없이
+           최근 10분 안에 만든 기록)이 `MOCK_ISSUER_GLOBAL_DAILY_LIMIT`건(기본 200)에 닿았으면 429
+           `Mock issuance service limit reached; try again later.`다
+           (둘 다 `Retry-After` 헤더 없음. 두 한도가 함께 찼으면 앞의 문구). 사용자 자신의 한도와 전체 한도를 구분해 답하는 것으로,
+           FE는 뒤의 문구를 "전체 모의 발급 한도" 안내로 보여 준다. 발급 전에 자리를 잡아 동시 요청·여러 태스크에서도
+           넘지 않고, 협력사가 거절·실패로 답했거나 요청이 닿지 않은 발급(5xx·4xx·3xx 응답, 연결 실패, 설정 누락: 502/503)은
+           세지 않는다(잡아 둔 자리를 지우는 DB 작업까지 실패하면 그 502/503은 그대로 돌려주되 그 자리는 해시 없는 기록으로 남는다).
+           요청이 협력사에 닿았을 수 있는데 결과를 모르는 실패(응답 대기 중 시간 초과·끊김, `jwt`가 없거나 읽을 수 없는 2xx: 502)는
+           배지가 이미 발급됐을 수 있으므로 자리를 지우지 않고 한도에 센다. 해시가 없는 기록은 사용자별 한도에는 24시간 동안 세고,
+           전체 한도에는 만든 뒤 10분(진행 중 창: 발급 요청 하나가 걸릴 수 있는 가장 긴 시간보다 길다) 동안만 센다. 그래서 응답 대기
+           시간 초과로 이어진 장애가 전체 한도를 채워도 협력사가 돌아온 뒤 길어야 10분에 1분쯤 더 지나면 다시 발급된다.
+        6. 위와 별도로 서버 프로세스마다 메모리에서 세는 것이 둘 있고, 5번의 자리를 잡기 전에 이 순서로 먼저 확인한다.
+           - 사용자별 시도 한도: 협력사 호출을 시도한 발급 요청은 성공·실패(연결 실패 포함)를 가리지 않고 사용자별로 24시간에
+             `max(30, 3 × MOCK_ISSUER_DAILY_LIMIT)`번까지만 받는다. 넘으면 협력사 API를 부르지 않고 사용자 한도 문구의 429다.
+           - 실패 차단기: 협력사 호출을 시도했는데 성공하지 못한 발급(협력사의 거절·5xx, 연결 실패, 결과를 모르는 실패)이
+             모든 사용자를 합쳐 24시간에 `MOCK_ISSUER_GLOBAL_DAILY_LIMIT`번 쌓이면 발급을 멈춘다 (협력사가 실패하거나 우리를
+             제한하는 동안 여러 계정이 부르는 양을 묶는다). 멈춘 동안에는 60초에 한 건만 협력사로 보내 보고, 그 밖의 요청은
+             협력사 API를 부르지 않고 429 `Mock issuance is paused after repeated failures. Try again shortly.` +
+             `Retry-After`(다음에 보내 볼 수 있을 때까지의 초, 1~60)다 (사용자별 시도로 세지 않는다). 보내 본 한 건이 성공하면
+             실패 기록을 모두 지워 바로 다시 연다 (서버 재시작이나 24시간을 기다리지 않는다).
+             차단기는 협력사를 부르기 전에 자리를 잡으므로 진행 중인 요청도 함께 센다. 실패로 끝난 발급 없이 진행 중인 요청만으로
+             한도가 찼으면(한도만큼의 요청이 한꺼번에 진행 중) 멈춘 것이 아니므로 탐침 없이 429
+             `Mock issuance service limit reached; try again later.`다 (`Retry-After` 없음, 사용자별 시도로 세지 않는다).
         발급에 성공하면 사용자·템플릿 ID·VC-JWT의 SHA-256만 기록한다(VC-JWT 원문은 저장하지 않음). 협력사가 발급한 뒤 해시 기록이
-        DB 오류로 실패해도 배지는 돌려주고(200), 그 발급 기록은 해시 없이(`token_sha256` NULL) 한도에 남는다. 두 경우 모두 BE 로그에
+        DB 오류로 실패해도 배지는 돌려주고(200), 그 발급 기록은 해시 없이(`token_sha256` NULL) 남는다(사용자별 한도에는 24시간,
+        전체 한도에는 10분 동안 센다). 두 경우 모두 BE 로그에
         발급 기록 ID와 그 DB 작업이 낸 예외의 클래스 이름(예: `OperationalError`)만 든 경고가 한 줄 남는다(토큰·DID·예외 메시지는
         남기지 않는다).
       operationId: issueMockBadge
@@ -613,13 +1128,37 @@ paths:
         "422":
           $ref: "#/components/responses/ValidationError"
         "429":
-          description: 사용자별 24시간 모의 발급 한도(`MOCK_ISSUER_DAILY_LIMIT`, 기본 10) 초과. 협력사 API는 호출하지 않는다
+          description: |
+            모의 발급 한도 초과, 또는 협력사 실패가 이어져 발급을 잠시 멈춤. 협력사 API는 호출하지 않는다. `detail`로 구분한다.
+            - `Mock issuance limit reached; try again later`: 그 사용자의 한도. 사용자별 24시간 발급 한도
+              (`MOCK_ISSUER_DAILY_LIMIT`, 기본 10) 또는 사용자별 24시간 시도 한도(`max(30, 3 × MOCK_ISSUER_DAILY_LIMIT)`번).
+            - `Mock issuance service limit reached; try again later.`: 전체 한도. 모든 사용자를 합친 24시간 발급 한도
+              (`MOCK_ISSUER_GLOBAL_DAILY_LIMIT`, 기본 200)에 닿았을 때, 또는 실패 차단기가 진행 중인 요청만으로 찼을 때
+              (실패한 것 없이 한도만큼의 요청이 한꺼번에 진행 중). 발급을 적게 한 사용자도 받을 수 있다.
+            - `Mock issuance is paused after repeated failures. Try again shortly.`: 서버 프로세스의 실패 차단기가 발급을
+              멈춘 동안 (협력사까지 간 실패와 진행 중인 요청이 24시간에 `MOCK_ISSUER_GLOBAL_DAILY_LIMIT`번 쌓였고 그 가운데
+              실패로 끝난 발급이 있음). 한도에 닿은 것이 아니라 협력사가 돌아오면 풀리는 상태이고, 이 응답에만 `Retry-After`
+              헤더가 붙는다. FE가 보여 주는 문구:
+              "발급 서버 오류가 이어져 모의 발급을 잠시 멈췄습니다. 1분쯤 뒤에 다시 시도해주세요."
+          headers:
+            Retry-After:
+              description: (발급을 멈춘 동안의 응답에만) 다음 요청 하나를 협력사로 보내 볼 수 있을 때까지의 초 (1~60)
+              schema:
+                type: integer
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-              example:
-                detail: Mock issuance limit reached; try again later
+              examples:
+                userLimit:
+                  summary: 그 사용자의 한도
+                  value: { detail: "Mock issuance limit reached; try again later" }
+                serviceLimit:
+                  summary: 전체 한도
+                  value: { detail: "Mock issuance service limit reached; try again later." }
+                paused:
+                  summary: 협력사 실패가 이어져 발급을 잠시 멈춤 (Retry-After 있음)
+                  value: { detail: "Mock issuance is paused after repeated failures. Try again shortly." }
         "500":
           $ref: "#/components/responses/InternalError"
         "502":
@@ -635,6 +1174,14 @@ paths:
         저장된 **서명 원본(VC-JWT)**을 검증기에 다시 보내 상태를 갱신한다 (폐기·만료 반영).
         서명 원본이 없는 자격증명(시드 데이터 등)은 `status: unverifiable`로 응답하고 DB는 바꾸지 않는다.
         본인 자격증명만 가능하며 로그인 토큰이 필요하다.
+        검증기 호출 몫 1을 쓴다(서명 원본이 없으면 쓰지 않음). 모자라면 검증기를 부르지 않고 429 + `Retry-After`.
+
+        검증기가 이 서명 원본 하나만 확인하지 못한 경우(400·404·422 같은 거절, 형식이 틀린 2xx)는 이 자격증명의 결과다:
+        근거 조회·포트폴리오와 같은 분류로 200 `success: false`, `message: "Re-verification failed: verifier_error"`,
+        `data.status: unverifiable`로 답하고 저장된 상태는 바꾸지 않는다 (v0.8.0 변경. 예전에는 502). 502/503은 검증기 장애
+        (설정 누락·연결 실패·시간 초과·5xx·408·429·401·403·3xx)일 때만이다.
+        `message`는 통과하면 `Credential re-verified.`, 서명 원본이 없으면 `No signed original to re-verify.`, 그 밖에는
+        `Re-verification failed: <사유>`다 (사유 예: `revoked`, `expired`, `verifier_error`).
       operationId: reverifyCredential
       security:
         - bearerAuth: []
@@ -642,7 +1189,9 @@ paths:
         - $ref: "#/components/parameters/RecordId"
       responses:
         "200":
-          description: 재검증 완료. 통과 여부는 `success`(= `data.status == verified`)
+          description: |
+            재검증 완료. 통과 여부는 `success`(= `data.status == verified`). 검증기가 이 자격증명만 확인하지 못한 경우도
+            200이다 (`success: false`, 저장된 상태는 그대로).
           content:
             application/json:
               schema:
@@ -653,10 +1202,31 @@ paths:
                   message: { type: string }
                   data:
                     $ref: "#/components/schemas/Evidence"
+              examples:
+                verifierError:
+                  summary: 검증기가 이 자격증명만 확인하지 못함 (저장된 상태는 바뀌지 않음)
+                  value:
+                    success: false
+                    message: "Re-verification failed: verifier_error"
+                    data:
+                      record_id: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+                      status: unverifiable
+                      verified: false
+                      achievement_name: 테스트 수료 배지
+                      achievement_description: null
+                      criteria: null
+                      issuer_name: 예시대학교
+                      issued_at: "2026-09-01T00:00:00+00:00"
+                      expires_at: null
+                      verified_at: null
+                      checks:
+                        - { name: signature, result: skip, detail: 검증기 호출 실패 }
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyVerifications"
         "502":
           $ref: "#/components/responses/ProviderError"
         "503":
@@ -676,6 +1246,11 @@ paths:
 
         접근: 사용자 토큰은 본인 DID만(남의 DID면 403), 서비스 키(`X-Service-Key`)는 모든 DID. 둘 다 없으면 401.
         DID 경로에 NUL(`%00`)이 있으면 422 (`loc: ["path", "did"]`).
+
+        대상 자격증명 중 서명 원본이 있는 수만큼 검증기 호출 몫을 한꺼번에 쓴다(서비스 키는 누구의 DID를 읽든 한 몫을 함께 쓴다).
+        모자라면 검증기를 하나도 부르지 않고 429 + `Retry-After`. 검증기 호출이 실패한 자격증명은 200 응답 안에서
+        `status: unverifiable`, 사유 `verifier_error`로 표시하고(DB 상태는 바꾸지 않음), 검증기 장애가 한 번 확인되면 남은
+        자격증명은 부르지 않고 같은 사유로 표시한다.
       operationId: getEvidence
       security:
         - bearerAuth: []
@@ -708,6 +1283,8 @@ paths:
           $ref: "#/components/responses/NotFound"
         "422":
           $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/TooManyVerifications"
 
   /api/v1/portfolios:
     get:
@@ -718,7 +1295,7 @@ paths:
         - bearerAuth: []
       responses:
         "200":
-          description: 목록 (최근 수정순)
+          description: 목록 (최근 수정순, 최대 200개)
           content:
             application/json:
               schema:
@@ -740,7 +1317,11 @@ paths:
         요청은 자격증명 ID 목록과 `source: VC_ONLY`만 받고, 정의되지 않은 필드가 있으면 422로 거절한다.
 
         서버는 고른 자격증명을 **지금 다시 검증**해서 통과한 것만 본문에 넣는다. 통과하지 못한 것은 `excluded`에 사유와 함께 둔다.
-        통과한 것이 하나도 없으면 422. 재검증 중 검증기 장애가 나면 저장하지 않고 502/503.
+        통과한 것이 하나도 없으면 422. 재검증 중 검증기 장애가 나면 저장하지 않고 502/503 (고른 자격증명의 서명 원본이 둘 이상인데
+        모두 검증기 오류로 끝난 경우도 502). 고른 자격증명 중 서명 원본이 있는 수만큼 검증기 호출 몫을 쓰고, 모자라면 검증기를
+        부르지 않고 429 + `Retry-After`(아무것도 만들지 않음).
+        포트폴리오는 사용자마다 100개까지다. 이미 100개면 검증기를 부르지 않고 409 `Portfolio limit reached.`
+        (쓰지 않는 것을 지우면 다시 만들 수 있다).
         본문은 현재 템플릿으로 만든다 (`generator: template`). 이후 AI 생성으로 바뀌어도 요청 형식은 같다.
         제목·희망 직무는 본문 머리말에 한 줄로 들어가므로, 앞뒤 공백·줄바꿈을 자른 값 안에 줄바꿈·탭 같은 제어 문자나
         U+2028·U+2029가 있으면 422 `Value error, must be a single line without control characters`다 (NUL도 422).
@@ -775,6 +1356,14 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
               example:
                 detail: Credential not found
+        "409":
+          description: 포트폴리오가 이미 사용자별 상한(100개)만큼 있음 (아무것도 만들지 않음)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                detail: Portfolio limit reached.
         "413":
           $ref: "#/components/responses/ContentTooLarge"
         "422":
@@ -789,6 +1378,8 @@ paths:
                   - $ref: "#/components/schemas/ValidationErrorResponse"
               example:
                 detail: No verified credentials selected
+        "429":
+          $ref: "#/components/responses/TooManyVerifications"
         "502":
           $ref: "#/components/responses/ProviderError"
         "503":
@@ -867,13 +1458,16 @@ paths:
     get:
       tags: [shares]
       summary: 내 공유 링크 목록
-      description: 토큰(링크 주소)은 만들 때 한 번만 보여 주고 목록에는 포함하지 않는다.
+      description: |
+        토큰(링크 주소)은 만들 때 한 번만 보여 주고 목록에는 포함하지 않는다.
+        한 번에 200개까지 돌려준다. 그보다 많으면 유효한(철회·만료되지 않은) 링크를 먼저 고르고 나머지를 최근 생성순으로 채우므로,
+        아직 열리는 링크는 목록에서 빠지지 않는다 (순서는 항상 최근 생성순).
       operationId: listShares
       security:
         - bearerAuth: []
       responses:
         "200":
-          description: 목록 (최근 생성순)
+          description: 목록 (최근 생성순, 최대 200개)
           content:
             application/json:
               schema:
@@ -893,6 +1487,8 @@ paths:
       description: |
         학생이 고른 자격증명만 기업에 보여 주는 링크를 만든다. 응답의 `token`은 **이때 한 번만** 내려준다 (서버에는 해시만 저장).
         FE는 `share_path`(예 `/share/{token}`)로 기업용 조회 화면 주소를 만든다.
+        유효한(철회·만료되지 않은) 링크는 사용자마다 100개까지다. 이미 100개면 409
+        `Share link limit reached. Revoke unused links first.` (쓰지 않는 링크를 철회하면 다시 만들 수 있다).
       operationId: createShare
       security:
         - bearerAuth: []
@@ -929,6 +1525,14 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
               example:
                 detail: Credential not found
+        "409":
+          description: 유효한(철회·만료되지 않은) 공유 링크가 이미 사용자별 상한(100개)만큼 있음 (링크를 만들지 않음)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                detail: Share link limit reached. Revoke unused links first.
         "413":
           $ref: "#/components/responses/ContentTooLarge"
         "422":
@@ -973,8 +1577,12 @@ paths:
         - 같은 서명 원본은 서버 프로세스(태스크)마다 60초 동안 검증기에 다시 묻지 않고 그때 응답을 다시 쓴다.
           `credentials[].verified_at`이 실제로 검증기에 물은 시각이라 최대 60초 전일 수 있고, 발급기관의 폐기가 최대 60초 늦게 보인다.
           만료는 매번 지금 시각으로 판단하고, 검증기 오류는 다시 쓰지 않는다(다음 조회에서 다시 물음).
-        - 새로 부르는 검증기 호출은 태스크마다 분당 300번까지다. 이번 조회에 필요한 호출이 남은 몫보다 많으면 검증기를 부르지 않고
-          503 + `Retry-After`로 답한다 (이 응답도 열람 수에는 들어간다).
+        - 다른 조회가 같은 서명 원본을 지금 검증기에 묻고 있으면(아직 응답 전) 다시 부르지 않고 그 응답을 함께 기다린다.
+          같은 링크를 동시에 여러 번 열어도 검증기 호출은 원본마다 한 번이다. 먼저 묻던 조회가 실패하면 기다리던 조회도 그
+          자격증명을 `unverifiable`로 보여 준다.
+        - 새로 부르는 검증기 호출은 태스크마다 분당 300번까지다. 이번 조회에 필요한 호출(최근 응답도 없고 묻고 있는 조회도 없는
+          원본 수)이 남은 몫보다 많으면 검증기를 부르지 않고 503 + `Retry-After`로 답한다 (이 응답도 열람 수에는 들어간다).
+          로그인 사용자용 호출 한도(429)와는 따로 센다.
         - 검증 결과는 학생 지갑(DB 사본의 `status`·`raw_data`·검증 기록)에 저장하지 않는다. 열람 수(`view_count`·`last_viewed_at`)만 올린다.
 
         링크 토큰은 URL 경로에 들어간다. BE 접근 로그는 `/api/v1/public/shares/[redacted]`로 가리지만, 앞단 프록시·CDN 접근 로그와
@@ -1040,7 +1648,9 @@ paths:
     post:
       tags: [career]
       summary: 공고 원문 기술 후보 미리보기 (연구자)
-      description: 필수/우대·경력 판단은 하지 않는다. 연구자가 검토해 주석으로 넣는다. `RESEARCHER_USER_IDS`가 아니면 403.
+      description: |
+        필수/우대·경력 판단은 하지 않는다. 연구자가 검토해 주석으로 넣는다. `RESEARCHER_USER_IDS`가 아니면 403.
+        연구자인지는 본문 형식 검사보다 먼저 확인한다: 연구자가 아닌 계정은 본문이 틀려도 422가 아니라 403이다.
       operationId: previewJobRequirements
       security:
         - bearerAuth: []
@@ -1063,7 +1673,7 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
-          $ref: "#/components/responses/Forbidden"
+          $ref: "#/components/responses/ResearcherRequired"
         "413":
           $ref: "#/components/responses/ContentTooLarge"
         "422":
@@ -1077,6 +1687,8 @@ paths:
         본문은 `JobPostingInput` (`BE/app/ai_contract/career.py`). 모든 요구사항은 원문의 정확한 위치(start/end)와 인용을 가져야 한다.
         AI 서비스가 주석이 원문과 맞는지("또는" 조건 보존 등) 검사하고, 실패하면 422 `detail`에 규칙 코드를 준다.
         URL을 방문하거나 진위를 인증하지 않는다. `dataset_kind=real`이고 수집 7일 이내인 공고만 비교에 쓰인다.
+        `RESEARCHER_USER_IDS`가 아니면 403이고, 연구자인지는 본문 형식 검사보다 먼저 확인한다 (연구자가 아닌 계정은 본문이
+        틀려도 422가 아니라 403).
       operationId: importJobPosting
       security:
         - bearerAuth: []
@@ -1097,7 +1709,7 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
-          $ref: "#/components/responses/Forbidden"
+          $ref: "#/components/responses/ResearcherRequired"
         "413":
           $ref: "#/components/responses/ContentTooLarge"
         "422":
@@ -1109,7 +1721,10 @@ paths:
     post:
       tags: [career]
       summary: 검토한 학습자료 반입 (연구자, 새 버전으로 저장)
-      description: 본문은 `LearningResourceInput` (`BE/app/ai_contract/curriculum.py`). 기술·선수지식·가격은 원문 인용이 있어야 한다.
+      description: |
+        본문은 `LearningResourceInput` (`BE/app/ai_contract/curriculum.py`). 기술·선수지식·가격은 원문 인용이 있어야 한다.
+        `RESEARCHER_USER_IDS`가 아니면 403이고, 연구자인지는 본문 형식 검사보다 먼저 확인한다 (연구자가 아닌 계정은 본문이
+        틀려도 422가 아니라 403).
       operationId: importLearningResource
       security:
         - bearerAuth: []
@@ -1130,7 +1745,7 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
-          $ref: "#/components/responses/Forbidden"
+          $ref: "#/components/responses/ResearcherRequired"
         "413":
           $ref: "#/components/responses/ContentTooLarge"
         "422":
@@ -1157,6 +1772,8 @@ paths:
                 $ref: "#/components/schemas/CareerEnvelope"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyAnalysisRequests"
         "503":
           $ref: "#/components/responses/AIUnavailable"
 
@@ -1207,6 +1824,10 @@ paths:
                 $ref: "#/components/schemas/CareerEnvelope"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyAnalysisRequests"
+        "503":
+          $ref: "#/components/responses/AIUnavailable"
 
   /api/v1/career-analyses:
     post:
@@ -1216,6 +1837,11 @@ paths:
         사용자의 **모든 자격증명을 지금 다시 검증**하고 통과한 것만 근거로 AI가 공고 요구사항과 비교한다.
         요구사항별 상태: `supported` / `partially_supported` / `not_evidenced`(근거 없음 ≠ 역량 없음) / `unknown`(판단 보류).
         결과는 5분(`valid_until`) 동안 커리큘럼 생성에 쓸 수 있다. AI 응답이 BE가 보낸 근거 밖을 인용하면 502.
+        어차피 실패할 요청은 검증기를 부르기 전에 끝난다(검증기 호출 0번): AI 서비스 설정이 없으면 503(AI_SERVICE_NOT_CONFIGURED),
+        `target_posting_id`의 공고가 없으면 404 `Job posting not found`. 서명 원본이 있는 자격증명
+        수만큼 검증기 호출 몫을 쓰고, 모자라면 검증기도 AI도 부르지 않고 429 + `Retry-After`.
+        AI 묶음 요청 자리는 재검증을 마친 뒤에 잡아 AI의 비교 호출이 끝날 때까지 쥔다 (자리를 쥔 채 검증기를 기다리지 않는다).
+        자리를 얻지 못하면 503(AI_SERVICE_BUSY)이고, 그때는 이 요청의 검증기 호출을 이미 쓴 뒤다 (호출자별 몫에 묶인다).
       operationId: createCareerAnalysis
       security:
         - bearerAuth: []
@@ -1240,12 +1866,43 @@ paths:
                 $ref: "#/components/schemas/CareerEnvelope"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: "`target_posting_id`의 공고가 없음 (검증기를 부르지 않는다)"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                detail: Job posting not found
         "409":
           description: 대상 공고가 마감·오래됨·필터 밖, 또는 비교 중 공고가 바뀜
         "413":
           $ref: "#/components/responses/ContentTooLarge"
         "422":
           description: 비교에 쓸 공고가 없음 (No eligible reviewed job sources; import sources first)
+        "429":
+          description: |
+            세 가지 한도 가운데 하나에 걸림. 어느 경우든 분석을 저장하지 않고 `Retry-After`(초)가 붙는다.
+            - 이 사용자의 24시간 직무 비교 저장 수(200건): 검증기·AI를 부르기 전 (`Daily career analysis limit reached. Try again later.`)
+            - 검증기 호출 몫 (`Too many verification requests. Try again later.`, TooManyVerifications 참고): 검증기·AI를 부르기 전
+            - 사용자별 AI 묶음 요청 한도 (`Too many analysis requests. Try again later.`, TooManyAnalysisRequests 참고):
+              검증기·AI를 부르기 전
+          headers:
+            Retry-After:
+              description: 다시 시도할 수 있을 때까지의 초
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                daily:
+                  value: { detail: Daily career analysis limit reached. Try again later. }
+                verifier:
+                  value: { detail: Too many verification requests. Try again later. }
+                corpus:
+                  value: { detail: Too many analysis requests. Try again later. }
         "502":
           description: |
             AI 응답이 계약·BE 재검사를 통과하지 못함 (`code` 예: AI_CONTRACT_MISMATCH, AI_RESPONSE_INVALID,
@@ -1302,6 +1959,13 @@ paths:
         본문은 `CurriculumRequest` (`BE/app/ai_contract/curriculum.py`). 같은 `idempotency_key`로 같은 본문을 보내면 같은 결과, 다른 본문이면 409.
         `mode=llm`은 `CURRICULUM_LLM_USER_IDS`에 있는 계정 + `allow_external_processing=true`일 때만 (아니면 403/422).
         분석이 만료되었으면 409. LLM은 허용된 단계·자료·시간만 고르며, 초안이 검사를 통과하지 못하면 템플릿으로 대체한다.
+        사용자별 한도: 24시간에 학습 계획 200건, 그중 LLM 모드는 `CURRICULUM_LLM_DAILY_LIMIT`건(기본 20. 외부 LLM까지 간 실패한
+        시도도 센다)과 AI 묶음 요청 한도(TooManyAnalysisRequests). 넘으면 429 + `Retry-After`. 같은 `idempotency_key`로 다시
+        받는 계획은 한도에 세지 않는다. LLM 모드 계획은 계정마다 한 번에 한 건이다: 겹친 요청은 429
+        `An LLM curriculum is already being generated for this account. Try again later.` + `Retry-After: 5`.
+        LLM 모드의 외부 처리자는 Google Gemini API(AI 서비스가 부름)다. AI가 다시 시도할 수 있다고 답한 생성 실패(`LLM_BUSY`·
+        `LLM_PROVIDER_UNAVAILABLE`, Gemini 429·5xx의 `LLM_PROVIDER_REJECTED`, 배포 중 설정이 바뀐 `GENERATOR_CONFIGURATION_CHANGED`)는
+        503 + `Retry-After: 5`다.
       operationId: createCurriculum
       security:
         - bearerAuth: []
@@ -1335,6 +1999,25 @@ paths:
           description: 분석 만료, 자료 변경, 또는 같은 키의 다른 요청
         "413":
           $ref: "#/components/responses/ContentTooLarge"
+        "429":
+          description: |
+            사용자별 한도에 걸림 (아무것도 저장하지 않고, LLM 한도면 생성기·LLM을 부르지 않는다). `Retry-After`(초)가 붙는다.
+            `Daily curriculum limit reached. Try again later.` (24시간 200건) /
+            `Daily LLM curriculum limit reached. Use the template mode or try again later.` (`CURRICULUM_LLM_DAILY_LIMIT`) /
+            `An LLM curriculum is already being generated for this account. Try again later.` (계정당 동시 LLM 계획 1건,
+            `Retry-After: 5`) /
+            `Too many analysis requests. Try again later.` (TooManyAnalysisRequests)
+          headers:
+            Retry-After:
+              description: 다시 시도할 수 있을 때까지의 초
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                detail: Daily LLM curriculum limit reached. Use the template mode or try again later.
         "503":
           $ref: "#/components/responses/AIUnavailable"
 
@@ -1360,6 +2043,64 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+
+  /api/v1/market/snapshots:
+    get:
+      tags: [career]
+      summary: 직무별 채용 시장 통계 요약
+      description: |
+        배치(`python -m app.jobs.market`)가 수집한 공고를 AI 서비스가 집계해 저장한 직무별 최신 통계의 요약이다.
+        통계가 있는 직무만 나온다. 공고 원문·수집 내부 정보는 응답에 없다. AI 서비스를 부르지 않는다.
+      operationId: listMarketSnapshots
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: "data = [{role_id, role_label, as_of, sample_size, companies, warnings, top_skills[최대 10개 SkillStatistic]}]"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CareerEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: 저장된 통계가 무결성 검사(내용 해시)에 실패함
+
+  /api/v1/market/snapshots/{role_id}:
+    get:
+      tags: [career]
+      summary: 직무 하나의 최신 채용 시장 통계
+      description: |
+        `skills`는 중요도(importance) 내림차순이다. 기술마다 언급 공고 수, 자격요건·기술스택·우대사항별 공고 수,
+        언급률과 Wilson 95% 구간, 필수 비율이 있다. 중요도는 공고에서 가장 강하게 나온 자리의 가중치
+        (자격요건 1.0, 기술스택 0.7, 우대사항 0.5, 업무 언급 0.3)를 회사별 편중을 줄여 평균한 값이다.
+        `pairs`는 함께 자주 나오는 기술 쌍(lift), `experience`는 요구 경력 분포다.
+        표본이 30건 미만이면 `warnings`에 `SMALL_SAMPLE_STATISTICS_ARE_INDICATIVE_ONLY`가 붙는다.
+      operationId: getMarketSnapshot
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: role_id
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [bigdata_engineer, privacy_specialist, backend_developer, frontend_developer, infra_engineer]
+      responses:
+        "200":
+          description: "data = MarketSnapshot (app/ai_contract/market.py)"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CareerEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: 그 직무의 통계가 아직 없음
+        "409":
+          description: 저장된 통계가 무결성 검사(내용 해시)에 실패함
+        "422":
+          description: 없는 직무 ID
 
 components:
   securitySchemes:
@@ -1393,11 +2134,73 @@ components:
       schema:
         type: string
       example: did:key:z6MkMock1a2b3c4d5e6f
+    OAuthRedirectUri:
+      name: redirect_uri
+      in: query
+      required: false
+      description: |
+        FE 콜백 주소(브라우저의 FE 출처 + `/auth/<제공자>/callback`). 생략하면 서버의 기본 콜백 주소를 쓴다.
+        서버 설정과 글자 그대로 같아야 한다(아니면 400 `Invalid redirect_uri`).
+      schema:
+        type: string
+    OAuthCodeChallenge:
+      name: code_challenge
+      in: query
+      required: false
+      description: PKCE S256 값 (SHA-256의 base64url, 패딩 없는 43자). 네이버는 형식만 검사하고 인가 주소에 싣지 않는다.
+      schema:
+        type: string
+        pattern: "^[A-Za-z0-9_-]{43}$"
+    OAuthCodeChallengeMethod:
+      name: code_challenge_method
+      in: query
+      required: false
+      schema:
+        type: string
+        enum: [S256]
+    OAuthRedirect:
+      name: redirect
+      in: query
+      required: false
+      description: "`true`면 JSON 대신 302로 제공자의 로그인 페이지로 보낸다"
+      schema:
+        type: boolean
+        default: false
+    OAuthCode:
+      name: code
+      in: query
+      required: false
+      schema:
+        type: string
+        maxLength: 2048
+    OAuthState:
+      name: state
+      in: query
+      required: false
+      schema:
+        type: string
+        maxLength: 2048
+    OAuthError:
+      name: error
+      in: query
+      required: false
+      description: "제공자가 돌려준 오류 (예: `access_denied`). 있으면 400 `OAuth authorization failed: <앞 200자>`"
+      schema:
+        type: string
+    OAuthCodeVerifier:
+      name: code_verifier
+      in: query
+      required: false
+      schema:
+        type: string
+        pattern: "^[A-Za-z0-9._~-]{43,128}$"
 
   responses:
     ValidationError:
       description: |
-        요청 검증 실패 (FastAPI 기본 형식). 문자열에 NUL이 있으면
+        요청 검증 실패. 항목마다 `type`·`loc`·`msg`만 있다 (FastAPI 기본 형식에서 입력값 `input`과 `ctx`를 뺀 것. 받은 값을
+        되돌려 주지 않는다). 오류는 앞에서부터 20개까지만 싣고, 64자를 넘는 `loc` 항목(보낸 쪽이 정한 키 이름)은
+        `<long key>`로 바꾼다. 문자열에 NUL이 있으면
         `Value error, must not contain NUL or unpaired surrogate characters`(`type: value_error`), 짝 없는 서로게이트가 있으면
         FastAPI(pydantic) 기본 메시지 `Input should be a valid string, unable to parse raw data as a unicode string`
         (`type: string_unicode`), 한 줄 필드에 제어 문자·U+2028·U+2029가 있으면
@@ -1428,8 +2231,12 @@ components:
                     msg: "Value error, must be a single line without control characters"
     ContentTooLarge:
       description: |
-        요청 본문이 2 MiB(2,097,152바이트)를 넘음. `Content-Length`가 이보다 크면 인증과 관계없이 본문을 읽지 않고
-        텍스트 `Content Too Large`로 답한다. `Content-Length` 없는 chunked 전송은 읽은 양이 2 MiB를 넘는 순간 JSON으로 끊는다.
+        요청 본문이 그 경로의 상한을 넘음. 상한은 기본 64 KiB(65,536바이트)이고, 토큰 없이 부르는 회원가입·로그인·소셜 로그인
+        콜백(POST)은 16 KiB(16,384바이트), `POST /api/v1/verify`는 320 KiB(327,680바이트), 연구자용
+        `POST /api/v1/research/job-postings/preview`·`/api/v1/research/job-postings`·`/api/v1/research/learning-resources`는
+        2 MiB(2,097,152바이트)다. `Content-Length`가 상한보다 크면 인증과 관계없이 본문을 읽지 않고
+        텍스트 `Content Too Large`로 답한다. `Content-Length` 없는 chunked 전송은 읽은 양이 상한을 넘는 순간 JSON으로 끊는다.
+        응답 형식은 상한과 관계없이 같다.
       content:
         text/plain:
           schema:
@@ -1442,7 +2249,7 @@ components:
             detail: Content Too Large
     TextExpandsTooMuch:
       description: |
-        요청 형식 오류(FastAPI 기본 422), 또는 원문·인용을 NFKC 정규화 + 대소문자 통일 + 공백 정리한 결과가 원래 길이의
+        요청 형식 오류(422, `ValidationError` 참고), 또는 원문·인용을 NFKC 정규화 + 대소문자 통일 + 공백 정리한 결과가 원래 길이의
         2배 + 64자를 넘음(예: U+FDFA 한 글자는 18자가 됨). 뒤의 경우는 AI 서비스의 422를 그대로 전달하며 저장하지 않는다.
       content:
         application/json:
@@ -1461,6 +2268,23 @@ components:
             $ref: "#/components/schemas/ErrorResponse"
           example:
             detail: Internal server error
+    ServiceBusy:
+      description: |
+        DB가 바쁨. 서버 프로세스(태스크)의 DB 연결 자리(`DB_MAX_CONNECTIONS`)를 5초 안에 얻지 못했거나, DB 문장이 15초를
+        넘었거나, 잠금을 5초 안에 얻지 못했거나, DB에 접속하지 못했다(접속 거부·시간 초과·서버가 연결을 끊음).
+        `Retry-After`(초) 뒤에 다시 시도한다.
+        DB를 쓰는 모든 API가 돌려줄 수 있다.
+      headers:
+        Retry-After:
+          description: 다시 시도할 수 있을 때까지의 초
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            detail: Service is busy. Try again later.
     Unauthorized:
       description: |
         인증 실패. 토큰이 없거나(서버 설정과 관계없이 항상), 잘못되었거나, 만료되었거나, 로그아웃으로 무효가 되었거나,
@@ -1495,11 +2319,180 @@ components:
             $ref: "#/components/schemas/ErrorResponse"
           example:
             detail: "Forbidden: not your DID"
+    ResearcherRequired:
+      description: |
+        연구자 계정(서버 설정 `RESEARCHER_USER_IDS`)이 아님. 본문 형식 검사(422)보다 먼저 확인하므로, 연구자가 아닌 계정은
+        본문이 틀려도 이 응답을 받는다 (본문이 경로의 상한 2 MiB를 넘으면 그보다 먼저 413).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            detail: Researcher permission required
+    OAuthAuthorized:
+      description: 인가 URL 발급 성공
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/OAuthAuthorizeResponse"
+    OAuthAuthorizeBadRequest:
+      description: 허용되지 않은 `redirect_uri` 또는 잘못된 PKCE 파라미터
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            redirectUri:
+              value: { detail: Invalid redirect_uri }
+            codeChallenge:
+              value: { detail: Invalid code_challenge }
+            challengeMethod:
+              value: { detail: Only S256 code_challenge_method is supported }
+    OAuthLoggedIn:
+      description: 소셜 로그인/가입 성공 (`POST /api/v1/users/login`과 같은 형식. `message`는 info.description "소셜 로그인")
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/AuthResponse"
+    OAuthCallbackBadRequest:
+      description: |
+        잘못되거나 만료된 `state`(다른 제공자의 `state` 포함), `redirect_uri`가 `state`와 다름, 만료·재사용된 인가 코드,
+        제공자 액세스 토큰 거절(사용자 정보 조회 401), 이메일 없음(동의 거절, GitHub 이메일 권한 거절·기본 이메일 없음 등),
+        제공자가 인증하지 않은 이메일(Google, GitHub 기본 이메일 미인증·토큰 오류 `unverified_user_email`).
+        GET 콜백은 `error` 쿼리(사용자 취소 등)나 빠진 `code`·`state`도 400이다.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            state:
+              value: { detail: Invalid or expired OAuth state }
+            redirectUriMismatch:
+              value: { detail: redirect_uri does not match OAuth state }
+            code:
+              value: { detail: Invalid or expired OAuth authorization code }
+            accessToken:
+              value: { detail: Invalid OAuth access token }
+            emailRequired:
+              value: { detail: OAuth email is required }
+            emailNotVerified:
+              value: { detail: OAuth email is not verified }
+    OAuthDevelopmentOnly:
+      description: "`APP_ENV=production` (이 경로를 쓰지 않는다)"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            detail: Not Found
+    OAuthAccountConflict:
+      description: |
+        소셜 로그인을 같은 이메일의 기존 계정에 붙일 수 없음 (info.description "소셜 로그인"의 계정 규칙).
+        같은 제공자의 다른 계정이 이미 연동되어 있거나, 그 계정에 비밀번호가 있거나(그 계정에는 연동하지 않는다),
+        이메일이 양쪽에서 확인되지 않았다(이번 로그인이 네이버이거나, 그 계정에 같은 이메일의 Google·GitHub 연동이 없음).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            passwordAccount:
+              value:
+                detail: This email is registered with a password. Log in with your email and password.
+            otherMethod:
+              value:
+                detail: This email is already used by another sign-in method. Log in with that method.
+            otherAccountOfSameProvider:
+              value:
+                detail: User is already linked to another account for this provider
+    TooManyOAuthExchanges:
+      description: |
+        그 제공자의 토큰 교환 한도 초과 (서버 프로세스(태스크)마다 제공자별 분당 300번, 그 제공자의 모든 사용자가 함께 쓴다).
+        제공자를 부르지 않는다. `Retry-After`(초) 뒤에 다시 시도한다.
+      headers:
+        Retry-After:
+          description: 다시 시도할 수 있을 때까지의 초
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            detail: Too many attempts. Try again later.
+    OAuthProviderError:
+      description: |
+        제공자(Google·GitHub·네이버) 호출 실패 (연결 실패·시간 초과, 2xx가 아닌 응답(리디렉션 포함), JSON이 아니거나 너무 깊게
+        중첩된 본문, 쓸 수 있는 `access_token` 없음, 인가 코드 문제가 아닌 토큰 오류(예: GitHub `incorrect_client_credentials`),
+        사용자 정보의 식별자·이메일이 문자열이 아니거나 255자를 넘거나 한 줄이 아님, GitHub `id`가 1~2^63-1의 JSON 정수가 아님,
+        GitHub 이메일 목록이 JSON 배열이 아님, 네이버 `resultcode`가 `"00"`이 아님). 응답은 제공자 이름이 든 고정 문구와 `code`뿐이고
+        원인은 BE 로그(`Provider error: ...`)에만 남는다.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            google:
+              value: { detail: Google OAuth error, code: PROVIDER_ERROR }
+            github:
+              value: { detail: GitHub OAuth error, code: PROVIDER_ERROR }
+            naver:
+              value: { detail: Naver OAuth error, code: PROVIDER_ERROR }
+    OAuthNotConfigured:
+      description: 그 제공자의 설정 누락 (`<GOOGLE|GITHUB|NAVER>_CLIENT_ID`/`_CLIENT_SECRET`)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            google:
+              value: { detail: Google OAuth is not configured, code: PROVIDER_NOT_CONFIGURED }
+            github:
+              value: { detail: GitHub OAuth is not configured, code: PROVIDER_NOT_CONFIGURED }
+            naver:
+              value: { detail: Naver OAuth is not configured, code: PROVIDER_NOT_CONFIGURED }
+    TooManyAnalysisRequests:
+      description: |
+        사용자별 AI 묶음 요청 한도 초과 (공고 목록·학습자료 검색·직무 비교·학습 계획이 같은 몫을 쓴다). 한 사용자가 동시에 쥐는
+        묶음 요청은 2개, 요청 수는 분당 30번·시간당 300번까지다. 넘으면 기다리지 않고 DB의 묶음도 AI도 부르지 않는다.
+        `Retry-After`(초. 동시 수 초과면 2, 요청 수 초과면 몫이 다시 찰 때까지) 뒤에 다시 시도한다.
+      headers:
+        Retry-After:
+          description: 다시 시도할 수 있을 때까지의 초
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            detail: Too many analysis requests. Try again later.
+    TooManyVerifications:
+      description: |
+        검증기(DXWorks) 호출 한도 초과. 호출자(사용자, 서비스 키는 하나로)마다 분당 120번과 시간당 1,200번, 서버 프로세스(태스크)
+        전체로 분당 600번까지다. 이번 요청에 필요한 호출 수가 남은 몫보다 많으면 검증기를 한 번도 부르지 않고 아무것도 저장하지 않는다.
+        `POST /api/v1/verify`의 배지 검증은 검증기까지 가서 토큰이 거절된 요청이 호출자마다 10분에 10번을 넘은 경우에도 이 응답이다.
+        `Retry-After`(초. 모자란 몫이 다시 찰 때까지의 시간 가운데 가장 긴 값) 뒤에 다시 시도한다.
+      headers:
+        Retry-After:
+          description: 다시 시도할 수 있을 때까지의 초
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            detail: Too many verification requests. Try again later.
     ProviderError:
       description: |
-        DXWorks 호출 실패 (연결 실패·시간 초과·협력사 오류 응답·리디렉션(3xx, 본문이 JSON이어도 결과로 읽지 않음)·
-        형식 오류(JSON이 아니거나 너무 깊게 중첩된 본문 포함)). 응답은 고정 문구와 `code`뿐이고,
-        협력사 오류 코드·메시지는 BE 로그(`Provider error: ...`)에만 남는다.
+        DXWorks 호출 실패 (연결 실패·시간 초과(교환이 `DXWORKS_TIMEOUT_SECONDS`의 2배를 넘거나, 동시 호출 자리를 그 2배 동안
+        얻지 못한 경우 포함)·협력사 오류 응답·리디렉션(3xx, 본문이 JSON이어도 결과로 읽지 않음)·
+        형식 오류(JSON이 아니거나 너무 깊게 중첩된 본문, NaN·Infinity·범위를 넘는 숫자, 전송된 크기나 풀어낸 크기가 1 MiB를 넘는
+        본문, `gzip`·`deflate`가 아닌 방식으로 압축됐거나 압축을 풀 수 없는 본문,
+        배지 검증 응답의 `valid`가 참·거짓이 아닌 경우 포함)). 응답은 고정 문구와 `code`뿐이고,
+        협력사 오류 코드·메시지는 BE 로그(`Provider error: ...`)에만 남는다(되돌아온 API 키·서명 원본·DID와, DID·JWT 모양이거나
+        숫자가 섞인 32자 이상의 base64url 문자열은 `[redacted]`로 가린다. 협력사의 UUID·추적 ID도 이 모양이면 가려져 로그에 남지
+        않고, 글자와 `_`·`-`로만 된 오류 코드는 길어도 그대로 남는다. 그래서 보낸 값 그대로가 아닌 조각은 숫자가 없으면 남을 수 있다).
       content:
         application/json:
           schema:
@@ -1511,6 +2504,7 @@ components:
       description: |
         발급·검증 인프라 설정 누락·사용 불가 (`DXWORKS_API_HOST`가 없거나 `https://` 주소가 아님(`http://`는 루프백만),
         `DXWORKS_API_KEY`, `DXWORKS_BADGE_TEMPLATE_ID` 등). 어느 설정인지는 BE 로그(`Provider error: ...`)에만 남는다.
+        (형식이 틀린 `DXWORKS_API_HOST`·`DXWORKS_API_KEY`·`DXWORKS_TIMEOUT_SECONDS`를 넣으면 서버가 시작하지 않는다.)
       content:
         application/json:
           schema:
@@ -1524,6 +2518,22 @@ components:
         AI 서비스 연결 실패·토큰 불일치·미설정 (FE는 "AI 서버에 연결할 수 없습니다"로 표시).
         `code` 예: AI_SERVICE_UNAVAILABLE(연결 실패·시간 초과), AI_SERVICE_ERROR(형식 ID 없는 5xx: 프록시·비정상 종료),
         AI_SERVICE_AUTH_FAILED, AI_SERVICE_NOT_CONFIGURED. AI가 보낸 5xx는 AI의 code를 그대로 싣는다.
+        AI_SERVICE_BUSY(`AI service is busy. Try again later.`)는 AI로 보내는 묶음 요청의 동시 수 상한(`AI_MAX_CONCURRENCY`)에
+        걸려 10초를 기다려도 자리가 없던 경우다. AI를 부르지 않았고 `Retry-After`(초) 헤더가 붙는다.
+        직무 비교(`POST /api/v1/career-analyses`)는 자격증명 재검증을 마친 뒤에 자리를 기다리므로, 이 응답이어도 그 요청의
+        검증기 호출 몫은 이미 쓴 상태다. 학습 계획(`POST /api/v1/curricula`)에서 AI가 다시 시도할 수 있다고 답한 생성 실패
+        (`LLM_BUSY`: AI의 동시 LLM 생성 상한, `LLM_PROVIDER_UNAVAILABLE`, Gemini 429·5xx의 `LLM_PROVIDER_REJECTED`,
+        배포 중 설정이 바뀐 `GENERATOR_CONFIGURATION_CHANGED`)와 다시 시도할 수 있는 AI 연결 실패(`AI_SERVICE_UNAVAILABLE` 등)에도
+        `Retry-After: 5`가 붙는다.
+      headers:
+        Retry-After:
+          description: |
+            (다시 시도할 수 있는 503일 때: AI_SERVICE_BUSY, AI_SERVICE_UNAVAILABLE·AI_SERVICE_ERROR 등 AI 연결 실패, 다시 시도할 수
+            있는 학습 계획 생성 실패. AI_SERVICE_NOT_CONFIGURED·AI_SERVICE_AUTH_FAILED·AI_CONFIGURATION_REQUIRED·
+            GENERATOR_CONFIGURATION_REQUIRED에는 없다)
+            다시 시도할 수 있을 때까지의 초
+          schema:
+            type: integer
       content:
         application/json:
           schema:
@@ -1531,6 +2541,14 @@ components:
           example:
             detail: AI service temporarily unavailable
             code: AI_SERVICE_UNAVAILABLE
+  requestBodies:
+    OAuthCallback:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/OAuthCallbackRequest"
+
   schemas:
     CareerEnvelope:
       type: object
@@ -1555,20 +2573,23 @@ components:
           description: |
             기계용 사유 코드. AI 연동 오류(예: AI_SERVICE_UNAVAILABLE, AI_CONTRACT_MISMATCH, NO_ELIGIBLE_JOB_SOURCES,
             TEXT_EXPANDS_TOO_MUCH_WHEN_NORMALIZED)와 발급·검증 인프라 오류(PROVIDER_ERROR: 502 `Credential service error`,
-            PROVIDER_NOT_CONFIGURED: 503 `Credential service is not configured`)에만 붙고, 그 밖의 에러에는 없다.
+            PROVIDER_NOT_CONFIGURED: 503 `Credential service is not configured`), 소셜 로그인 오류(같은 두 코드,
+            `detail`은 `<Label> OAuth error` / `<Label> OAuth is not configured`, `<Label>`은 `Google`·`GitHub`·`Naver`)에만 붙고, 그 밖의 에러에는 없다.
 
     ValidationErrorResponse:
       type: object
       properties:
         detail:
           type: array
+          maxItems: 20
           items:
             type: object
+            additionalProperties: false
             properties:
               loc:
                 type: array
                 items:
-                  oneOf: [{ type: string }, { type: integer }]
+                  oneOf: [{ type: string, maxLength: 64 }, { type: integer }]
               msg:
                 type: string
               type:
@@ -1610,14 +2631,15 @@ components:
           type: string
           minLength: 1
           maxLength: 100
-          description: 한 줄 텍스트 (앞뒤 공백은 잘라 내고, 안쪽의 제어 문자·U+2028·U+2029·NUL은 422)
+          description: 한 줄 텍스트 (앞뒤 공백은 잘라 내고, 안쪽의 제어 문자·U+2028·U+2029·방향 제어/보이지 않는 서식 문자·NUL은 422)
         email:
           type: string
           format: email
           minLength: 3
           maxLength: 255
           description: |
-            한 줄 텍스트이며 `@`를 포함해야 한다. 소문자로 저장한다. 255자 상한은 소문자로 바꾼 값에도 적용된다
+            한 줄 텍스트이며 `@`가 하나이고 앞뒤에 보이는 글자가 있어야 한다. 공백·`"(),:;<>[\]`·이형 선택자·CGJ·U+FFFC는 422
+            `Value error, Invalid email` (서식 문자(Cf) 등 보이지 않는 글자는 한 줄 검사의 422). 소문자로 저장한다. 255자 상한은 소문자로 바꾼 값에도 적용된다
             (예: `İ`(U+0130)는 두 글자가 되므로 넘으면 422 `Value error, Email must be at most 255 characters`).
         password:
           type: string
@@ -1663,6 +2685,49 @@ components:
         expires_in:
           type: integer
           description: 토큰 만료까지 남은 초 (서버 `JWT_EXPIRES_MINUTES`, 1~1440분, 기본 1일)
+
+    OAuthAuthorizeResponse:
+      type: object
+      required: [success, provider, authorization_url, state, expires_in]
+      properties:
+        success:
+          type: boolean
+        provider:
+          type: string
+          enum: [google, github, naver]
+          example: google
+        authorization_url:
+          type: string
+          format: uri
+        state:
+          type: string
+          description: 서명된 OAuth state 토큰 (유효기간 10분)
+        expires_in:
+          type: integer
+          example: 600
+
+    OAuthCallbackRequest:
+      type: object
+      required: [code, state]
+      properties:
+        code:
+          type: string
+          minLength: 1
+          maxLength: 2048
+          description: 제공자(Google·GitHub·네이버)가 돌려준 인가 코드 (앞뒤 공백은 잘라 낸다)
+        state:
+          type: string
+          minLength: 1
+          maxLength: 2048
+          description: "`GET .../authorize`가 발급한 서명된 state"
+        redirect_uri:
+          type: string
+          maxLength: 2048
+          description: 보내면 state에 든 콜백 주소와 같아야 한다 (다르면 400)
+        code_verifier:
+          type: string
+          pattern: "^[A-Za-z0-9._~-]{43,128}$"
+          description: PKCE code_verifier (RFC 7636). 빈 문자열·공백뿐이면 없는 것으로 본다. 네이버는 형식만 검사하고 제공자로 보내지 않는다
 
     # ── 자격증명 ──────────────────────────────────────────────
     CredentialStatus:
@@ -1718,7 +2783,11 @@ components:
           type: string
           minLength: 1
           maxLength: 262144
-          description: "`identity`면 VP 토큰, `badge`면 OB3 VC-JWT (최대 256 KiB, NUL·짝 없는 서로게이트는 422)"
+          description: |
+            `identity`면 VP 토큰(서버에서 신원 검증을 켠 경우만), `badge`면 OB3 VC-JWT (최대 256 KiB, NUL·짝 없는 서로게이트는 422).
+            compact JWS 모양(ASCII, `머리말.본문.서명` base64url 세 조각, 머리말의 `alg`가 `none`이 아닌 문자열)이 아니면
+            검증기로 보내지 않는다. 조각 끝의 `=` 패딩(둘까지)과 SD-JWT 형식(`<jws>~<disclosure>~...~[<kb-jwt>]`)은 받는다
+            (`POST /api/v1/verify` 설명 참고).
 
     VerifyResponse:
       type: object
@@ -1864,9 +2933,9 @@ components:
           type: string
           description: |
             예: no_signed_original(서명 원본 없음), revoked, expired, invalid, verifier_error(검증기 호출 실패).
-            포트폴리오 생성·직무 비교는 검증기 장애(설정 누락·연결 실패·시간 초과·5xx·408·429)면 저장하지 않고 502/503으로 끝나므로,
-            거기서 verifier_error는 특정 자격증명에 대한 거절(그 밖의 4xx), 3xx 응답(본문과 관계없이), 형식이 맞지 않는 2xx 응답
-            (JSON이 아니거나 너무 깊게 중첩된 본문 등)일 때만 나온다.
+            포트폴리오 생성·직무 비교는 검증기 장애(설정 누락·연결 실패·시간 초과·5xx·408·429·401·403·3xx)면 저장하지 않고
+            502/503으로 끝나므로, 거기서 verifier_error는 특정 자격증명에 대한 거절(400·404·422 등 그 밖의 4xx)이나 형식이 맞지 않는
+            2xx 응답(JSON이 아니거나 너무 깊게 중첩된 본문 등)일 때만 나온다. 재검증 한 건(`POST .../reverify`)도 같은 분류다.
 
     EvidenceResponse:
       type: object
@@ -1992,7 +3061,9 @@ components:
         label:
           type: [string, "null"]
           maxLength: 100
-          description: 학생이 알아보기 위한 이름 (예 지원 회사명). 기업용 화면에는 보이지 않는다. NUL·짝 없는 서로게이트는 422
+          description: |
+            학생이 알아보기 위한 이름 (예 지원 회사명). 기업용 화면에는 보이지 않는다. 한 줄 텍스트다: 앞뒤 공백·줄바꿈은 잘라
+            저장하고, 안쪽의 제어 문자(줄바꿈·ESC 등)·U+2028·U+2029·방향 제어/보이지 않는 서식 문자·NUL·짝 없는 서로게이트는 422
         expires_in_days: { type: integer, minimum: 1, maximum: 90, default: 14 }
 
     ShareSummary:

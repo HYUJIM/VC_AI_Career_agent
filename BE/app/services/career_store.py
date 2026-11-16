@@ -15,10 +15,29 @@ from pydantic import ValidationError
 
 from app.ai_contract.career import CareerAnalysis, JobVersion
 from app.ai_contract.curriculum import CurriculumRequest, CurriculumResult, LearningResourceVersion
-from app.services.database import get_db_connection
+from app.services.database import app_db_connection
 
 MAX_CANDIDATES = 1000  # AI 계약의 한도와 같다.
 MAX_RESOURCES = 500
+# 사용자별 24시간 저장 수 상한 (database.MAX_PORTFOLIOS_PER_USER처럼 계정 하나가 DB를 끝없이 채우지 못하게).
+# 직무 비교 하나는 약 4 KB다. 화면 사용은 하루 수십 건을 넘지 않는다.
+MAX_ANALYSES_PER_DAY = 200
+MAX_CURRICULA_PER_DAY = 200
+
+# 최근 24시간 행 가운데 (limit)번째로 최근 것이 창 밖으로 나갈 때까지의 초. 행이 limit개보다 적으면 결과가 없다.
+# 시각 계산은 DB 시계(now())로 한다 (created_at도 DB가 채운다). 테이블·조건은 여기 고정된 문장만 쓴다.
+_WINDOW = "created_at > now() - interval '24 hours'"
+_RETRY_AFTER = "ceil(extract(epoch FROM created_at + interval '24 hours' - now()))::int AS retry_after"
+_DAILY_LIMIT_SQL = {
+    "analyses": f"""SELECT {_RETRY_AFTER} FROM career_analyses WHERE user_id = %s AND {_WINDOW}
+        ORDER BY created_at DESC OFFSET %s LIMIT 1""",
+    "curricula": f"""SELECT {_RETRY_AFTER} FROM curricula WHERE user_id = %s AND {_WINDOW}
+        ORDER BY created_at DESC OFFSET %s LIMIT 1""",
+    # 외부 LLM을 부른 학습 계획 (LLM 결과 또는 LLM 출력을 버린 대체 결과)
+    "llm_curricula": f"""SELECT {_RETRY_AFTER} FROM curricula WHERE user_id = %s AND {_WINDOW}
+        AND result->>'generation_method' IN ('llm', 'llm_fallback')
+        ORDER BY created_at DESC OFFSET %s LIMIT 1""",
+}
 
 # 사용자 조회 응답에서 빼는 반입 내부 정보: 반입한 연구자 계정 ID, 검토 메모, 권리 근거, 원문 전체.
 # 저장본·content_hash·AI로 보내는 계약 객체는 그대로 두고 응답으로 내보낼 때만 뺀다 (연구자 반입 응답은 전체).
@@ -62,7 +81,7 @@ class CareerStore:
     def import_job(self, posting, user_id: str) -> JobVersion:
         now = datetime.now(timezone.utc)
         content = posting.model_dump(mode="json")
-        with get_db_connection() as conn, conn.transaction(), conn.cursor() as cur:
+        with app_db_connection() as conn, conn.transaction(), conn.cursor() as cur:
             cur.execute(
                 """INSERT INTO job_postings (source, external_id) VALUES (%s, %s)
                 ON CONFLICT (source, external_id) DO UPDATE SET source = EXCLUDED.source RETURNING id""",
@@ -85,7 +104,7 @@ class CareerStore:
         JOIN job_posting_versions v ON v.id = p.latest_version_id AND v.posting_id = p.id"""
 
     def get_job(self, posting_id: str, version_id: Optional[str] = None) -> JobVersion:
-        with get_db_connection() as conn, conn.cursor() as cur:
+        with app_db_connection() as conn, conn.cursor() as cur:
             if version_id:
                 cur.execute("SELECT * FROM job_posting_versions WHERE posting_id = %s AND id = %s",
                             (posting_id, version_id))
@@ -98,7 +117,7 @@ class CareerStore:
 
     def market_candidates(self, role_id: str, now: datetime) -> list[JobVersion]:
         # 로컬 검토 공고 집합을 좁힐 뿐 시장 전체 표본이 아니다. 최종 선별은 AI가 다시 한다.
-        with get_db_connection() as conn, conn.cursor() as cur:
+        with app_db_connection() as conn, conn.cursor() as cur:
             cur.execute(
                 self._LATEST_JOB + """ WHERE v.payload->'posting'->>'role_id' = %s
                 AND v.payload->'posting'->>'dataset_kind' = 'real'
@@ -115,7 +134,7 @@ class CareerStore:
     def import_resource(self, resource, user_id: str) -> LearningResourceVersion:
         now = datetime.now(timezone.utc)
         content = resource.model_dump(mode="json")
-        with get_db_connection() as conn, conn.transaction(), conn.cursor() as cur:
+        with app_db_connection() as conn, conn.transaction(), conn.cursor() as cur:
             cur.execute(
                 """INSERT INTO learning_resources (source, external_id) VALUES (%s, %s)
                 ON CONFLICT (source, external_id) DO UPDATE SET source = EXCLUDED.source RETURNING id""",
@@ -139,28 +158,25 @@ class CareerStore:
         JOIN learning_resource_versions v ON v.id = r.latest_version_id AND v.resource_id = r.id"""
 
     def resources(self) -> list[LearningResourceVersion]:
-        with get_db_connection() as conn, conn.cursor() as cur:
+        with app_db_connection() as conn, conn.cursor() as cur:
             cur.execute(self._LATEST_RESOURCE + " ORDER BY r.id LIMIT %s", (MAX_RESOURCES + 1,))
             rows = cur.fetchall()
         if len(rows) > MAX_RESOURCES:
             raise HTTPException(status_code=422, detail="Learning catalog exceeds supported corpus size")
         return [_resource(row) for row in rows]
 
-    def get_resource(self, resource_id: str, version_id: Optional[str] = None) -> LearningResourceVersion:
-        with get_db_connection() as conn, conn.cursor() as cur:
-            if version_id:
-                cur.execute("SELECT * FROM learning_resource_versions WHERE resource_id = %s AND id = %s",
-                            (resource_id, version_id))
-            else:
-                cur.execute(self._LATEST_RESOURCE + " WHERE r.id = %s", (resource_id,))
+    # ── 사용자별 24시간 한도 ───────────────────────────────────
+    def daily_limit_retry_after(self, kind: str, user_id: str, limit: int) -> Optional[int]:
+        """kind("analyses" | "curricula" | "llm_curricula")의 최근 24시간 저장 수가 limit 이상이면 다시 시도할 수 있을
+        때까지의 초(1 이상, Retry-After 값), 아니면 None."""
+        with app_db_connection() as conn, conn.cursor() as cur:
+            cur.execute(_DAILY_LIMIT_SQL[kind], (user_id, limit - 1))
             row = cur.fetchone()
-        if not row:
-            raise HTTPException(status_code=404, detail="Learning resource not found")
-        return _resource(row)
+        return None if row is None else max(1, row["retry_after"] or 1)
 
     # ── 직무 비교 ─────────────────────────────────────────────
     def save_analysis(self, user_id: str, analysis: CareerAnalysis, snapshot) -> None:
-        with get_db_connection() as conn, conn.transaction(), conn.cursor() as cur:
+        with app_db_connection() as conn, conn.transaction(), conn.cursor() as cur:
             ids = [str(source.posting_id) for source in analysis.sources]
             cur.execute(self._LATEST_JOB + " WHERE p.id = ANY(%s::uuid[]) FOR SHARE OF p", (ids,))
             current = {str(row["posting_id"]): row for row in cur.fetchall()}
@@ -175,7 +191,7 @@ class CareerStore:
             )
 
     def get_analysis(self, user_id: str, analysis_id: str) -> CareerAnalysis:
-        with get_db_connection() as conn, conn.cursor() as cur:
+        with app_db_connection() as conn, conn.cursor() as cur:
             cur.execute("SELECT * FROM career_analyses WHERE id = %s AND user_id = %s", (analysis_id, user_id))
             row = cur.fetchone()
         if not row:
@@ -190,14 +206,14 @@ class CareerStore:
 
     # ── 커리큘럼 ──────────────────────────────────────────────
     def find_curriculum(self, user_id: str, idempotency_key: str) -> Optional[dict]:
-        with get_db_connection() as conn, conn.cursor() as cur:
+        with app_db_connection() as conn, conn.cursor() as cur:
             cur.execute("SELECT * FROM curricula WHERE user_id = %s AND idempotency_key = %s",
                         (user_id, idempotency_key))
             return cur.fetchone()
 
     def save_curriculum(self, *, user_id: str, request: CurriculumRequest, result: CurriculumResult,
                         audit: list[dict]) -> dict:
-        with get_db_connection() as conn, conn.transaction(), conn.cursor() as cur:
+        with app_db_connection() as conn, conn.transaction(), conn.cursor() as cur:
             used = sorted({str(step.resource.resource_id) for step in result.steps if step.resource})
             if used:
                 cur.execute(self._LATEST_RESOURCE + " WHERE r.id = ANY(%s::uuid[]) FOR SHARE OF r", (used,))
@@ -218,7 +234,7 @@ class CareerStore:
         return row
 
     def get_curriculum(self, user_id: str, curriculum_id: str) -> dict:
-        with get_db_connection() as conn, conn.cursor() as cur:
+        with app_db_connection() as conn, conn.cursor() as cur:
             cur.execute("SELECT * FROM curricula WHERE id = %s AND user_id = %s", (curriculum_id, user_id))
             row = cur.fetchone()
         if not row:

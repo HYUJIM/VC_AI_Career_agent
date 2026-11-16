@@ -8,6 +8,8 @@
 - secrets는 단계(steps) 안의 env/with에서만 쓴다 (job·워크플로 env에 두면 모든 단계가 본다).
 - secrets를 받는 job의 pip 설치는 버전을 ==로 고정한다 (또는 --require-hashes).
 - FE job은 npm run build 뒤에 운영 번들(dist) 검사(외부 스크립트, 개발 전용 안내)를 한다.
+- docker job은 운영 이미지에서 일회성 실행기(마이그레이션, 시장 통계 배치)가 뜨는지 본다.
+- 테스트 워크플로의 job은 모두 timeout-minutes를 둔다 (멈춘 테스트가 GitHub 기본 제한 6시간까지 돌지 않게).
 - .github/dependabot.yml이 github-actions 갱신을 맡는다.
 YAML 라이브러리 없이 줄 단위로 본다 (이 저장소 워크플로의 블록 스타일 기준).
 """
@@ -215,8 +217,36 @@ def test_fe_job_checks_dist_after_build():
         r"\bgrep\b[^\n]*src[^\n]*\(https\?:\|//\)", after
     ), "FE job: dist/index.html의 외부 <script src> 검사가 없다"
     assert re.search(
-        r"\bgrep\b[^\n]*'localhost:3000\|AI_SERVICE_\(TOKEN\|URL\)\|DXWORKS_\|ai_contract'\s+dist\b", after
+        r"\bgrep\b[^\n]*'localhost:3000\|AI_SERVICE_\(TOKEN\|URL\)\|DXWORKS_\|GOOGLE_\|GITHUB_\|NAVER_\|ai_contract'"
+        r"\s+dist\b", after
     ), "FE job: 개발 전용 안내 검사가 없다"
+
+
+def test_docker_job_smokes_the_one_off_entry_points_in_the_production_image():
+    path = WORKFLOWS_DIR / "tests.yml"
+    if not path.is_file():
+        pytest.skip("tests.yml 없음")
+    steps = _steps(_jobs(_lines(path))["docker"])
+    cmds = "\n".join(line for s in steps for line in s.splitlines() if _structural(line))
+    # 이미지 기본값(APP_ENV=production, 비밀값·DB 없음) 그대로 --help가 떠야 한다: AWS에서 일회성 태스크로 돌리는 진입점이다.
+    for module in ("app.migrate", "app.jobs.market"):
+        smoke = rf"run:\s*docker run --rm vc-be:ci python -m {re.escape(module)} --help\s*$"
+        assert re.search(smoke, cmds, re.MULTILINE), f"docker job: python -m {module} --help 확인 단계가 없다"
+
+
+def test_every_job_of_the_test_workflow_has_a_timeout():
+    """job에 timeout-minutes가 없으면 멈춘 테스트(예: DB 잠금을 끝없이 기다리는 회귀)가 실패로 끝나지 않고 GitHub 기본 제한
+    (6시간)까지 돈다. 가장 긴 job(BE 테스트)이 3~4분이므로 넉넉하게 20분이다."""
+    path = WORKFLOWS_DIR / "tests.yml"
+    if not path.is_file():
+        pytest.skip("tests.yml 없음")
+    jobs = _jobs(_lines(path))
+    assert set(jobs) == {"be", "ai", "research-vc", "fe", "docker"}
+    for job, body in jobs.items():
+        # job 바로 아래(들여쓰기 4칸)의 키만 본다: 단계(steps) 안의 timeout-minutes는 그 단계만 묶는다.
+        timeouts = [line.split(":", 1)[1].strip() for line in body
+                    if _structural(line) and _indent(line) == 4 and line.strip().startswith("timeout-minutes:")]
+        assert timeouts == ["20"], f"{job}: job에 timeout-minutes: 20이 없다 ({timeouts})"
 
 
 def test_dependabot_updates_github_actions():

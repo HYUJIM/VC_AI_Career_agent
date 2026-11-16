@@ -3,6 +3,7 @@
 DB에 저장된 상태값·본문 사본을 믿지 않고, 요청 시점에 서명 원본(credentials.raw_token)을 검증기에 다시 보내
 그 결과와 **서명 원본 안의 본문**으로 근거(Evidence)를 만든다.
 로그인 없는 기업용 조회(공유 링크)만 예외로, public_view_gate로 최근(60초 안) 응답을 다시 쓰고 DB에 저장하지 않는다.
+검증기를 부르는 양은 부르기 전에 묶는다: 로그인 사용자·서비스 키는 verifier_budget, 기업용 조회는 public_view_gate.
 """
 import asyncio
 import logging
@@ -12,10 +13,12 @@ from typing import Any, Optional
 
 from starlette.concurrency import run_in_threadpool
 
+from app.core.config import get_settings
 from app.domain.credential import BadgeEvaluation, CheckResult, ProviderBadgeResult, evaluate_badge
 from app.integrations.ports import CredentialVerifier, ProviderError
 from app.services.database import db_service
 from app.services.public_view_gate import PublicViewGate
+from app.services.verifier_budget import log_verifier_calls, reserve_verifier_calls
 
 MAX_CONCURRENCY = 5
 logger = logging.getLogger(__name__)
@@ -73,16 +76,28 @@ def build_evidence(*, record_id: str, status: str, vc: dict, issuer_name: str, a
     }
 
 
-def _not_verifiable(row: dict, reason: str, detail: str, error: Optional[ProviderError] = None) -> ReverifyOutcome:
+def _not_verifiable(row: dict, reason: str, detail: str, error: Optional[ProviderError] = None,
+                    *, persist: bool = False) -> ReverifyOutcome:
     # 서명 원본으로 검증할 수 없는 경우: DB 사본으로 표시만 하고 근거로는 쓰지 않는다 (strict에서 제외).
+    # persist가 켜져 있고 서명 원본 자체가 없으면 DB 상태도 unverifiable('확인 필요')로 갱신한다.
+    checks = [CheckResult("signature", "skip", detail)]
+    vc = row["raw_data"] or {}
+    if persist and reason == "no_signed_original":
+        db_service.update_reverification(str(row["record_id"]), "unverifiable", checks, vc, None)
     evidence = build_evidence(
-        record_id=str(row["record_id"]), status="unverifiable", vc=row["raw_data"] or {},
+        record_id=str(row["record_id"]), status="unverifiable", vc=vc,
         issuer_name=row["issuer_name"], achievement_name=row["achievement_name"],
         issued_at=row["issued_at"], expires_at=row["expires_at"], verified_at=None,
-        checks=[CheckResult("signature", "skip", detail)],
+        checks=checks,
     )
     return ReverifyOutcome(str(row["record_id"]), "unverifiable", False, evidence, reason, row.get("raw_token"),
                            error=error)
+
+
+def _flight_wait_seconds() -> float:
+    """다른 조회가 묻고 있는 원본의 응답을 기다리는 시간 상한: 어댑터의 호출 한 번 상한과 같다
+    (동시 호출 자리 대기 timeout × 2 + 교환 timeout × 2, integrations/dxworks.py)."""
+    return 4 * get_settings().dxworks_timeout_seconds
 
 
 def _guard(row: dict, evaluation: BadgeEvaluation) -> Optional[tuple[str, CheckResult]]:
@@ -94,29 +109,48 @@ def _guard(row: dict, evaluation: BadgeEvaluation) -> Optional[tuple[str, CheckR
     return None
 
 
-async def _reverify_one(row: dict, verifier: CredentialVerifier, *, persist: bool, raise_provider_errors: bool,
-                        gate: Optional[PublicViewGate] = None,
-                        cached: Optional[tuple[datetime, ProviderBadgeResult]] = None) -> ReverifyOutcome:
+async def _reverify_one(row: dict, verifier: CredentialVerifier, *, persist: bool,
+                        stats: dict, gate: Optional[PublicViewGate] = None,
+                        step: Optional[tuple[str, Any]] = None) -> ReverifyOutcome:
+    """step은 기업용 조회에서 gate.begin이 정한 이 서명 원본의 할 일이다 (cached·wait·call). 없으면 검증기에 새로 묻는다.
+
+    stats는 이 요청이 검증기를 실제로 부른 수(calls)와 그중 실패한 수(failed)다 (감사 로그용).
+    """
     token = row.get("raw_token")
     if not token:
-        return _not_verifiable(row, "no_signed_original", "서명 원본 없음 (재검증 불가)")
-    if cached is not None:
+        return await run_in_threadpool(_not_verifiable, row, "no_signed_original", "서명 원본 없음 (재검증 불가)",
+                                       persist=persist)
+    kind, value = step if step is not None else ("call", None)
+    answer: Optional[tuple[datetime, ProviderBadgeResult]] = None
+    if kind == "cached":
+        answer = value
+    elif kind == "wait":
+        # 기업용 조회: 다른 조회가 같은 원본을 지금 검증기에 묻고 있다. 다시 부르지 않고 그 응답(또는 그 실패)을 함께 쓴다.
+        # 기다리는 시간에는 상한을 둔다 (넘으면 검증기 오류로 끝난다: 먼저 묻던 쪽에 무슨 일이 있어도 끝없이 기다리지 않는다).
+        waited = await gate.wait(value, _flight_wait_seconds())
+        if isinstance(waited, ProviderError):
+            return _not_verifiable(row, "verifier_error", "검증기 호출 실패", error=waited)
+        answer = waited
+    if answer is not None:
         # 기업용 조회: 조금 전에 검증기에 물은 응답을 다시 쓴다. verified_at은 그때 시각, 만료 판정은 지금 시각.
-        verified_at, result = cached
+        verified_at, result = answer
         now = datetime.now(timezone.utc)
     else:
+        stats["calls"] += 1
         try:
             result = await verifier.verify_badge(token)
         except ProviderError as exc:
+            stats["failed"] += 1
             # 운영 로그로 장애를 알 수 있게 남긴다. 서명 원본(raw_token)·DID는 남기지 않는다.
             logger.warning("Credential re-verification failed: record=%s upstream=%s unavailable=%s: %s",
                            row["record_id"], exc.upstream_status, exc.unavailable, exc.message)
-            if raise_provider_errors:
-                raise
+            if gate is not None:
+                gate.settle(value, exc)  # 이 응답을 기다리던 다른 조회도 같은 실패로 끝난다
             return _not_verifiable(row, "verifier_error", "검증기 호출 실패", error=exc)
         now = verified_at = datetime.now(timezone.utc)
         if gate is not None:
             gate.store(token, verified_at, result)
+            gate.settle(value, (verified_at, result))
 
     evaluation = evaluate_badge(result, token, now)
     checks = list(evaluation.checks)
@@ -142,46 +176,75 @@ async def _reverify_one(row: dict, verifier: CredentialVerifier, *, persist: boo
                            evaluation)
 
 
-async def reverify_rows(rows: list[dict], verifier: CredentialVerifier, *, persist: bool = True,
-                        raise_provider_errors: bool = False,
-                        gate: Optional[PublicViewGate] = None) -> list[ReverifyOutcome]:
-    """gate는 기업용 조회(로그인 없음) 전용이다: 최근 응답을 다시 쓰고, 새로 부를 몫이 모자라면 검증기를 하나도
-    부르지 않고 public_view_gate.BudgetExceeded를 던진다 (public_view_gate.py).
-    gate가 없으면 지금처럼 항상 검증기에 새로 묻는다.
+async def reverify_rows(rows: list[dict], verifier: CredentialVerifier, *, caller: str, route: str,
+                        persist: bool = True, gate: Optional[PublicViewGate] = None) -> list[ReverifyOutcome]:
+    """caller(사용자 id·"service"·"anonymous")와 route(API 짧은 이름)는 호출 한도와 감사 로그에 쓴다.
+
+    gate가 없으면(로그인 사용자·서비스 키) 항상 검증기에 새로 묻는다. 묻기 전에 서명 원본 수만큼 호출 몫을 한꺼번에 가져가고,
+    모자라면 검증기를 하나도 부르지 않고 verifier_budget.VerifierBudgetExceeded를 던진다 (main.py가 429로 답한다).
+    gate는 기업용 조회(로그인 없음) 전용이다: 최근 응답을 다시 쓰고, 다른 조회가 묻고 있는 원본은 그 응답을 기다리며,
+    새로 부를 몫이 모자라면 검증기를 하나도 부르지 않고 public_view_gate.BudgetExceeded를 던진다 (public_view_gate.py).
+    검증기 장애(is_verifier_outage)가 한 번 확인되면 아직 시작하지 않은 행은 검증기를 부르지 않고 그 오류로 '검증 불가'가 된다
+    (장애 중이거나 우리를 제한하는 협력사를 남은 자격증명 수만큼 더 부르지 않는다).
     """
-    cached: dict[str, tuple[datetime, ProviderBadgeResult]] = {}
-    if gate is not None:
-        signed = [row for row in rows if row.get("raw_token")]
-        for row in signed:
-            hit = gate.cached(row["raw_token"])
-            if hit is not None:
-                cached[str(row["record_id"])] = hit
+    signed = [row for row in rows if row.get("raw_token")]
+    # 행과 같은 자리의 할 일 (게이트가 없거나 서명 원본이 없는 행은 None). record_id로 찾지 않고 자리로 짝짓는다:
+    # 같은 레코드나 같은 서명 원본이 목록에 두 번 있어도 앞 행의 "call"이 뒤 행의 "wait"로 덮이지 않는다.
+    steps: list[Optional[tuple[str, Any]]] = [None] * len(rows)
+    stats = {"calls": 0, "failed": 0}
+    outage: list[ProviderError] = []  # 처음 확인된 검증기 장애
+    if gate is None:
         # 호출하기 전에 필요한 몫을 한꺼번에 가져간다 (모자라면 여기서 끝: 검증기 호출 0번).
-        gate.reserve(len(signed) - len(cached))
+        reserve_verifier_calls(caller, route, len(signed))
+    else:
+        planned = iter(gate.begin([row["raw_token"] for row in signed]))
+        steps = [next(planned) if row.get("raw_token") else None for row in rows]
     semaphore = asyncio.Semaphore(MAX_CONCURRENCY)
 
-    async def run(row: dict) -> ReverifyOutcome:
+    async def run(row: dict, step: Optional[tuple[str, Any]]) -> ReverifyOutcome:
         async with semaphore:
-            return await _reverify_one(row, verifier, persist=persist, raise_provider_errors=raise_provider_errors,
-                                       gate=gate, cached=cached.get(str(row["record_id"])))
+            if outage and row.get("raw_token") and (step is None or step[0] == "call"):
+                if step is not None:
+                    # 이 행이 묻기로 한 원본을 기다리는 조회(같은 요청의 뒤 행 포함)가 있으면 지금 같은 실패로 끝나게 알린다.
+                    gate.settle(step[1], outage[0])
+                return _not_verifiable(row, "verifier_error", "검증기 호출 실패", error=outage[0])
+            outcome = await _reverify_one(row, verifier, persist=persist, stats=stats, gate=gate, step=step)
+            if outcome.error is not None and not outage and is_verifier_outage(outcome.error):
+                outage.append(outcome.error)
+            return outcome
 
-    return list(await asyncio.gather(*(run(row) for row in rows)))
+    try:
+        return list(await asyncio.gather(*(run(row, step) for row, step in zip(rows, steps))))
+    finally:
+        # 부르지 않고 끝난 호출(예외·취소)을 기다리는 조회가 남지 않게 실패로 알린다 (이미 알린 것은 그대로).
+        abandoned = outage[0] if outage else ProviderError("검증기 호출이 끝나지 않았습니다")
+        for step in steps:
+            if step is not None and step[0] == "call":
+                gate.settle(step[1], abandoned)
+        log_verifier_calls(caller, route, stats["calls"], stats["failed"])
 
 
 def is_verifier_outage(exc: ProviderError) -> bool:
-    """검증기 자체 장애인지: 설정 누락, 응답 상태 없는 실패(연결 실패·시간 초과 등), 5xx, 408, 429.
+    """검증기 자체 장애인지: 설정 누락, 응답 상태 없는 실패(연결 실패·시간 초과 등), 5xx, 408, 429, 401, 403, 모든 3xx.
 
-    그 밖의 응답(특정 서명 원본에 대한 4xx 거절 등)은 그 자격증명 하나의 문제로 보고 지금처럼 제외만 한다.
+    401·403·3xx는 서명 원본 하나에 대한 답이 아니다 (API 키·IP 차단, 차단 페이지, 옮겨진 주소 등 우리 호출 전체가 거절된 상태).
+    그 밖의 응답(특정 서명 원본에 대한 400·404·422 거절, 형식이 틀린 2xx 등)은 그 자격증명 하나의 문제로 보고 제외만 한다.
     """
     status = exc.upstream_status
-    return exc.unavailable or status is None or status >= 500 or status in (408, 429)
+    return (exc.unavailable or status is None or status >= 500 or status in (401, 403, 408, 429)
+            or 300 <= status < 400)
 
 
 def raise_on_verifier_outage(outcomes: list[ReverifyOutcome]) -> None:
     """결과를 저장하는 API(직무 비교·포트폴리오 생성)용. 검증기 장애가 하나라도 있으면 그 오류를 다시 던진다.
 
+    서명 원본이 둘 이상인데 하나도 빠짐없이 검증기 오류로 끝났으면, 상태 코드가 자격증명 하나의 거절(400·404 등)처럼 보여도
+    장애로 본다 (협력사가 우리 호출을 통째로 거절하는 상태를 '검증된 자격증명 없음'으로 저장하지 않는다).
     모든 재검증이 끝난 뒤에 확인하므로 백그라운드에 남는 호출이 없다. main.py가 502/503으로 답한다.
     """
     for outcome in outcomes:
         if outcome.error is not None and is_verifier_outage(outcome.error):
             raise outcome.error
+    signed = [outcome for outcome in outcomes if outcome.vc_jwt]
+    if len(signed) >= 2 and all(outcome.error is not None for outcome in signed):
+        raise signed[0].error

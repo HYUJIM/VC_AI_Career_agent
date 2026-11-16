@@ -2,9 +2,14 @@
 
 입력은 **실행 시점 재검증을 통과한 근거(Evidence)**뿐이다 (VC_ONLY). 사용자 자유 텍스트는 받지 않는다.
 사용자 값은 머리말의 제목·이름·희망 직무 한 줄씩뿐이고, 줄을 나눌 수 없게 한 줄로 넣는다(_one_line).
+배지 문구(성취 이름·발급기관·내용·성취 기준)도 발급기관이 서명했을 뿐 우리가 쓴 글이 아니므로 같은 방식으로 한 줄로 넣는다:
+여러 줄 문구로 '## 검증된 자격증명' 같은 섹션이나 목록 항목을 본문에 끼워 넣지 못한다. 방향 제어·보이지 않는 서식 문자
+(U+202E 등)는 지운다. 한 줄 안의 Markdown 기호는 사용자 값과 같이 그대로 둔다 (FE는 본문을 글자 그대로 보여 준다).
 지금은 템플릿 작성기이고, AI 연동 시 같은 포트를 구현하는 작성기로 바꾼다.
 """
 from typing import Optional, Protocol
+
+from app.core.text import strip_invisible
 
 
 class PortfolioWriter(Protocol):
@@ -24,12 +29,17 @@ def _date(value: Optional[str]) -> str:
 
 
 def _one_line(value: Optional[str]) -> Optional[str]:
-    """사용자 값(제목·이름·희망 직무)의 줄 구분 문자(\\n, \\r, U+2028 등)를 공백으로 바꾼다.
+    """본문 한 줄에 넣는 값(제목·이름·희망 직무, 배지 문구)의 줄 구분 문자(\\n, \\r, U+2028 등)를 공백으로 바꾸고
+    방향 제어·보이지 않는 서식 문자(app.core.text.BIDI_AND_INVISIBLE)를 지운다.
 
-    요청 검사(ensure_single_line) 전에 저장됐거나 DB에 직접 넣은 여러 줄 값이 있어도 본문 Markdown의 줄 구조를 바꾸지
-    못하게 한다. 한 줄 값은 그대로다.
+    요청 검사(ensure_single_line) 전에 저장됐거나 DB에 직접 넣은 여러 줄 값, 발급기관이 서명한 여러 줄 배지 문구가 있어도
+    본문 Markdown의 줄 구조를 바꾸지 못하게 한다. 한 줄 값은 그대로다. 문자열이 아닌 배지 값(숫자 등)은 예전처럼
+    문자열로 바꿔 넣는다.
     """
-    return " ".join(value.splitlines()) if value else value
+    if not value:
+        return value
+    text = value if isinstance(value, str) else str(value)
+    return " ".join(strip_invisible(text).splitlines())
 
 
 class TemplatePortfolioWriter:
@@ -45,14 +55,15 @@ class TemplatePortfolioWriter:
             lines.append(f"{ROLE_PREFIX}{_one_line(target_role)}")
         lines += ["", "## 요약", "", summary, "", "## 검증된 자격증명", ""]
         for e in sorted(evidence, key=lambda item: item["issued_at"] or "", reverse=True):
-            lines.append(f"### {e['achievement_name']}")
-            lines.append(f"- 발급 기관: {e['issuer_name']}")
+            # 배지 문구는 발급기관이 정한 값이다: 여러 줄이어도 한 줄로 넣는다 (가짜 섹션·목록 항목을 만들지 못하게).
+            lines.append(f"### {_one_line(e['achievement_name'])}")
+            lines.append(f"- 발급 기관: {_one_line(e['issuer_name'])}")
             lines.append(f"- 발급일: {_date(e['issued_at'])}" +
                          (f" / 만료일: {_date(e['expires_at'])}" if e.get("expires_at") else ""))
             if e.get("achievement_description"):
-                lines.append(f"- 내용: {e['achievement_description']}")
+                lines.append(f"- 내용: {_one_line(e['achievement_description'])}")
             if e.get("criteria"):
-                lines.append(f"- 성취 기준: {e['criteria']}")
+                lines.append(f"- 성취 기준: {_one_line(e['criteria'])}")
             lines.append(f"- 검증: 서명·발급기관·폐기 여부 확인 완료 ({_date(e['verified_at'])} 기준)")
             lines.append("")
         return "\n".join(lines).rstrip() + "\n", summary

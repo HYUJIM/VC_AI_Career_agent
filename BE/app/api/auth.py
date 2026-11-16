@@ -2,19 +2,27 @@ import logging
 import uuid
 from typing import Optional
 
+import psycopg
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field, field_validator
 from starlette.concurrency import run_in_threadpool
 
 from app.core.auth import Principal, create_access_token, require_user
-from app.core.text import StorableText, ensure_single_line
-from app.services.database import EmailAlreadyRegistered, db_service
-from app.services.key_custody import KeyCustody, get_key_custody
+from app.core.text import StorableText, ensure_single_line, has_visible_text, is_email_confusable
+from app.services.database import DatabaseBusy, EmailAlreadyRegistered, db_service
+from app.services.key_custody import KeyCustody, StoredHolderKey, get_key_custody
 from app.services.login_throttle import TOO_MANY_ATTEMPTS, login_throttle
 from app.services.security import MAX_PASSWORD_BYTES, hash_password_async, verify_password_async
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# DB가 바쁘거나 닿지 않아 조회하지 못한 경우 (main.py의 database_busy_handler가 503 + Retry-After로 답하는 예외들.
+# OperationalError는 QueryCanceled·LockNotAvailable의 부모이고 접속 실패·끊긴 연결도 포함한다)
+_DB_BUSY_ERRORS = (DatabaseBusy, psycopg.errors.QueryCanceled, psycopg.errors.LockNotAvailable,
+                   psycopg.OperationalError)
+# 가입 이메일에 둘 수 없는 특수 문자 (RFC 5322에서 따옴표 밖에 쓸 수 없는 문자. '@'·'.'은 구조로 따로 본다)
+_EMAIL_SPECIALS = frozenset('"(),:;<>[\\]')
 
 
 class RegisterRequest(BaseModel):
@@ -37,7 +45,17 @@ class RegisterRequest(BaseModel):
     @field_validator("email")
     @classmethod
     def normalize_email(cls, v: str) -> str:
-        if "@" not in v:
+        local, at, domain = v.partition("@")
+        # '@'가 하나이고 앞뒤가 비어 있지 않아야 한다. 공백(NBSP 등 포함)·보이지 않는 서식 문자(Cf: 폭 없는 공백·방향 바꿈,
+        # OAuth 쪽 _confusable_email_char와 같은 기준)·따옴표 밖에서 쓸 수 없는 특수 문자("(),:;<>[\])는 받지 않는다:
+        # FE 가입 화면이 만들 수 없는 값('<script>…@example.com', 'ad​min@…')이 API로 바로 계정 이메일이 되지 않게 한다.
+        # 비ASCII 글자(국제화 이메일, 'İ' 등)는 지금처럼 받는다 (로그인 실패 제한이 소문자 접기 차이를 따로 다룬다).
+        # 로그인 요청은 그대로 둔다: 이미 있는 계정은 예전 규칙의 이메일로도 로그인한다.
+        if (
+            not at or not local or not domain or "@" in domain
+            or not has_visible_text(local) or not has_visible_text(domain)
+            or any(ch.isspace() or ch in _EMAIL_SPECIALS or is_email_confusable(ch) for ch in v)
+        ):
             raise ValueError("Invalid email")
         v = v.lower()
         # 위 255자 상한은 소문자로 바꾸기 전 값에 적용된다. 'İ'(U+0130)는 lower()로 두 글자('i' + U+0307)가 되므로
@@ -69,7 +87,7 @@ def _profile(user: dict) -> dict:
     }
 
 
-def _auth_response(user: dict, message: str) -> dict:
+def build_auth_response(user: dict, message: str) -> dict:
     # 토큰에 지금의 token_version을 넣는다. 로그아웃하면 값이 올라가 이 토큰은 무효가 된다 (app/core/auth.py).
     token, expires_in = create_access_token(str(user["id"]), user["subject_did"], user["token_version"])
     # 기존 FE 계약(success/message/data)은 유지하고 토큰은 최상위 필드로 추가한다.
@@ -83,19 +101,22 @@ def _auth_response(user: dict, message: str) -> dict:
     }
 
 
+def issue_user_identity(user_id: str, custody: Optional[KeyCustody]) -> tuple[str, Optional[StoredHolderKey]]:
+    """신규 사용자에게 관리형 did:key(+암호화 홀더 키) 또는 전환 기간 임시 DID를 발급한다."""
+    if custody is not None:
+        # 관리형 지갑: BE가 Ed25519 키를 만들어 암호화 보관하고, 공개키로 진짜 did:key를 만든다.
+        holder_key = custody.generate(user_id)
+        return holder_key.did, holder_key
+    # 마스터 키 미설정(전환 기간): 홀더 키 없이 임시 DID. 신원 자격증명 기능은 쓸 수 없다.
+    logger.warning("HOLDER_KEY_ENCRYPTION_KEY 미설정: 홀더 키 없이 임시 DID로 가입시킵니다.")
+    return f"did:key:z6MkMock{uuid.uuid4().hex[:12]}", None
+
+
 # 가입·로그인은 async: bcrypt는 전용 제한기(security.py), DB 호출은 run_in_threadpool로 돌려 공용 스레드 풀을 오래 잡지 않는다.
 @router.post("/register")
 async def register_user(req: RegisterRequest, custody: Optional[KeyCustody] = Depends(get_key_custody)):
     user_id = str(uuid.uuid4())
-    if custody is not None:
-        # 관리형 지갑: BE가 Ed25519 키를 만들어 암호화 보관하고, 공개키로 진짜 did:key를 만든다.
-        holder_key = custody.generate(user_id)
-        did = holder_key.did
-    else:
-        # 마스터 키 미설정(전환 기간): 홀더 키 없이 임시 DID. 신원 자격증명 기능은 쓸 수 없다.
-        holder_key = None
-        did = f"did:key:z6MkMock{uuid.uuid4().hex[:12]}"
-        logger.warning("HOLDER_KEY_ENCRYPTION_KEY 미설정: 홀더 키 없이 임시 DID로 가입시킵니다.")
+    did, holder_key = issue_user_identity(user_id, custody)
     password_hash = await hash_password_async(req.password)
     try:
         user = await run_in_threadpool(
@@ -105,13 +126,14 @@ async def register_user(req: RegisterRequest, custody: Optional[KeyCustody] = De
     except EmailAlreadyRegistered:
         # FE 가입 화면의 '이미 가입된 이메일' 안내가 이 응답에 기대므로 그대로 둔다 (가입 여부가 드러나는 것은 의도된 동작).
         raise HTTPException(status_code=400, detail="Email already registered")
-    return _auth_response(user, "회원가입 완료. 발급된 DID를 프론트엔드에서 보관하세요.")
+    return build_auth_response(user, "회원가입 완료. 발급된 DID를 프론트엔드에서 보관하세요.")
 
 
 def _reserve_login_attempt(email: str) -> None:
     """이 이메일의 실패 한도를 넘었으면 비밀번호를 확인하지 않고 429 (가입 여부와 관계없이 같음, login_throttle.py)."""
     retry_after = login_throttle.reserve(email)
     if retry_after is not None:
+        login_throttle.log_locked(email, retry_after)
         raise HTTPException(status_code=429, detail=TOO_MANY_ATTEMPTS, headers={"Retry-After": str(retry_after)})
 
 
@@ -121,18 +143,26 @@ async def login_user(req: LoginRequest):
     _reserve_login_attempt(email)
     try:
         user = await run_in_threadpool(db_service.get_user_by_email, email)
-    except Exception:
-        # 조회가 실패해도(예: DB 연결 수 초과) 이미 실패로 기록한 시도다. 다른 실패처럼 더미 bcrypt 비교를 한 번 하고 같은 오류를
-        # 그대로 다시 던진다(응답은 지금처럼 500). 비용 없이 키만 만드는 요청으로 잠긴 키를 밀어내지 못하게 하기 위해서다.
+    except Exception as exc:
+        # 조회가 실패해도(예: DB 내부 오류) 이미 실패로 기록한 시도다. 다른 실패처럼 더미 bcrypt 비교를 한 번 하고 같은 오류를
+        # 그대로 다시 던진다(응답은 처리기가 정한다: DB 혼잡·접속 실패는 503, 그 밖은 500). 비용 없이 키만 만드는 요청으로 잠긴
+        # 키를 밀어내지 못하게 하기 위해서다.
+        if isinstance(exc, _DB_BUSY_ERRORS):
+            # DB가 바빠서 조회하지 못한 시도(503 + Retry-After: 잠시 뒤 다시 하라고 답한다)는 실패로 세지 않고 기록을 돌려준다.
+            # 비밀번호를 확인한 적이 없는데 세면, 안내대로 다시 시도한 사용자가 맞는 비밀번호로도 15분 동안 잠긴다.
+            # 더미 bcrypt 비교는 그대로 한 번 한다.
+            login_throttle.release(email)
         await verify_password_async(req.password, None)
         raise
     if user and not login_throttle.same_key(email, user["email"]):
         # 실패 기록의 키는 PostgreSQL lower()(libc 정렬)처럼 글자마다 접으므로 보통은 찾은 계정의 키와 같다. DB 정렬이 다르게
         # 접으면(예: ICU) 다른 키의 표기로 같은 계정을 찾을 수 있어, 그때는 저장된 이메일로도 세어 표기를 바꿔 가며 한도를 피하지
         # 못하게 한다.
-        if login_throttle.reserve(user["email"]) is not None:
+        retry_after = login_throttle.reserve(user["email"])
+        if retry_after is not None:
             # 저장된 이메일이 잠겼다. 여기서 429를 주면 이 표기로는 가입된 이메일만 429가 되어 가입 여부가 드러나므로,
             # 비밀번호는 확인하지 않고 미가입 이메일과 같은 401·같은 비용(더미 bcrypt 비교 한 번)으로 답한다.
+            login_throttle.log_locked(user["email"], retry_after)
             await verify_password_async(req.password, None)
             raise HTTPException(status_code=401, detail="Invalid email or password")
     # 이메일 존재 여부가 드러나지 않도록 실패 사유를 하나로 통일하고, 응답 시간도 맞춘다:
@@ -144,7 +174,7 @@ async def login_user(req: LoginRequest):
     # 따로 지우지 않는다: DB 정렬이 키와 다르게 접으면 그 키는 다른 계정의 저장된 이메일 키일 수 있어, 자기 계정에 로그인해
     # 남의 실패 기록을 지울 수 있기 때문이다.
     login_throttle.succeeded(user["email"])
-    return _auth_response(user, "로그인 성공")
+    return build_auth_response(user, "로그인 성공")
 
 
 @router.post("/logout", status_code=204)
@@ -160,6 +190,7 @@ def get_me(principal: Principal = Depends(require_user)):
     if not user:
         raise HTTPException(status_code=404, detail="User not found or not verified yet.")
     holder_key = db_service.get_holder_key(principal.user_id)
+    oauth_providers = db_service.get_user_oauth_providers(principal.user_id)
     return {
         "success": True,
         "message": "OK",
@@ -169,4 +200,5 @@ def get_me(principal: Principal = Depends(require_user)):
             "custody": "managed" if holder_key else "none",
             "key_type": "Ed25519" if holder_key else None,
         },
+        "oauth_providers": oauth_providers,
     }

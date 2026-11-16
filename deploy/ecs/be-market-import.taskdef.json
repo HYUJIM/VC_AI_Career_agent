@@ -1,0 +1,42 @@
+{
+  "family": "vc-be-market-import",
+  "requiresCompatibilities": ["FARGATE"],
+  "networkMode": "awsvpc",
+  "runtimePlatform": {
+    "cpuArchitecture": "X86_64",
+    "operatingSystemFamily": "LINUX"
+  },
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/vc-be-execution",
+  "taskRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/vc-task-no-aws-access",
+  "containerDefinitions": [
+    {
+      "name": "market-import",
+      "image": "<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/vc-be:<TAG>-market",
+      "essential": true,
+      "command": ["python", "-m", "app.jobs.market", "import", "--dir", "/app/market_snapshots"],
+      "environment": [
+        { "name": "APP_ENV", "value": "production" },
+        { "name": "DB_HOST", "value": "<RDS_ENDPOINT>" },
+        { "name": "DB_PORT", "value": "5432" },
+        { "name": "DB_NAME", "value": "vc_career_agent" },
+        { "name": "PGSSLMODE", "value": "verify-full" }
+      ],
+      "secrets": [
+        { "name": "DB_USER", "valueFrom": "<SECRET_ARN_DB_APP>:username::" },
+        { "name": "DB_PASSWORD", "valueFrom": "<SECRET_ARN_DB_APP>:password::" }
+      ],
+      "readonlyRootFilesystem": true,
+      "stopTimeout": 30,
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/vc-be",
+          "awslogs-region": "<REGION>",
+          "awslogs-stream-prefix": "market"
+        }
+      }
+    }
+  ]
+}

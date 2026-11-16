@@ -4,11 +4,16 @@ BE re-verifies credentials itself and sends a VerificationSnapshot; these fixtur
 that snapshot directly, with the same shape main BE produces.
 """
 
+import os
 import secrets
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
-import pytest
+# 개발자 PC의 ai/.env(실제 LLM 키 등)를 테스트에서 읽지 않는다 (src.server.app을 import하기 전에 정한다).
+os.environ["CAREER_AI_SKIP_DOTENV"] = "true"
+os.environ["PYTHON_DOTENV_DISABLED"] = "1"
+
+import pytest  # noqa: E402
 
 from src.career.canonical import digest_json
 from src.career.contracts.verification import (
@@ -22,7 +27,17 @@ from src.career.contracts.verification import (
 @pytest.fixture(autouse=True)
 def generator_settings(monkeypatch):
     monkeypatch.setenv("CURRICULUM_LLM_ENABLED", "false")
-    monkeypatch.setenv("CURRICULUM_LLM_PROVIDER", "compatible")
+    # 공급자를 정하지 않은 기본(gemini)으로 둔다. 개발자 셸에 있는 LLM 변수(실제 키 포함)는 지운다.
+    for name in (
+        "CURRICULUM_LLM_PROVIDER",
+        "CURRICULUM_LLM_MODEL",
+        "CURRICULUM_LLM_THINKING_LEVEL",
+        "CURRICULUM_LLM_MAX_CONCURRENCY",
+        "GEMINI_API_KEY",
+        "GEMINI_API_VERSION",
+        "GOOGLE_API_KEY",
+    ):
+        monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("CURRICULUM_LLM_API_KEY", "")
     monkeypatch.setenv("AI_SERVICE_TOKEN", secrets.token_urlsafe(40))
 
@@ -261,3 +276,16 @@ def llm_settings(monkeypatch):
     monkeypatch.setenv("CURRICULUM_LLM_MODEL", "fixture-model")
     monkeypatch.setenv("CURRICULUM_LLM_API_KEY", secrets.token_urlsafe(32))
     monkeypatch.setenv("CURRICULUM_LLM_TOKEN_PARAMETER", "max_completion_tokens")
+
+
+@pytest.fixture
+def gemini_key():
+    # 테스트마다 새로 만드는 가짜 키 (실제 Gemini API를 부르지 않는다: 모든 테스트가 transport를 주입한다).
+    return "AQ." + secrets.token_urlsafe(30)
+
+
+@pytest.fixture
+def gemini_settings(monkeypatch, gemini_key):
+    monkeypatch.setenv("CURRICULUM_LLM_ENABLED", "true")
+    monkeypatch.setenv("GEMINI_API_KEY", gemini_key)
+    return gemini_key
