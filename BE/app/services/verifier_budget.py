@@ -31,6 +31,7 @@
 - LLM 모드 학습 계획의 시도 한도(llm_curriculum_attempts: 사용자별 24시간, 한도는 CURRICULUM_LLM_DAILY_LIMIT):
   외부 LLM(Gemini)을 불렀을 수 있는 시도를 실패까지 센다 (저장된 LLM 계획만 세는 DB 한도와 함께 본다: services/career.py).
   부르기 전에 자리를 잡으므로 동시에 몰아 보내도 넘지 못한다. 모델을 부르지 않고 끝난 요청은 자리를 돌려준다.
+  모든 계정을 합친 같은 창(llm_curriculum_global_attempts, 한도는 CURRICULUM_LLM_GLOBAL_DAILY_LIMIT)도 함께 잡는다.
 
 실패 차단기(FailureBreaker)도 여기에 둔다.
 - 모의 발급의 실패 차단기(mock_issue_breaker: 태스크 전체에 하나): 협력사까지 간 실패가 24시간에
@@ -296,6 +297,9 @@ mock_issue_attempts = AttemptWindow(MOCK_ISSUE_ATTEMPTS, MOCK_ISSUE_WINDOW_SECON
 mock_issue_breaker = FailureBreaker(MOCK_ISSUE_WINDOW_SECONDS, MOCK_ISSUE_PROBE_INTERVAL_SECONDS)
 # max_attempts는 reserve 때마다 설정값(CURRICULUM_LLM_DAILY_LIMIT)으로 넘긴다. 여기 값은 쓰지 않는 자리표시다.
 llm_curriculum_attempts = AttemptWindow(1, LLM_CURRICULUM_WINDOW_SECONDS)
+# 모든 계정을 합친 LLM 시도 창 (키는 LLM_GLOBAL_KEY 하나, 한도는 reserve 때마다 CURRICULUM_LLM_GLOBAL_DAILY_LIMIT).
+LLM_GLOBAL_KEY = "all"
+llm_curriculum_global_attempts = AttemptWindow(1, LLM_CURRICULUM_WINDOW_SECONDS)
 
 
 def caller_key(principal) -> str:

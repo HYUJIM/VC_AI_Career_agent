@@ -45,7 +45,7 @@ python3 -c "import base64, os; print('HOLDER_KEY_ENCRYPTION_KEY=' + base64.b64en
 | `OAUTH_TIMEOUT_SECONDS` | (선택) 세 소셜 로그인 제공자 호출 제한 시간(초, 1~120, 기본 10). 이 줄이 없거나 비어 있는 예전 `.env`는 `GOOGLE_OAUTH_TIMEOUT_SECONDS`를 그대로 읽습니다 |
 | `IDENTITY_VERIFICATION_ENABLED`, `DB_MAX_CONNECTIONS`, `AI_MAX_CONCURRENCY` | (선택) 차례로 신원 VP 검증(`POST /api/v1/verify`의 `type: identity`) 사용 여부(기본 `false`. 화면이 쓰지 않으므로 그대로 둠), BE 프로세스 하나가 동시에 여는 DB 연결 수 상한(기본 20, 2 이상), BE 프로세스 하나가 AI로 동시에 보내는 공고·학습자료 묶음 요청 수 상한(기본 4, 1 이상). 로컬에서는 바꿀 필요가 없습니다 |
 | `RESEARCHER_USER_IDS` | 공고·학습자료를 반입할 연구자 계정 UUID (5번에서 채움) |
-| `CURRICULUM_LLM_USER_IDS` | 커리큘럼 LLM 모드를 쓸 계정 UUID (선택, 7번) |
+| `CURRICULUM_LLM_USER_IDS` | 커리큘럼 LLM 모드를 쓸 계정 UUID, `*`면 로그인한 모든 계정 (선택, 7번. 모든 계정 합계는 `CURRICULUM_LLM_GLOBAL_DAILY_LIMIT`, 기본 24시간 200건) |
 
 소셜 로그인의 콜백 주소(`GOOGLE_REDIRECT_URI`·`GITHUB_REDIRECT_URI`·`NAVER_REDIRECT_URI`)는 로컬이면 예시 파일 값(`http://localhost:5173/auth/<google|github|naver>/callback`)을 그대로 두고, 같은 주소를 각 제공자 콘솔(GitHub은 OAuth App의 Authorization callback URL)에 등록합니다(빈 값으로 두면 그 버튼이 503 `<Label> OAuth redirect_uri is not configured`, 화면은 "<제공자> 로그인을 지금 사용할 수 없습니다"). 콘솔 설정과 계정 연동 규칙은 [BE/README.md](../BE/README.md) "소셜 로그인".
 
@@ -199,7 +199,7 @@ cp -n ai/.env.example ai/.env
 
 ## 7. (선택) 커리큘럼 LLM 모드
 
-기본은 LLM 없이 만드는 템플릿 계획입니다. LLM(기본 공급자 Google Gemini API)을 쓰려면 `BE/.env`의 `CURRICULUM_LLM_USER_IDS`에 계정 UUID를 넣고, `ai/.env`(`cp -n ai/.env.example ai/.env`)에 `CURRICULUM_LLM_ENABLED=true`와 Google AI Studio에서 만든 `GEMINI_API_KEY`를 넣은 뒤 다시 띄웁니다. 키는 `ai/.env`에만 두고 저장소·FE에 넣지 않습니다.
+기본은 LLM 없이 만드는 템플릿 계획입니다. LLM(기본 공급자 Google Gemini API)을 쓰려면 `BE/.env`의 `CURRICULUM_LLM_USER_IDS`에 계정 UUID(모든 계정이면 `*`)를 넣고, `ai/.env`(`cp -n ai/.env.example ai/.env`)에 `CURRICULUM_LLM_ENABLED=true`와 Google AI Studio에서 만든 `GEMINI_API_KEY`를 넣은 뒤 다시 띄웁니다. 키는 `ai/.env`에만 두고 저장소·FE에 넣지 않습니다.
 
 ```bash
 (cd BE && docker compose up -d --force-recreate backend ai)

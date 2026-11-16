@@ -31,6 +31,11 @@ DEFAULT_DB_MAX_CONNECTIONS = 20
 DEFAULT_AI_MAX_CONCURRENCY = 4
 # LLM 모드 학습 계획의 사용자별 24시간 한도 기본값 (CURRICULUM_LLM_DAILY_LIMIT을 비우면 이 값)
 DEFAULT_CURRICULUM_LLM_DAILY_LIMIT = 20
+# LLM 모드 학습 계획의 서비스 전체(모든 계정 합계) 24시간 한도 기본값 (CURRICULUM_LLM_GLOBAL_DAILY_LIMIT을 비우면 이 값).
+# CURRICULUM_LLM_USER_IDS=*(가입한 모든 계정)일 때 계정을 여러 개 만들어 사용자별 한도를 우회하는 것을 막는다.
+DEFAULT_CURRICULUM_LLM_GLOBAL_DAILY_LIMIT = 200
+# CURRICULUM_LLM_USER_IDS에 이 값이 있으면 로그인한 모든 계정이 LLM 모드를 쓸 수 있다.
+ALL_USERS = "*"
 # production 비밀값의 서로 다른 바이트 수 하한. "x"*32·0x01*32 같은 자리표시 값을 거부한다
 # (docs/GETTING_STARTED.md 2번대로 secrets·os.urandom으로 만든 32바이트 이상 값은 사실상 항상 넘는다).
 MIN_SECRET_DISTINCT_BYTES = 8
@@ -293,10 +298,16 @@ class Settings:
     db_max_connections: int
     # 공고·학습자료를 반입할 수 있는 연구자 사용자 UUID 목록.
     researcher_user_ids: frozenset[str]
-    # 커리큘럼 LLM 모드를 쓸 수 있는 사용자 UUID 목록 (LLM 설정 자체는 AI 서비스 .env).
+    # 커리큘럼 LLM 모드를 쓸 수 있는 사용자 UUID 목록 (LLM 설정 자체는 AI 서비스 .env). "*"가 있으면 로그인한 모든 계정.
     curriculum_llm_user_ids: frozenset[str]
     # 허용된 사용자 한 명이 24시간에 만들 수 있는 LLM 모드 학습 계획 수 (1 이상, 기본 20). 외부 LLM(Gemini) 비용·한도 보호.
     curriculum_llm_daily_limit: int
+    # 모든 계정을 합쳐 24시간에 만들 수 있는 LLM 모드 학습 계획 수 (1 이상, 기본 200).
+    curriculum_llm_global_daily_limit: int = DEFAULT_CURRICULUM_LLM_GLOBAL_DAILY_LIMIT
+
+    def llm_allowed(self, user_id: str) -> bool:
+        """이 계정이 커리큘럼 LLM 모드를 쓸 수 있는지 (CURRICULUM_LLM_USER_IDS에 UUID가 있거나 "*")."""
+        return ALL_USERS in self.curriculum_llm_user_ids or user_id in self.curriculum_llm_user_ids
 
 
 @lru_cache
@@ -489,6 +500,8 @@ def get_settings() -> Settings:
         curriculum_llm_user_ids=frozenset(_env_list("CURRICULUM_LLM_USER_IDS", "")),
         curriculum_llm_daily_limit=_env_int("CURRICULUM_LLM_DAILY_LIMIT", DEFAULT_CURRICULUM_LLM_DAILY_LIMIT,
                                             minimum=1),
+        curriculum_llm_global_daily_limit=_env_int("CURRICULUM_LLM_GLOBAL_DAILY_LIMIT",
+                                                   DEFAULT_CURRICULUM_LLM_GLOBAL_DAILY_LIMIT, minimum=1),
     )
     if production and settings.mock_issuer_enabled:
         logger.warning(

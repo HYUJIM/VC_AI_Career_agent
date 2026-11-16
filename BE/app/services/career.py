@@ -3,7 +3,7 @@
 1. 직무 비교: 사용자의 모든 자격증명을 지금 다시 검증(reverify) → 통과한 것만 스냅샷으로 묶음 →
    검토된 공고 버전과 함께 AI에 전달 → AI 결과가 BE가 보낸 근거만 인용하는지 확인 → 저장.
 2. 커리큘럼(동기): 저장된 분석(유효기간 내) + 학습자료 → AI 계획 컨텍스트 → AI 생성 →
-   결과가 컨텍스트 안의 단계·자료만 쓰는지 확인 → 저장. LLM 모드는 허용된 계정만.
+   결과가 컨텍스트 안의 단계·자료만 쓰는지 확인 → 저장. LLM 모드는 허용된 계정만 (CURRICULUM_LLM_USER_IDS, "*"면 모든 계정).
 AI는 VC 서명 원본을 받지 않는다. 검증 판단은 BE의 DXWorks 어댑터와 domain.credential이 맡는다.
 
 사용자별 한도 (넘으면 429 + Retry-After, 검증기·AI·LLM을 부르지 않는다. 감사 로그 vc-be.audit 한 줄):
@@ -11,6 +11,7 @@ AI는 VC 서명 원본을 받지 않는다. 검증 판단은 BE의 DXWorks 어�
   다시 받는 커리큘럼은 세지 않는다).
 - LLM 모드 커리큘럼: 24시간에 CURRICULUM_LLM_DAILY_LIMIT건 (기본 20). 저장된 LLM 계획(DB, 재시작·태스크와 무관)과
   외부 LLM을 불렀을 수 있는 시도(verifier_budget.llm_curriculum_attempts, 실패 포함)를 함께 본다.
+  모든 계정을 합쳐서도 24시간에 CURRICULUM_LLM_GLOBAL_DAILY_LIMIT건 (기본 200, 같은 방식으로 DB와 시도 창을 본다).
 - 묶음 요청(공고·학습자료 묶음을 AI로 보내는 단계): 동시 수와 분·시간 몫 (ai_service.corpus_slot의 caller).
 """
 import logging
@@ -38,7 +39,7 @@ from app.integrations.ports import CredentialVerifier
 from app.services.career_store import MAX_ANALYSES_PER_DAY, MAX_CURRICULA_PER_DAY, career_store, curriculum_view
 from app.services.database import db_service
 from app.services.reverify import ReverifyOutcome, raise_on_verifier_outage, reverify_rows
-from app.services.verifier_budget import llm_curriculum_attempts
+from app.services.verifier_budget import LLM_GLOBAL_KEY, llm_curriculum_attempts, llm_curriculum_global_attempts
 
 SNAPSHOT_TTL = timedelta(minutes=5)  # 분석에 쓰는 재검증 결과의 유효 시간
 OUTCOME_STATUSES = {"verified", "invalid", "revoked", "expired", "unverifiable"}
@@ -51,6 +52,7 @@ LLM_NOT_SENT_CODES = frozenset({"LLM_BUSY", "LLM_CONTEXT_TOO_LARGE", "GENERATOR_
 ANALYSIS_DAILY_LIMIT_REACHED = "Daily career analysis limit reached. Try again later."
 CURRICULUM_DAILY_LIMIT_REACHED = "Daily curriculum limit reached. Try again later."
 LLM_DAILY_LIMIT_REACHED = "Daily LLM curriculum limit reached. Use the template mode or try again later."
+LLM_SERVICE_LIMIT_REACHED = "Daily LLM curriculum service limit reached. Use the template mode or try again later."
 LLM_IN_FLIGHT_REACHED = "An LLM curriculum is already being generated for this account. Try again later."
 # 계정 하나가 동시에 만들 수 있는 LLM 모드 계획 수 (이 프로세스 안). AI의 동시 LLM 생성 자리(CURRICULUM_LLM_MAX_CONCURRENCY,
 # 기본 2)를 한 계정이 모두 쥐면 허용된 다른 계정이 10초 기다린 뒤 503 LLM_BUSY가 되므로 한 건으로 묶는다.
@@ -92,14 +94,35 @@ async def reserve_llm_generation(user_id: str) -> None:
         raise HTTPException(status_code=429, detail=LLM_IN_FLIGHT_REACHED,
                             headers={"Retry-After": str(LLM_IN_FLIGHT_RETRY_AFTER_SECONDS)})
     try:
-        limit = get_settings().curriculum_llm_daily_limit
+        settings = get_settings()
+        limit = settings.curriculum_llm_daily_limit
         await check_daily_limit("llm_curricula", user_id, limit, "curriculum_llm", LLM_DAILY_LIMIT_REACHED)
         if not llm_curriculum_attempts.reserve(user_id, limit):
             raise _too_many(user_id, "curriculum_llm", LLM_DAILY_LIMIT_REACHED,
                             llm_curriculum_attempts.retry_after(user_id))
+        try:
+            await _reserve_global_llm_generation(user_id, settings.curriculum_llm_global_daily_limit)
+        except BaseException:
+            llm_curriculum_attempts.release(user_id)  # 서비스 전체 한도로 거절: 이 계정의 하루 몫은 쓰지 않는다
+            raise
     except BaseException:
         leave_llm_generation(user_id)
         raise
+
+
+async def _reserve_global_llm_generation(user_id: str, limit: int) -> None:
+    """모든 계정을 합친 LLM 학습 계획 자리 하나 (CURRICULUM_LLM_GLOBAL_DAILY_LIMIT, 24시간). 모자라면 429 + Retry-After.
+
+    계정을 여러 개 만들어 사용자별 한도를 우회해도 외부 LLM(Gemini) 호출 수가 이 값을 넘지 못한다. 사용자별 한도와 같이
+    저장된 LLM 계획 수(DB)와 프로세스 메모리의 시도 창(llm_curriculum_global_attempts)을 함께 본다.
+    """
+    retry_after = await run_in_threadpool(career_store.global_llm_retry_after, limit)
+    if retry_after is None and not llm_curriculum_global_attempts.reserve(LLM_GLOBAL_KEY, limit):
+        retry_after = llm_curriculum_global_attempts.retry_after(LLM_GLOBAL_KEY)
+    if retry_after is not None:
+        audit.info("event=llm_service_limit_denied user=%s retry_after=%d", user_id, retry_after)
+        raise HTTPException(status_code=429, detail=LLM_SERVICE_LIMIT_REACHED,
+                            headers={"Retry-After": str(retry_after)})
 
 
 def leave_llm_generation(user_id: str) -> None:
@@ -273,7 +296,7 @@ class CareerService:
         generator: dict = {"mode": "template"}
         llm = request.mode == "llm"
         if llm:
-            if user_id not in get_settings().curriculum_llm_user_ids:
+            if not get_settings().llm_allowed(user_id):
                 raise HTTPException(status_code=403, detail="External LLM access is not enabled for this account")
             await reserve_llm_generation(user_id)  # 한도면 429 (생성기 정보도 묻지 않는다)
         # 모델을 부르지 않고 끝나면 LLM 시도 자리를 돌려준다. 생성 요청을 보낸 뒤로는 AI가 모델을 부르기 전에 끝났다고
@@ -307,6 +330,7 @@ class CareerService:
         finally:
             if release_llm:
                 llm_curriculum_attempts.release(user_id)
+                llm_curriculum_global_attempts.release(LLM_GLOBAL_KEY)
             if llm:
                 leave_llm_generation(user_id)
         check_result(outcome.result, context, analysis, job_id, request)

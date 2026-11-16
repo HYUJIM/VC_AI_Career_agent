@@ -56,8 +56,9 @@
 | `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` / `NAVER_REDIRECT_URI` | **2단계** | 콘솔 값 / 콘솔 값 / `<CF>/auth/naver/callback` | Plain / **Secret** / Plain | `get_settings()` | 위와 같은 규칙 |
 | `OAUTH_TIMEOUT_SECONDS` | 선택 | 넣지 않음(10) | Plain | `config.py` `_oauth_timeout_seconds()` | 1~120 밖 → 종료 1 |
 | `LOG_LEVEL` | 선택 | 넣지 않음(INFO) | Plain | `config.py` `log_level()`, `BE/main.py` | `DEBUG`·`INFO`·`WARNING`·`ERROR`·`CRITICAL`(대소문자 무관, 빈 값은 INFO)만 받음. 그 밖(`verbose`·`NOTSET`·`WARN` 등) → 종료 1 `LOG_LEVEL must be one of: DEBUG, INFO, WARNING, ERROR, CRITICAL (empty means INFO)`. `DEBUG` → httpx가 DXWorks 전체 URL을 로그에 남김. `WARNING` 이상 → 감사 로그 없음 |
-| `RESEARCHER_USER_IDS` / `CURRICULUM_LLM_USER_IDS` | 선택 | 가입 뒤 계정 UUID | Plain | `get_settings()` | — |
+| `RESEARCHER_USER_IDS` / `CURRICULUM_LLM_USER_IDS` | 선택 | 가입 뒤 계정 UUID (`CURRICULUM_LLM_USER_IDS`는 `*`면 로그인한 모든 계정) | Plain | `get_settings()` | — |
 | `CURRICULUM_LLM_DAILY_LIMIT` | 선택 | 넣지 않음(20) | Plain | `get_settings()` `_env_int`, `BE/app/services/career.py` `reserve_llm_generation()` | 1 미만·정수 아님 → 종료 1 `CURRICULUM_LLM_DAILY_LIMIT must be an integer >= 1`. 허용된 계정 하나의 24시간 LLM 모드 학습 계획 수(저장된 LLM 계획은 DB로, Gemini까지 간 실패한 시도는 태스크 메모리로 셈). 넘으면 429 `Daily LLM curriculum limit reached. …` + `Retry-After` |
+| `CURRICULUM_LLM_GLOBAL_DAILY_LIMIT` | 선택 | 넣지 않음(200) | Plain | `get_settings()` `_env_int`, `BE/app/services/career.py` `_reserve_global_llm_generation()` | 1 미만·정수 아님 → 종료 1. 모든 계정을 합친 24시간 LLM 모드 학습 계획 수(사용자별 한도와 같은 방식으로 셈). 넘으면 429 `Daily LLM curriculum service limit reached. …` + `Retry-After`, 감사 로그 `event=llm_service_limit_denied` |
 | `FORWARDED_ALLOW_IPS` | 권장 | `<VPC_CIDR>` (예 `10.0.0.0/16`) | Plain | uvicorn 0.54.0 `uvicorn/config.py`(기본 `127.0.0.1,::1`, CIDR 지원) | 없음 → 접근 로그의 클라이언트 IP가 ALB 주소. 앱 동작 영향 없음 |
 | `UVICORN_TIMEOUT_KEEP_ALIVE` | 권장 | `130` (ALB 유휴 120초보다 길게) | Plain | uvicorn `uvicorn/main.py`(`auto_envvar_prefix="UVICORN"`, `--timeout-keep-alive`) | 기본 5초 → ALB 쪽 간헐 502 가능 |
 | `UVICORN_RELOAD` 등 그 밖 `UVICORN_*` | **넣지 않음** | — | — | `BE/main.py`, uvicorn | 리로더가 켜짐 |

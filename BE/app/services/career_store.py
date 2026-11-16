@@ -38,6 +38,10 @@ _DAILY_LIMIT_SQL = {
         AND result->>'generation_method' IN ('llm', 'llm_fallback')
         ORDER BY created_at DESC OFFSET %s LIMIT 1""",
 }
+# 모든 계정을 합친 외부 LLM 학습 계획 (CURRICULUM_LLM_GLOBAL_DAILY_LIMIT)
+_GLOBAL_LLM_LIMIT_SQL = f"""SELECT {_RETRY_AFTER} FROM curricula WHERE {_WINDOW}
+    AND result->>'generation_method' IN ('llm', 'llm_fallback')
+    ORDER BY created_at DESC OFFSET %s LIMIT 1"""
 
 # 사용자 조회 응답에서 빼는 반입 내부 정보: 반입한 연구자 계정 ID, 검토 메모, 권리 근거, 원문 전체.
 # 저장본·content_hash·AI로 보내는 계약 객체는 그대로 두고 응답으로 내보낼 때만 뺀다 (연구자 반입 응답은 전체).
@@ -171,6 +175,13 @@ class CareerStore:
         때까지의 초(1 이상, Retry-After 값), 아니면 None."""
         with app_db_connection() as conn, conn.cursor() as cur:
             cur.execute(_DAILY_LIMIT_SQL[kind], (user_id, limit - 1))
+            row = cur.fetchone()
+        return None if row is None else max(1, row["retry_after"] or 1)
+
+    def global_llm_retry_after(self, limit: int) -> Optional[int]:
+        """모든 계정의 최근 24시간 LLM 학습 계획 수가 limit 이상이면 Retry-After 초(1 이상), 아니면 None."""
+        with app_db_connection() as conn, conn.cursor() as cur:
+            cur.execute(_GLOBAL_LLM_LIMIT_SQL, (limit - 1,))
             row = cur.fetchone()
         return None if row is None else max(1, row["retry_after"] or 1)
 
