@@ -82,7 +82,7 @@ BE 테스트(`../BE/tests/test_career.py`)는 이 AI 앱을 같은 프로세스�
 
 ## 6. 커리큘럼 LLM 켜기 — Google Gemini API (선택, 기본 꺼짐)
 
-LLM 없이도 템플릿 커리큘럼은 만들어집니다. LLM을 쓰려면 ① BE `.env`의 `CURRICULUM_LLM_USER_IDS`에 사용자 UUID를 넣고,
+LLM 없이도 템플릿 커리큘럼은 만들어집니다. LLM을 쓰려면 ① BE `.env`의 `CURRICULUM_LLM_USER_IDS`에 사용자 UUID(모든 계정이면 `*`)를 넣고,
 ② FE에서 "Google Gemini API로 배분" 동의를 체크하고, ③ 이 폴더의 `.env`에서 생성기를 켭니다.
 기본 공급자는 **Google Gemini API**(`CURRICULUM_LLM_PROVIDER=gemini`, 비워 두어도 같음)입니다. SDK 없이 이미 쓰는 `httpx`로
 Interactions API(`POST https://generativelanguage.googleapis.com/v1/interactions`)를 부릅니다(`src/career/gemini_client.py`).

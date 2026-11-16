@@ -1118,6 +1118,106 @@ def test_one_account_generates_one_llm_curriculum_at_a_time(llm_planner, monkeyp
     assert [plan().status_code for _ in range(5)] == [201, 201, 201, 201, 429]
 
 
+# ── LLM 모드: 모든 계정 허용("*")과 서비스 전체 24시간 한도 ─────────────────────
+
+LLM_SERVICE_LIMIT_REACHED = {"detail": "Daily LLM curriculum service limit reached. Use the template mode or try again "
+                                       "later."}
+
+
+def use_llm_global_limit(monkeypatch, limit: int) -> None:
+    from app.core.config import get_settings
+
+    monkeypatch.setenv("CURRICULUM_LLM_GLOBAL_DAILY_LIMIT", str(limit))
+    get_settings.cache_clear()
+
+
+def test_star_allows_every_signed_in_account_to_use_llm_mode(llm_planner, monkeypatch):
+    """CURRICULUM_LLM_USER_IDS=*: 목록에 UUID가 없어도 로그인한 계정이면 LLM 모드를 쓴다. 다른 UUID만 있으면 그대로 403."""
+    from app.core.config import get_settings
+
+    _, gemini, plan = llm_planner
+    monkeypatch.setenv("CURRICULUM_LLM_USER_IDS", str(uuid.uuid4()))
+    get_settings.cache_clear()
+    res = plan()
+    assert res.status_code == 403 and gemini["requests"] == []
+
+    monkeypatch.setenv("CURRICULUM_LLM_USER_IDS", "*")
+    get_settings.cache_clear()
+    res = plan()
+    assert res.status_code == 201 and res.json()["data"]["result"]["generation_method"] == "llm", res.text
+    assert len(gemini["requests"]) == 1
+
+
+def test_llm_curricula_are_capped_per_day_across_all_accounts(llm_planner, monkeypatch, caplog):
+    """모든 계정을 합쳐 24시간에 CURRICULUM_LLM_GLOBAL_DAILY_LIMIT건이다 ("*"로 열어도 계정을 여러 개 만들어 Gemini 호출을
+    늘리지 못한다). 넘으면 Gemini를 부르지 않고 429 + Retry-After이고, 그 거절은 계정의 하루 몫을 쓰지 않는다.
+    저장된 계획은 DB로 세므로 메모리의 시도 창이 비어도(재시작) 한도는 그대로다."""
+    from app.services.verifier_budget import llm_curriculum_global_attempts
+
+    student, gemini, plan = llm_planner
+    use_llm_daily_limit(monkeypatch, 3)
+    use_llm_global_limit(monkeypatch, 2)
+    assert [plan().status_code for _ in range(2)] == [201, 201]
+    with caplog.at_level(logging.INFO, logger="vc-be.audit"):
+        res = plan()
+    assert res.status_code == 429 and res.json() == LLM_SERVICE_LIMIT_REACHED
+    assert 86000 < int(res.headers["retry-after"]) <= 86400
+    assert len(gemini["requests"]) == 2
+    assert any(r.getMessage().startswith(f"event=llm_service_limit_denied user={student['id']} retry_after=")
+               for r in caplog.records)
+
+    llm_curriculum_global_attempts.clear()  # 재시작을 흉내 낸다: DB에 저장된 LLM 계획 두 건으로 그대로 막힌다
+    res = plan()
+    assert res.status_code == 429 and res.json() == LLM_SERVICE_LIMIT_REACHED and len(gemini["requests"]) == 2
+
+    use_llm_global_limit(monkeypatch, 10)  # 전체 한도를 올리면 이 계정의 남은 몫(3 - 2 = 1)만큼 더 만든다
+    assert [plan().status_code for _ in range(2)] == [201, 429]
+    assert len(gemini["requests"]) == 3
+
+
+def test_concurrent_llm_curricula_cannot_overshoot_the_service_limit(llm_planner, monkeypatch):
+    from app.integrations import ai_service as module
+
+    from app.services import career as service
+
+    _, gemini, plan = llm_planner
+    use_llm_daily_limit(monkeypatch, 10)
+    use_llm_global_limit(monkeypatch, 3)
+    monkeypatch.setattr(module, "CORPUS_IN_FLIGHT_PER_USER", 10)  # 이 테스트는 서비스 전체 LLM 한도만 본다
+    monkeypatch.setattr(service, "LLM_IN_FLIGHT_PER_USER", 10)
+    gemini["delay"] = 0.3  # 모두가 DB에 저장되기 전에 한도를 확인한다
+    with ThreadPoolExecutor(8) as pool:
+        responses = list(pool.map(lambda _: plan(), range(8)))
+    assert Counter(res.status_code for res in responses) == {201: 3, 429: 5}
+    assert all(res.json() == LLM_SERVICE_LIMIT_REACHED for res in responses if res.status_code == 429)
+    assert len(gemini["requests"]) == 3
+
+
+def test_llm_attempts_that_never_reached_the_model_give_back_the_service_slot(llm_planner, monkeypatch):
+    """모델을 부르지 않고 끝난 시도(AI의 동시 생성 자리 없음 LLM_BUSY)는 서비스 전체 한도에도 세지 않는다."""
+    from app.ai_contract.api import GenerationOutcome
+    from app.integrations import ai_service as module
+
+    _, gemini, plan = llm_planner
+    use_llm_global_limit(monkeypatch, 1)
+    busy = {"on": True}
+    original = module.ai_service.generate_curriculum
+
+    async def generate(body):
+        if busy["on"]:
+            return GenerationOutcome(state="failed", error_code="LLM_BUSY", retryable=True)
+        return await original(body)
+
+    monkeypatch.setattr(module.ai_service, "generate_curriculum", generate)
+    res = plan()
+    assert res.status_code == 503 and res.json()["code"] == "LLM_BUSY" and gemini["requests"] == []
+    busy["on"] = False
+    res = plan()
+    assert res.status_code == 201 and res.json()["data"]["result"]["generation_method"] == "llm", res.text
+    res = plan()
+    assert res.status_code == 429 and res.json() == LLM_SERVICE_LIMIT_REACHED and len(gemini["requests"]) == 1
+
+
 def test_changed_generator_settings_are_503_and_not_counted(llm_planner, monkeypatch):
     """회귀(v-review VR-01): BE가 생성기 정보를 받은 뒤 AI 설정(모델 등)이 바뀌면(배포 중 태스크가 섞인 경우) AI가 이를
     UNTRUSTED_OR_UNSUPPORTED_JOB_INPUT(422)로 답해, 모델을 부르지 않았는데도 하루 LLM 몫을 썼다. 이제 다시 하면 되는

@@ -91,7 +91,8 @@ def reset_call_budgets():
     from app.services.career import clear_llm_in_flight
     from app.services.public_view_gate import public_view_gate
     from app.services.verifier_budget import (
-        llm_curriculum_attempts, mock_issue_attempts, mock_issue_breaker, rejected_verifications, verifier_budget,
+        llm_curriculum_attempts, llm_curriculum_global_attempts, mock_issue_attempts, mock_issue_breaker,
+        rejected_verifications, verifier_budget,
     )
 
     def clear():
@@ -105,6 +106,7 @@ def reset_call_budgets():
         naver_exchange_budget.clear()
         clear_corpus_caller_limits()
         llm_curriculum_attempts.clear()
+        llm_curriculum_global_attempts.clear()
         clear_llm_in_flight()
 
     clear()

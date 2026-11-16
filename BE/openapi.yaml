@@ -1957,7 +1957,7 @@ paths:
       summary: 학습 계획 생성 (동기)
       description: |
         본문은 `CurriculumRequest` (`BE/app/ai_contract/curriculum.py`). 같은 `idempotency_key`로 같은 본문을 보내면 같은 결과, 다른 본문이면 409.
-        `mode=llm`은 `CURRICULUM_LLM_USER_IDS`에 있는 계정 + `allow_external_processing=true`일 때만 (아니면 403/422).
+        `mode=llm`은 `CURRICULUM_LLM_USER_IDS`에 있는 계정(`*`면 모든 계정) + `allow_external_processing=true`일 때만 (아니면 403/422).
         분석이 만료되었으면 409. LLM은 허용된 단계·자료·시간만 고르며, 초안이 검사를 통과하지 못하면 템플릿으로 대체한다.
         사용자별 한도: 24시간에 학습 계획 200건, 그중 LLM 모드는 `CURRICULUM_LLM_DAILY_LIMIT`건(기본 20. 외부 LLM까지 간 실패한
         시도도 센다)과 AI 묶음 요청 한도(TooManyAnalysisRequests). 넘으면 429 + `Retry-After`. 같은 `idempotency_key`로 다시
@@ -2004,6 +2004,7 @@ paths:
             사용자별 한도에 걸림 (아무것도 저장하지 않고, LLM 한도면 생성기·LLM을 부르지 않는다). `Retry-After`(초)가 붙는다.
             `Daily curriculum limit reached. Try again later.` (24시간 200건) /
             `Daily LLM curriculum limit reached. Use the template mode or try again later.` (`CURRICULUM_LLM_DAILY_LIMIT`) /
+            `Daily LLM curriculum service limit reached. Use the template mode or try again later.` (모든 계정 합계 `CURRICULUM_LLM_GLOBAL_DAILY_LIMIT`, 기본 200) /
             `An LLM curriculum is already being generated for this account. Try again later.` (계정당 동시 LLM 계획 1건,
             `Retry-After: 5`) /
             `Too many analysis requests. Try again later.` (TooManyAnalysisRequests)

@@ -215,6 +215,9 @@ const KNOWN_ERROR_MESSAGES: Record<string, string> = {
   'Daily curriculum limit reached. Try again later.': '오늘 만들 수 있는 학습 계획 수를 모두 썼습니다. 내일 다시 시도해주세요.',
   'Daily LLM curriculum limit reached. Use the template mode or try again later.':
     '오늘 만들 수 있는 LLM 학습 계획 수를 모두 썼습니다. 템플릿으로 만들거나 내일 다시 시도해주세요.',
+  // 모든 계정을 합친 LLM 학습 계획 하루 한도 (BE 429 + Retry-After, CURRICULUM_LLM_GLOBAL_DAILY_LIMIT)
+  'Daily LLM curriculum service limit reached. Use the template mode or try again later.':
+    '오늘 서비스 전체의 LLM 학습 계획 한도에 도달했습니다. 템플릿으로 만들거나 내일 다시 시도해주세요.',
   // 같은 계정의 LLM 모드 계획은 한 번에 한 건 (BE 429 + Retry-After)
   'An LLM curriculum is already being generated for this account. Try again later.':
     '이 계정의 LLM 학습 계획을 이미 만들고 있습니다. 끝난 뒤 다시 시도해주세요.',
