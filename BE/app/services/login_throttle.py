@@ -11,9 +11,9 @@
   다른 키의 표기로 계정을 찾을 수 있어, 그때는 로그인이 저장된 이메일로도 센다 (api/auth.py). 파이썬만 접고 DB는 그대로
   두는 글자(예: musl(Alpine) PostgreSQL의 원문자 'Ⓐ'. Compose·CI 이미지의 glibc 2.36은 파이썬처럼 접는다)는 여러 표기가
   한 키를 나눠 쓸 뿐이다 (DB가 못 찾음).
-- 클라이언트 IP로는 세지 않는다. CloudFront·ALB 뒤에서 BE가 보는 주소는 CloudFront 엣지나 ALB라 여러 사용자가 한 키를
-  나눠 쓰게 되기 때문이다. IP별 제한은 AWS WAF 속도 기반 규칙이 맡는다 (deploy/CHECKLIST.md "HTTPS·네트워크").
-- 기록은 프로세스 메모리에만 둔다(태스크마다 따로 세고 재시작하면 지워짐). 키는 이메일의 SHA-256이라 원문을 들고 있지 않고,
+- 클라이언트 IP로는 세지 않는다. 프록시·NAT 뒤에서는 여러 사용자가 한 주소를 나눠 쓰게 되기 때문이다.
+  IP별 제한은 운영 nginx의 IP별 요청 제한이 맡는다 (deploy/nginx/http.conf, deploy/CHECKLIST.md "HTTPS·네트워크").
+- 기록은 프로세스 메모리에만 둔다(프로세스마다 따로 세고 재시작하면 지워짐). 키는 이메일의 SHA-256이라 원문을 들고 있지 않고,
   키 수는 MAX_KEYS로 묶어 아무 이메일이나 보내도 메모리가 자라지 않는다.
 - 잠긴 키로 온 시도마다 감사 로그 한 줄을 남긴다 (로거 vc-be.audit, INFO): event=login_locked key=<키의 앞 12자리 hex>
   retry_after=<초>. 이메일 원문은 남기지 않는다 (키는 이메일의 SHA-256이라 같은 이메일은 같은 값으로 묶인다).

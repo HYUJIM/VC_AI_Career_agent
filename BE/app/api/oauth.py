@@ -55,11 +55,11 @@ class ExchangeBudget:
     콜백은 로그인 없이 부르고 state도 누구나 받을 수 있다. 한도가 없으면 아무 code나 반복해 보내는 것만으로 BE가 우리
     client_id·client_secret을 실어 제공자의 토큰 엔드포인트를 끝없이 부르게 된다 (제공자가 이 클라이언트를 제한하면 모든
     사용자의 그 제공자 로그인이 막힌다). 몫이 모자라면 제공자를 부르지 않고 429 + Retry-After로 답한다.
-    - 프로세스 메모리에만 둔다 (태스크마다 따로 세고 재시작하면 지워짐).
+    - 프로세스 메모리에만 둔다 (프로세스마다 따로 세고 재시작하면 지워짐).
     - 제공자마다 따로 센다: 한 제공자의 콜백을 몰아 보내도 다른 제공자의 로그인은 429가 되지 않는다.
-    - 클라이언트 IP로 나누지 않는다 (CloudFront·ALB 뒤에서는 엣지·ALB 주소가 보인다). 그래서 누가 몰아 보내는 동안에는
-      그 제공자의 정상 사용자도 함께 429가 된다: 이 한도가 지키는 것은 제공자 클라이언트이고, IP별 제한은 AWS WAF 속도 기반
-      규칙이 맡는다.
+    - 클라이언트 IP로 나누지 않는다 (프록시·NAT 뒤에서는 여러 사용자가 한 주소를 쓴다). 그래서 누가 몰아 보내는 동안에는
+      그 제공자의 정상 사용자도 함께 429가 된다: 이 한도가 지키는 것은 제공자 클라이언트이고, IP별 제한은 운영 nginx의
+      IP별 요청 제한(deploy/nginx/http.conf)이 맡는다.
     """
 
     def __init__(self, calls_per_minute: int = EXCHANGES_PER_MINUTE, clock: Callable[[], float] = time.monotonic):
@@ -88,7 +88,7 @@ class ExchangeBudget:
             self._refilled_at = self._clock()
 
 
-# 프로세스(태스크) 하나에 제공자마다 하나. Google 것은 예전 이름(oauth_exchange_budget)을 그대로 쓴다.
+# 프로세스 하나에 제공자마다 하나. Google 것은 예전 이름(oauth_exchange_budget)을 그대로 쓴다.
 oauth_exchange_budget = ExchangeBudget()
 github_exchange_budget = ExchangeBudget()
 naver_exchange_budget = ExchangeBudget()
@@ -312,8 +312,8 @@ async def _complete_oauth(
 def _development_only() -> None:
     """GET 콜백은 BE 단독 테스트(개발)용이다. APP_ENV=production에서는 없는 경로처럼 404로 답한다.
 
-    FE는 POST만 쓴다. GET은 code·state·code_verifier가 URL에 실려 접근 로그(ALB·CloudFront 포함)에 남고, 사전 요청 없이
-    다른 사이트에서도 걸 수 있어 IP별 제한(WAF)을 비켜 간다. 쿼리 검사보다 먼저 답하도록 경로 의존성으로 둔다.
+    FE는 POST만 쓴다. GET은 code·state·code_verifier가 URL에 실려 접근 로그(프록시 포함)에 남고, 사전 요청 없이
+    다른 사이트에서도 걸 수 있어 IP별 제한(운영 nginx는 POST 콜백만 셈)을 비켜 간다. 쿼리 검사보다 먼저 답하도록 경로 의존성으로 둔다.
     """
     if get_settings().app_env == "production":
         raise HTTPException(status_code=404, detail="Not Found")
@@ -323,7 +323,7 @@ def _add_provider_routes(spec: _ProviderSpec, get_provider: Callable[[], OAuthPr
     """한 제공자의 세 경로를 등록한다: GET /<name>/authorize, GET /<name>/callback(개발용), POST /<name>/callback.
 
     경로는 제공자마다 고정 문자열이다 ('/{provider}' 경로 변수를 쓰지 않는다): 본문 상한 목록(main.py)·접근 로그 가리기·
-    WAF의 경로 규칙·공개 경로 목록 테스트가 모두 정확한 경로로 맞춘다. 의존성(get_provider)도 제공자마다 따로 둬서
+    운영 nginx IP별 제한의 경로 규칙·공개 경로 목록 테스트가 모두 정확한 경로로 맞춘다. 의존성(get_provider)도 제공자마다 따로 둬서
     테스트가 app.dependency_overrides로 제공자 하나만 바꿔 끼울 수 있다.
     """
 

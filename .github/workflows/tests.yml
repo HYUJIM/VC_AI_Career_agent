@@ -163,7 +163,7 @@ jobs:
       # BE 이미지 기본값 APP_ENV=production은 비밀값이 없으면 시작을 거부하므로 development로 확인한다.
       - run: docker run --rm -e APP_ENV=development vc-be:ci python -c "import main"
       - run: docker run --rm vc-ai:ci python -c "import src.server.app"
-      # AWS 일회성 태스크로 쓰는 마이그레이션 실행기(python -m app.migrate)가 이미지 안에서 뜨는지 (DB 접속 없음)
+      # 운영 compose의 migrate 서비스가 쓰는 마이그레이션 실행기(python -m app.migrate)가 이미지 안에서 뜨는지 (DB 접속 없음)
       - run: docker run --rm vc-be:ci python -m app.migrate --help
       # 시장 통계 배치(python -m app.jobs.market)도 이미지 안에서 뜨는지 (DB·AI 접속 없음, 운영 비밀값 없이)
       - run: docker run --rm vc-be:ci python -m app.jobs.market --help

@@ -40,7 +40,7 @@
 
 ```mermaid
 flowchart LR
-    SRC["소스 등록부<br/>(허용 호스트·권리 근거·주기)"] --> COL["수집 작업<br/>BE 배치 (ECS 예약 태스크)"]
+    SRC["소스 등록부<br/>(허용 호스트·권리 근거·주기)"] --> COL["수집 작업<br/>BE 배치 (서버 cron 등 예약 실행)"]
     COL --> RAW["원문 저장<br/>job_posting_raw"]
     RAW --> NORM["정제·중복 제거<br/>(섹션 분리, URL·해시·유사도)"]
     NORM -->|"서비스 토큰"| EXT["AI: 요구사항 추출<br/>POST /v1/job-postings/extract"]
@@ -154,7 +154,7 @@ flowchart LR
 | AI | `POST /v1/market-snapshots` | 공고 버전들 → 시장 스냅샷(지표·구간·추세·lift) |
 | BE | `GET /api/v1/market/snapshots/latest?role=&window=&seniority=` | 최신 스냅샷(로그인 사용자) |
 | BE | `GET/POST /api/v1/research/extraction-reviews` | 연구자 검토 큐(표본·저신뢰·새 기술 후보 승인) |
-| BE | `python -m app.jobs.collect [--source]` | 수집 배치 (ECS 예약 태스크, EventBridge 하루 1회 등) |
+| BE | `python -m app.jobs.collect [--source]` | 수집 배치 (운영 서버 cron에서 `docker compose run --rm backend …` 하루 1회 등) |
 
 ## 8. 평가 (논문·발표용)
 

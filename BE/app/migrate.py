@@ -1,7 +1,7 @@
-"""DB 스키마 마이그레이션 실행기 (로컬 Compose·CI 테스트·AWS RDS 공통).
+"""DB 스키마 마이그레이션 실행기 (로컬 Compose·CI 테스트·운영 compose의 migrate 서비스 공통).
 
     python -m app.migrate           # 빈 DB면 기본 스키마부터, 아니면 아직 적용하지 않은 마이그레이션만 적용
-    python -m app.migrate --seed    # 빈 DB를 처음 만들 때만 시드(테스트 계정)도 넣는다. 운영(RDS)에서는 쓰지 않는다.
+    python -m app.migrate --seed    # 빈 DB를 처음 만들 때만 시드(테스트 계정)도 넣는다. 운영에서는 쓰지 않는다.
 
 - 접속 정보는 앱과 같은 DB_HOST·DB_PORT·DB_USER·DB_PASSWORD·DB_NAME 환경변수다 (그 밖의 libpq 변수도 그대로 적용).
   TLS(PGSSLMODE·PGSSLROOTCERT)도 앱과 같다: 비워 둔 값은 없는 것으로 보고 PGSSLMODE는 앞뒤 공백을 뗀다
@@ -19,11 +19,11 @@
   그래서 마이그레이션은 여러 번 실행해도 안전하게 쓴다 (IF NOT EXISTS 등). 새 Compose 볼륨은 initdb가 같은 파일을 먼저 실행한다.
 - DB/migrations/NN_*.sql은 번호 순으로, 파일마다 새 연결(시드 덤프가 search_path를 비우므로)의 한 트랜잭션에서 원장 기록과
   함께 적용한다. 실패하면 그 파일과 원장 기록이 함께 롤백된다. psql 메타 명령 줄(\\로 시작)은 서버가 모르므로 빼고 보낸다.
-- 여러 개가 동시에 실행돼도(ECS 태스크 여러 개 등) advisory lock으로 하나씩 실행한다.
+- 여러 개가 동시에 실행돼도(여러 컨테이너·프로세스 등) advisory lock으로 하나씩 실행한다.
 - 운영(APP_ENV=production, BE 이미지 기본값. 앱과 같이 읽고 비우면 development, development가 아니면 운영으로 본다)이면
   --seed를 거부하고, 적용을 마친 뒤 공개된 시드 테스트 비밀번호(04 마이그레이션의 해시)를 쓰는 계정이 있으면 실패한다
   (시드·개발 DB 데이터가 운영 DB에 들어간 경우).
-- DB_APP_ROLE(선택, 운영 RDS): BE 서비스가 접속하는 별도 계정. 주면 실행이 끝날 때마다(advisory lock 안에서) 그 계정의
+- DB_APP_ROLE(선택, 운영. deploy/docker-compose.yml은 vc_app): BE 서비스가 접속하는 별도 계정. 주면 실행이 끝날 때마다(advisory lock 안에서) 그 계정의
   public 테이블·시퀀스 권한을 모두 거둔 뒤 앱 테이블 DML과 시퀀스 사용 권한만 다시 준다(새 테이블 포함, 원장 제외. 예전에 그
   계정에 준 TRUNCATE 등은 남지 않는다. TRIGGER·REFERENCES·원장 쓰기 권한은 아래 검사가 거부한다). 그 계정 검사는 lock을 잡은
   직후(기본 스키마·마이그레이션 SQL보다 먼저)와 권한을 주기 직전에 하고, 걸리면 아무것도 적용하거나 주지 않고 실패한다.
@@ -34,7 +34,7 @@
     기본값, PUBLIC에 준 DB CREATE 등) DB나 public 스키마를 소유하면(소유자는 거둔 CREATE를 스스로 다시 줄 수 있다. PostgreSQL 15
     이상의 새 DB에서는 DB 소유자가 pg_database_owner로 public 스키마도 소유한다) 실패하고, 걸린 검사와 그 권한·소유를 가진 소속
     역할, 나온 순서대로 실행할 REVOKE·ALTER ... OWNER 문을 알려 준다. 지금 소유자 몫의 CREATE를 이미 거뒀으면 새 소유자에게
-    CREATE를 다시 주는 GRANT 문을, 마이그레이션 계정이 슈퍼유저가 아니면(RDS 마스터 사용자) 먼저 지금 소유자의 권한을 받는 GRANT
+    CREATE를 다시 주는 GRANT 문을, 마이그레이션 계정이 슈퍼유저가 아니면(운영 compose의 vc_owner, RDS 마스터 사용자 등) 먼저 지금 소유자의 권한을 받는 GRANT
     문을 함께 알려 준다. 소속을 거두는 방법은 알려 주지 않는다(이 문들은 소속을 그대로 두므로 다음 실행에서 그 소속 역할이 public에
     만들어 둔 객체가 아래 소유 객체 검사에 걸린다).
   - 그 역할이나 속한 역할, 기본 제공 역할(pg_database_owner·pg_monitor 등. pg_database_owner의 것은 DB 소유자를 바꾸면 새 소유자의
@@ -373,12 +373,12 @@ def _create_refusal(conn: psycopg.Connection, role: str, *, schema: bool, db: bo
     schema_owner = owners.get("schema owner", ("",))[0]
     schema_fix = "schema owner" in owners and schema_owner != "pg_database_owner"
     fixes = []
-    # 슈퍼유저가 아닌 마이그레이션 계정(RDS 마스터 사용자)은 지금 소유자의 권한이 있어야 소유자를 바꿀 수 있다.
+    # 슈퍼유저가 아닌 마이그레이션 계정(운영 compose의 vc_owner, RDS 마스터 사용자 등)은 지금 소유자의 권한이 있어야 소유자를 바꿀 수 있다.
     current = list(dict.fromkeys(owners[kind][0] for kind in ("db owner", "schema owner")
                                  if kind in owners and owners[kind][0] != "pg_database_owner"))
     if current and not superuser:
         inherit = " WITH INHERIT TRUE" if conn.info.server_version >= 160000 else ""
-        fixes.append("마이그레이션 계정이 슈퍼유저가 아니면(RDS 마스터 사용자 등) 먼저 지금 소유자의 권한을 받습니다: "
+        fixes.append("마이그레이션 계정이 슈퍼유저가 아니면(운영 compose의 vc_owner 등) 먼저 지금 소유자의 권한을 받습니다: "
                      + " ".join(f"GRANT {q(name)} TO {migrator_q}{inherit};" for name in current))
     if "db owner" in owners:
         name, is_self, can = owners["db owner"]
@@ -517,9 +517,9 @@ def check_app_role(conn: psycopg.Connection, role: str) -> None:
         listed = [f"{q(name)} (소유자 {q(owner)})" for name, owner, _ in schemas]
         rest = f" 외 {schemas[0][2] - len(schemas)}개" if schemas[0][2] > len(schemas) else ""
         grant = ""
-        if not superuser:  # 슈퍼유저가 아닌 마이그레이션 계정(RDS 마스터 사용자)은 지금 소유자의 권한이 있어야 지우거나 바꿀 수 있다
+        if not superuser:  # 슈퍼유저가 아닌 마이그레이션 계정(vc_owner, RDS 마스터 사용자 등)은 지금 소유자의 권한이 있어야 지우거나 바꿀 수 있다
             inherit = " WITH INHERIT TRUE" if conn.info.server_version >= 160000 else ""
-            grant = ("마이그레이션 계정이 슈퍼유저가 아니면(RDS 마스터 사용자 등) 먼저 지금 소유자의 권한을 받습니다: "
+            grant = ("마이그레이션 계정이 슈퍼유저가 아니면(운영 compose의 vc_owner 등) 먼저 지금 소유자의 권한을 받습니다: "
                      + " ".join(f"GRANT {q(owner)} TO {q(migrator)}{inherit};"
                                 for owner in dict.fromkeys(owner for _, owner, _ in schemas)) + " ")
         fixes = " ".join(f"DROP SCHEMA {q(name)} CASCADE; 또는 ALTER SCHEMA {q(name)} OWNER TO {q(migrator)};"
@@ -562,7 +562,7 @@ class DBConnectError(MigrationError):
 # 다시 시도해도 같은 결과인 접속 오류(libpq 원문을 소문자로 바꿔 비교, 조각이 모두 들어 있으면 해당). 설정·인증서·계정 문제라
 # 60초를 기다리지 않고 바로 한 줄로 끝낸다. 조각은 db_startup_check._CONNECT_ERRORS와 같다 (요약도 그 표에서 나온다).
 # 그 밖(연결 거부·시간 초과·DB가 시작·복구 중·연결 수 초과·이름 해석 실패·그 밖의 SSL 오류 등)은 지금처럼 기다리며 다시 시도한다:
-# Compose의 Postgres가 막 뜨는 중이거나 RDS가 재시작·장애 조치 중일 수 있다.
+# Compose의 Postgres가 막 뜨는 중이거나 운영 DB가 재시작·장애 조치 중일 수 있다.
 _PERMANENT_CONNECT_ERRORS = (
     ("root certificate file",),           # PGSSLROOTCERT 파일 없음·읽을 수 없음
     ("does not match host name",),        # DB_HOST가 IP·CNAME (verify-full)
@@ -701,7 +701,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--seed", action="store_true",
                         help="빈 DB를 처음 만들 때 시드(테스트 계정)도 넣는다. 로컬·테스트 전용이며 APP_ENV=production에서는 거부한다.")
     args = parser.parse_args(argv)
-    load_dotenv()  # 로컬 실행용 BE/.env. 컨테이너·ECS에서는 이미 있는 환경변수가 우선한다.
+    load_dotenv()  # 로컬 실행용 BE/.env. 컨테이너에서는 이미 있는 환경변수가 우선한다.
     try:
         level = log_level()  # 없거나 비우면 INFO
     except RuntimeError as exc:
@@ -711,7 +711,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     logging.basicConfig(level=level)
     try:
-        # APP_ENV·DB_APP_ROLE은 .env를 읽은 뒤에 본다 (로컬 BE/.env는 development, 운영 이미지·ECS 태스크는 production).
+        # APP_ENV·DB_APP_ROLE은 .env를 읽은 뒤에 본다 (로컬 BE/.env는 development, 운영 이미지·compose의 migrate 서비스는 production).
         done = migrate(seed=args.seed, production=_production(), wait_seconds=60,
                        app_role=os.getenv("DB_APP_ROLE", "").strip() or None)
     # RuntimeError: MigrationError와 APP_ENV·DB_PASSWORD·PGSSLMODE·PGSSLROOTCERT 설정 오류(app.core.config, 변수 이름만

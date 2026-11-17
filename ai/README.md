@@ -4,9 +4,9 @@ BE(`../BE`)가 호출하는 AI 서버입니다. 직무 비교(검증된 자격�
 수집한 공고 묶음으로 직무별 요구 역량 통계도 계산합니다(`POST /v1/market/snapshots`. 수집·저장·조회는 BE).
 무엇을 어떻게 계산하는지는 [docs/CAREER_AI_SERVICE.md](docs/CAREER_AI_SERVICE.md)를 보세요. 다음 작업(공고 수집·통계 → 커리큘럼 반영) 설계는
 [docs/JOB_MARKET_STATS_DESIGN.md](docs/JOB_MARKET_STATS_DESIGN.md)에 있습니다. 아래 명령은 이 `ai/` 폴더에서 실행합니다.
-AWS 배포(ECS Fargate, BE와는 ECS Service Connect `http://ai:8100`으로 연결)는 [../deploy/README.md](../deploy/README.md)와 작업 정의
-템플릿 [../deploy/ecs/ai-service.taskdef.json](../deploy/ecs/ai-service.taskdef.json)을 보세요. 운영 이미지는 Apple Silicon에서도
-`docker build --platform linux/amd64 -t <ECR 주소>/vc-ai:<커밋> .`로 빌드합니다(BE와 같은 커밋).
+운영 배포(NCP 서버 한 대의 Docker Compose, BE와는 서버 안 Docker 네트워크의 `http://ai:8100`으로 연결, 포트는 밖으로 열지 않음)는
+[../deploy/README.md](../deploy/README.md)를 보세요. 운영 이미지는 서버에서 `deploy/scripts/deploy.sh`가 BE와 같은 커밋으로 함께 빌드하고,
+설정은 서버의 `deploy/ai.env`([../deploy/ENV_MATRIX.md](../deploy/ENV_MATRIX.md) 3번)에 둡니다.
 
 ## 1. 가장 쉬운 방법: BE와 함께 Docker Compose로
 
@@ -99,7 +99,7 @@ Interactions API(`POST https://generativelanguage.googleapis.com/v1/interactions
 3. 가져온 프로젝트는 무료 등급을 쓰기 전에 프로젝트 확인이 필요할 수 있습니다(안 하면 403 `permission_denied`. 이유로 `FREE_TIER_VERIFICATION_REQUIRED`가 함께 보일 수 있음).
    결제 계정을 연결한 프로젝트(유료 등급)는 필요 없습니다.
 4. 키는 **이 폴더의 `.env`에만** 넣습니다. 저장소·FE·이슈·채팅에 붙여 넣지 않고, 브라우저(FE)에서 직접 부르지 않습니다.
-   새어 나갔으면 새 키를 만들어 바꾼 뒤 옛 키를 지웁니다. AWS에서는 Secrets Manager `vc/ai-llm`(키 `GEMINI_API_KEY`)에 둡니다
+   새어 나갔으면 새 키를 만들어 바꾼 뒤 옛 키를 지웁니다. 운영 서버에서는 `deploy/ai.env`(권한 600)의 `GEMINI_API_KEY`에 둡니다
    ([../deploy/ENV_MATRIX.md](../deploy/ENV_MATRIX.md)).
 
 ### 6-2. `.env` 설정
@@ -164,7 +164,7 @@ Compose로 띄운 경우에도 이 폴더의 venv로 실행합니다.
   않고 `HTTP(S)_PROXY` 같은 프록시 환경변수를 쓰지 않습니다. 동시 생성 자리 대기 10초 + 25초 × 2 = 최대 60초라 BE가 기다리는
   90초(`AI_GENERATION_TIMEOUT_SECONDS`) 안에 끝납니다. 클라이언트는 스스로 다시 시도하지 않습니다(무료 등급의 분당 한도가 작음).
 - 우리 쪽 한도: AI 프로세스마다 동시 생성 `CURRICULUM_LLM_MAX_CONCURRENCY`(기본 2)개, BE에서 허용된 계정마다 24시간에
-  `CURRICULUM_LLM_DAILY_LIMIT`(BE `.env`, 기본 20)건입니다. BE 한도는 저장된 LLM 계획(DB)과 Gemini까지 간 실패한 시도(BE 태스크
+  `CURRICULUM_LLM_DAILY_LIMIT`(BE `.env`, 기본 20)건입니다. BE 한도는 저장된 LLM 계획(DB)과 Gemini까지 간 실패한 시도(BE 프로세스
   메모리)를 함께 세고, 넘으면 Gemini를 부르지 않고 429 + `Retry-After`입니다([../BE/README.md](../BE/README.md) "직무 비교 · 커리큘럼").
   하루 최대 호출 수는 대략 허용된 계정 수 × 한도 × 2(수정 1번)이므로 Google 쪽 RPD·지출 한도를 그보다 넉넉하게 둡니다.
 - Google의 한도(RPM·입력 TPM·RPD)는 **키가 아니라 프로젝트 단위**이고 RPD는 태평양 시간 자정에 초기화됩니다. 모델별 무료 등급
@@ -190,7 +190,7 @@ HTTP 오류는 AI 로그에 `Gemini API rejected the request: status=403 code=pe
 `{"error": {"code": "<snake_case>", "message": …}}`이고(401 `authentication`, 403 `permission_denied`, 404 `model_not_found`,
 429 `rate_limit_exceeded`·`quota_exceeded`), 일부 오류는 예전 Google 형식(`status`·`details[].reason`)으로 와서
 `PERMISSION_DENIED/FREE_TIER_VERIFICATION_REQUIRED`처럼 이유가 함께 찍힐 수 있습니다. 코드는 진단용이고, 다시 시도할지는 HTTP 상태로만 정합니다.
-BE가 생성기 정보를 받은 AI와 생성 요청을 받은 AI의 설정이 다르면(배포 중 AI 태스크마다 모델·사고 수준·API 버전이 다름) 모델을 부르지 않고
+BE가 생성기 정보를 받은 AI와 생성 요청을 받은 AI의 설정이 다르면(배포 중 AI 프로세스마다 모델·사고 수준·API 버전이 다름) 모델을 부르지 않고
 `GENERATOR_CONFIGURATION_CHANGED`(다시 시도 가능, BE 503 + `Retry-After: 5`)로 끝나며 하루 LLM 몫도 쓰지 않습니다.
 
 ### 6-6. 다른 공급자 (선택)
