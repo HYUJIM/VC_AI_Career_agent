@@ -1,4 +1,4 @@
-# 운영 이미지 (ECS 등): 비루트(uid/gid 10001), 리로더 없음, 실행에 필요한 파일만 담는다.
+# 운영 이미지 (deploy/docker-compose.yml의 migrate·backend): 비루트(uid/gid 10001), 리로더 없음, 실행에 필요한 파일만 담는다.
 # 로컬 개발은 docker-compose.yml이 command(--reload)·user(root)·소스 바인드 마운트로 덮어쓴다.
 FROM python:3.11.15-slim-bookworm
 
@@ -13,9 +13,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 실행에 필요한 파일만 복사한다 (.venv·tests·시드·csv 제외). DB/는 마이그레이션 실행기(python -m app.migrate)가 쓴다.
-# certs/는 RDS CA 묶음(rds-global-bundle.pem, 출처·SHA-256·갱신 방법은 certs/README.md)이다. 서비스·마이그레이션 태스크는 이
-# 이미지를 그대로 쓰고, 시장 통계 반입 태스크는 이 이미지에 스냅샷 파일만 더한 이미지(vc-be:<TAG>-market, deploy/README.md ⑤-1)를
-# 쓰므로 CA 묶음과 PGSSLROOTCERT를 함께 물려받는다. CA 묶음을 넣으려고 따로 파생 이미지를 만들지는 않는다.
+# certs/는 RDS CA 묶음(rds-global-bundle.pem, 출처·SHA-256·갱신 방법은 certs/README.md)이다. 운영 compose(NCP)는 서버에서 만든
+# DB CA(deploy/secrets/db-tls/ca.crt)를 PGSSLROOTCERT로 넣어 이 기본값을 덮어쓰므로 쓰지 않지만, RDS에 붙일 때를 위해 남겨 둔다.
+# 시장 통계 반입은 이 이미지에 스냅샷 폴더를 읽기 전용으로 붙여 실행한다 (deploy/scripts/import-market.sh).
 COPY main.py ./
 COPY app ./app
 COPY DB/schema ./DB/schema
@@ -24,8 +24,8 @@ COPY certs ./certs
 
 # APP_ENV=production이면 필수 비밀값(JWT_SECRET 등)이 없을 때 서버가 뜨지 않는다. 로컬 Compose는 development로 덮어쓴다.
 # PGSSLROOTCERT는 production DB TLS 검사(PGSSLMODE=verify-full 또는 verify-ca + 읽을 수 있는 CA 묶음)가 쓰는 기본값이다
-# (작업 정의에서 덮어쓸 수 있다). PGSSLMODE는 넣지 않는다: 로컬 Compose의 Postgres는 TLS가 없어 libpq 기본값(prefer)으로
-# 접속한다. 운영 작업 정의에는 PGSSLMODE=verify-full을 넣는다 (없으면 APP_ENV=production 검사가 시작을 거부한다).
+# (실행 환경에서 덮어쓸 수 있다). PGSSLMODE는 넣지 않는다: 로컬 Compose의 Postgres는 TLS가 없어 libpq 기본값(prefer)으로
+# 접속한다. 운영 compose(deploy/docker-compose.yml)는 PGSSLMODE=verify-full을 넣는다 (없으면 APP_ENV=production 검사가 시작을 거부한다).
 ENV APP_ENV=production \
     PGSSLROOTCERT=/app/certs/rds-global-bundle.pem \
     PYTHONDONTWRITEBYTECODE=1 \

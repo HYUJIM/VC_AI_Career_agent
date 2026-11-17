@@ -38,9 +38,9 @@ def get_db_connection(**extra):
 
 
 # ── 앱 요청용 DB 접근: 동시 연결 수 상한 + 세션 시간 제한 ─────────────────────
-# 연결 풀이 아니다: 자리를 얻은 뒤 지금처럼 호출마다 새 연결을 열고 닫는다. 프로세스(ECS 태스크)가 동시에 여는 연결 수만
+# 연결 풀이 아니다: 자리를 얻은 뒤 지금처럼 호출마다 새 연결을 열고 닫는다. 프로세스(BE 컨테이너)가 동시에 여는 연결 수만
 # DB_MAX_CONNECTIONS(기본 20)로 묶는다. 묶지 않으면 한 계정의 병렬 요청이 워커 스레드 수(40)만큼 연결을 열어
-# 태스크 수 × 40이 RDS max_connections를 넘고, 다른 사용자의 요청까지 'too many connections' 500이 된다.
+# 프로세스 수 × 40이 DB max_connections를 넘고, 다른 사용자의 요청까지 'too many connections' 500이 된다.
 # 자리가 없으면 이만큼(초) 기다린 뒤 DatabaseBusy다 (main.py가 503 + Retry-After로 답한다).
 DB_SLOT_WAIT_SECONDS = 5.0
 # FE가 이 문구로 안내를 고른다 (FE/src/lib/apiClient.ts). 바꾸면 FE도 함께 바꾼다.
@@ -516,7 +516,7 @@ class DatabaseService:
 
         한도에 닿았으면 기록을 남기지 않고 (None, 막은 한도)를 돌려준다: "user"(사용자별 한도) 또는 "global"(전체 한도).
         둘 다 찼으면 "user"다 (사용자별 한도를 먼저 본다). 호출한 쪽이 두 경우를 다른 문구로 답한다 (api/mock_issuer.py).
-        협력사를 부르기 전에 자리를 잡는다. 같은 사용자의 동시 요청(여러 ECS 태스크 포함)은 트랜잭션 advisory lock으로
+        협력사를 부르기 전에 자리를 잡는다. 같은 사용자의 동시 요청(여러 프로세스 포함)은 트랜잭션 advisory lock으로
         줄을 세워 한도를 넘지 못하게 한다. 발급에 실패하면 cancel_mock_issuance로 자리를 돌려준다.
         global_daily_limit을 주면 모든 사용자를 합친 발급 수도 같은 트랜잭션에서 센다 (계정을 여러 개 만들어
         사용자별 한도를 곱하지 못하게). 전체 잠금(고정 키) → 사용자 잠금 순서로만 잡는다 (순서가 같아야 서로 막히지 않는다).
@@ -581,7 +581,7 @@ class DatabaseService:
                          content_markdown: str, sections: dict, referenced_record_ids: list[str]) -> Optional[dict]:
         """포트폴리오를 저장하고 그 행을, 이미 MAX_PORTFOLIOS_PER_USER개가 있으면 저장하지 않고 None을 돌려준다.
 
-        같은 사용자의 동시 요청(여러 ECS 태스크 포함)은 reserve_mock_issuance처럼 트랜잭션 advisory lock으로 줄을 세워
+        같은 사용자의 동시 요청(여러 프로세스 포함)은 reserve_mock_issuance처럼 트랜잭션 advisory lock으로 줄을 세워
         세기와 넣기 사이에 다른 요청이 끼어들지 못하게 한다.
         """
         now = datetime.now(timezone.utc)

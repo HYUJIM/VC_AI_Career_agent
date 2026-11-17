@@ -47,15 +47,15 @@ npm run dev
 ## 운영 빌드 (배포)
 
 - `VITE_API_BASE_URL` 은 빌드(`npm run build`) 때 번들에 들어가는 값이라 바꾸면 다시 빌드해야 합니다. 지정하지 않거나 비워 두면 `/api` 를 씁니다.
-- 기본값 `/api` 는 FE와 BE를 같은 도메인에서 서비스하고 `/api/*` 요청을 BE로 넘기는 구성에서 씁니다 (예: CloudFront 동작 `/api/*` → BE, nginx `location /api/ { proxy_pass http://backend:3000; }`). 환경마다 다시 빌드할 필요가 없고 CORS 설정도 필요 없습니다.
-- CloudFront `/api/*` 동작은 캐시하지 않고(`Managed-CachingDisabled`) `Authorization` 헤더를 BE로 넘겨야 합니다 (예: 원본 요청 정책 `Managed-AllViewerExceptHostHeader`). 기본 설정은 GET 요청의 `Authorization` 을 지우므로 BE가 401을 주고, FE는 이를 로그인 만료로 보고 바로 로그아웃합니다. 자세한 항목은 [AWS 배포 체크리스트](../deploy/CHECKLIST.md)의 "FE".
+- 기본값 `/api` 는 FE와 BE를 같은 도메인에서 서비스하고 `/api/*` 요청을 BE로 넘기는 구성에서 씁니다. 운영 배포([../deploy/README.md](../deploy/README.md), NCP 서버 한 대의 Docker Compose)는 nginx 이미지([../deploy/nginx/Dockerfile](../deploy/nginx/Dockerfile))가 이 폴더를 `VITE_API_BASE_URL` 없이 빌드하고, `location ^~ /api/ { proxy_pass $vc_backend; }`(`http://backend:3000`)로 넘깁니다. 환경마다 다시 빌드할 필요가 없고 CORS 설정도 필요 없습니다.
+- 프록시는 `/api/*` 응답을 캐시하지 않고 `Authorization` 헤더를 BE로 그대로 넘겨야 합니다. 헤더가 빠지면 BE가 401을 주고, FE는 이를 로그인 만료로 보고 바로 로그아웃합니다. 자세한 항목은 [배포 체크리스트](../deploy/CHECKLIST.md)의 "FE".
 - nginx `proxy_pass` 주소 끝에 `/` 를 붙이면 `/api` 가 잘려 모든 요청이 404가 됩니다.
 - BE가 다른 도메인이면 `/api` 까지 넣고(예: `https://api.example.com/api`) BE `CORS_ORIGINS` 에 FE 주소를 추가합니다.
-- 운영은 HTTPS로 서비스합니다 (예: S3+CloudFront, ALB+ACM). HTTPS 페이지에서 `http://` API 호출은 브라우저가 막으므로(mixed content) BE 주소도 `https://` 여야 합니다.
+- 운영은 HTTPS로 서비스합니다 (nginx + Let's Encrypt, [../deploy/README.md](../deploy/README.md) ⑦). HTTPS 페이지에서 `http://` API 호출은 브라우저가 막으므로(mixed content) BE 주소도 `https://` 여야 합니다.
 - **다른 출처의 스크립트를 넣지 않습니다.** 다른 출처 코드는 이 사이트 권한으로 실행되어 localStorage의 로그인 토큰과 비밀번호 입력을 읽을 수 있습니다. Figma html-to-design 캡처 스크립트는 `vite.config.ts`의 개발 서버 전용 플러그인(`apply: 'serve'`)이 `FIGMA_CAPTURE=1 npm run dev`로 켰을 때만 개발 서버 화면에 넣고(기본은 꺼짐), `npm run build`·`npm run preview` 결과(`dist`)에는 들어가지 않습니다. CI FE 작업은 빌드 후 `dist`에 `mcp.figma.com`이나 외부 `<script src>`가 있으면 실패합니다.
 - **웹폰트(Pretendard):** 지금은 jsDelivr CDN(`https://cdn.jsdelivr.net`)에서 받습니다. `<link>`는 `index.html`이 아니라 `main.tsx`가 스크립트로 붙여, CDN이 느리거나 막혀도 첫 화면이 기본 글꼴로 바로 보입니다. 운영 CSP의 `style-src`·`font-src`에 `https://cdn.jsdelivr.net`이 없으면 시스템 글꼴로 바뀝니다. 자체 호스팅은 아래 TODO 참고.
-- **보안 헤더:** HTTP→HTTPS 리디렉션과 HSTS·CSP·`X-Frame-Options` 등은 정적 호스팅(CloudFront 응답 헤더 정책)이 붙이며, 값은 [AWS 배포 체크리스트](../deploy/CHECKLIST.md)의 "FE"에 있습니다. CSP는 `script-src 'self'`(eval 불허)로 둘 수 있게, `src/lib/zodConfig.ts`가 `main.tsx`의 첫 import로 zod의 eval 시험(`new Function`)을 끕니다(검증 동작·메시지는 같음). 스키마보다 먼저 실행되어야 하므로 이 import 순서를 바꾸지 않습니다.
-- SPA라서 `/dashboard` 같은 경로를 새로고침하면 정적 호스팅이 `index.html` 을 돌려줘야 합니다. 이때 `/api/*` 의 404·403 응답까지 `index.html` 로 바꾸지 않게 합니다 (CloudFront 사용자 정의 오류 응답은 배포 전체에 적용되므로, 기본(S3) 동작에만 CloudFront Function 등으로 처리). 함수는 시험을 거친 [../deploy/cloudfront/spa-fallback.js](../deploy/cloudfront/spa-fallback.js)를 그대로 씁니다(설명·로컬 시험은 같은 폴더의 `spa-fallback.test.cjs`, 연결 순서는 [../deploy/README.md](../deploy/README.md) ⑧). AWS 문서의 SPA 예시 함수(`/dashboard` → `/dashboard/index.html`)는 이 앱에서 S3 403이 됩니다.
+- **보안 헤더:** HTTP→HTTPS 리디렉션과 HSTS·CSP·`X-Frame-Options` 등은 정적 호스팅(nginx, [../deploy/nginx/vc/security-headers.conf](../deploy/nginx/vc/security-headers.conf))이 붙이며, 값은 [배포 체크리스트](../deploy/CHECKLIST.md)의 "FE"에 있습니다. CSP는 `script-src 'self'`(eval 불허)로 둘 수 있게, `src/lib/zodConfig.ts`가 `main.tsx`의 첫 import로 zod의 eval 시험(`new Function`)을 끕니다(검증 동작·메시지는 같음). 스키마보다 먼저 실행되어야 하므로 이 import 순서를 바꾸지 않습니다.
+- SPA라서 `/dashboard` 같은 경로를 새로고침하면 정적 호스팅이 `index.html` 을 돌려줘야 합니다. 이때 `/api/*` 의 404·403 응답까지 `index.html` 로 바꾸지 않게 합니다(오류 페이지를 서버 전체에 거는 방식은 BE의 JSON 오류까지 바꿈). 운영 nginx([../deploy/nginx/vc/app.conf](../deploy/nginx/vc/app.conf))는 `/api/`를 BE로 넘기고, 마지막 경로 조각에 점이 없는 경로(`/dashboard`, `/auth/<제공자>/callback`, `/share/<token>`)만 `index.html`(200)로, 점이 있는데 없는 파일은 404로 답합니다. `/dashboard` → `/dashboard/index.html`처럼 바꾸는 방식은 이 앱에서 404가 됩니다.
 
 ## 구현된 화면과 BE 엔드포인트 매핑
 
@@ -117,10 +117,10 @@ API 계약은 `BE/openapi.yaml`(v0.8.0)을 기준으로 합니다.
 | --- | --- | --- | --- |
 | 로그인 | 비밀번호 오류 / 미가입 이메일 | 401 (BE가 둘을 구분하지 않음) | 빨간 알림 + 비밀번호 칸 비우고 포커스 + "이 이메일로 회원가입"(이메일 자동 입력) |
 | 로그인 | 성공 | 200 | 대시보드 "○○ 님, 환영합니다" 배너 |
-| 로그인 | 같은 이메일로 너무 많이 틀림 (또는 운영 WAF의 IP별 속도 제한) | 429 | "로그인 시도가 너무 많습니다." + "보안을 위해 잠시 동안 로그인이 제한되었습니다. 잠시 후 다시 시도해주세요." (노란 알림. 응답 본문과 관계없이 같은 문구) |
+| 로그인 | 같은 이메일로 너무 많이 틀림 (또는 운영 nginx의 IP별 요청 제한) | 429 | "로그인 시도가 너무 많습니다." + "보안을 위해 잠시 동안 로그인이 제한되었습니다. 잠시 후 다시 시도해주세요." (노란 알림. 응답 본문과 관계없이 같은 문구) |
 | 로그인 | 로그아웃(같은 브라우저의 다른 탭에서 한 로그아웃 포함) / DID 만료 후 진입 | - | "로그아웃되었습니다" / "로그인 정보가 만료되었습니다" 배너 |
 | 회원가입 | 이미 가입된 이메일 | 400 | 이메일 칸 에러 + "이 이메일로 로그인"(이메일 자동 입력) |
-| 회원가입 | 가입 요청이 너무 많음 (운영 WAF의 IP별 속도 제한) | 429 | "회원가입 시도가 너무 많습니다." + "보안을 위해 잠시 동안 요청이 제한되었습니다. 잠시 후 다시 시도해주세요." (노란 알림. 응답 본문과 관계없이 같은 문구) |
+| 회원가입 | 가입 요청이 너무 많음 (운영 nginx의 IP별 요청 제한) | 429 | "회원가입 시도가 너무 많습니다." + "보안을 위해 잠시 동안 요청이 제한되었습니다. 잠시 후 다시 시도해주세요." (노란 알림. 응답 본문과 관계없이 같은 문구) |
 | 회원가입 | 8자 미만 / 72바이트 초과 / 확인 불일치 | (FE 사전 검증, 서버는 422) | 각 입력칸 아래 메시지 |
 | 회원가입 | 성공 | 200 | 바로 로그인 → 대시보드 "회원가입이 완료되었습니다" 배너 |
 | 대시보드·포트폴리오 | 저장된 DID가 서버에 없음 (404를 주는 이전 BE. 지금 BE는 계정이 없어진 토큰을 401로 거절하므로 아래 행처럼 자동 로그아웃) | 404 | "계정 정보를 서버에서 찾을 수 없습니다" + 다시 로그인 |
@@ -129,7 +129,7 @@ API 계약은 `BE/openapi.yaml`(v0.8.0)을 기준으로 합니다.
 | 대시보드 | 자격증명 0개 | 200 | 빈 상태 + "첫 자격증명 발급받기" |
 | 발급 | 허용되지 않은 템플릿 / 사용자별 24시간 발급 한도 초과 / 서버 전체 24시간 발급 한도 도달 (또는 실패한 것 없이 한도만큼의 발급 요청이 한꺼번에 진행 중) / 모의 발급 꺼짐 | 403 / 429 `Mock issuance limit reached; …` / 429 `Mock issuance service limit reached; …` / 404 | "배지 발급에 실패했습니다" + "허용되지 않은 배지 템플릿입니다" / "모의 발급 한도(24시간)를 넘었습니다…" / "전체 모의 발급 한도(24시간)에 도달했습니다. 잠시 후 다시 시도하거나 관리자에게 문의해주세요." / "이 서버에서는 모의 발급을 사용할 수 없습니다" |
 | 발급 | 발급 서버(협력사) 오류가 이어져 BE가 모의 발급을 잠시 멈춤 (BE가 1분에 한 건씩 보내 보고, 성공하면 바로 풀림) | 429 `Mock issuance is paused after repeated failures. …` + `Retry-After` | "배지 발급에 실패했습니다" + "발급 서버 오류가 이어져 모의 발급을 잠시 멈췄습니다. 1분쯤 뒤에 다시 시도해주세요." (`Retry-After`의 초는 화면에 보여 주지 않음) |
-| 발급 | 발급 요청이 너무 많음 (운영 WAF의 IP별 속도 제한, BE의 한도 문구가 없는 429) | 429 | "배지 발급에 실패했습니다" + "시도가 너무 많습니다. 잠시 후 다시 시도해주세요." ("잠시 후 다시 시도" 안내는 덧붙이지 않음) |
+| 발급 | 발급 요청이 너무 많음 (운영 nginx의 IP별 요청 제한 `Too many attempts. Try again later.`, 또는 BE의 한도 문구가 없는 429) | 429 | "배지 발급에 실패했습니다" + "시도가 너무 많습니다. 잠시 후 다시 시도해주세요." ("잠시 후 다시 시도" 안내는 덧붙이지 않음) |
 | 발급 | 템플릿 오류 / 발급 인프라 오류 · 설정 누락 | 502 / 503 | "배지 발급에 실패했습니다" + "배지 발급·검증 서비스에서 오류가 발생했습니다" / "…지금 사용할 수 없습니다" (원인은 BE 로그 `Provider error`, 개발 서버는 설정 확인 안내) |
 | 발급 | 가입되지 않은 DID / 남의 DID / 다른 사용자에 이미 등록 | 404 / 403 / 409 | "배지를 발급(저장)할 수 없습니다" + 사유 |
 | 발급 | 검증 실패 (저장 안 됨) | 200 + `success:false`, `data.record_id:null` | "배지 검증에 실패했습니다" + 처음부터 다시 발급 |
@@ -152,7 +152,7 @@ API 계약은 `BE/openapi.yaml`(v0.8.0)을 기준으로 합니다.
 | 소셜 로그인 콜백 (GitHub) | 승인 화면에서 이메일 권한(`user:email`)을 뺐거나 이메일 목록에 기본(primary) 이메일이 없음 / 기본 이메일이 인증되지 않음 (토큰 단계의 `unverified_user_email` 포함) | 400 `OAuth email is required` / 400 `OAuth email is not verified` | "이메일 제공 동의가 필요합니다." + "GitHub 계정의 이메일을 확인할 수 없습니다. 이메일 권한(user:email)을 허용했는지 확인한 뒤 다시 시도해주세요." / "GitHub 로그인을 완료할 수 없습니다." + "GitHub 계정의 기본 이메일이 인증되지 않았습니다. GitHub에서 이메일 인증을 마친 뒤 다시 시도해주세요." (`OAuth email is not verified`는 Google과 같이 뒤에 다시 시도 안내 한 줄이 붙음) |
 | 소셜 로그인 콜백 | 사용자가 제공자 화면에서 취소 / 제공자가 그 밖의 `error`로 돌려보냄 (GitHub `redirect_uri_mismatch`·`application_suspended` 등) / 다른 탭·제공자의 `state` / 제공자 쪽 응답 실패 | `?error=access_denied` / `?error=<그 밖>` / (BE 호출 없음) / 502 `Google OAuth error`·`GitHub OAuth error`·`Naver OAuth error` | "<제공자> 로그인이 취소되었습니다." / 같은 제목 + "<제공자> 인증을 완료하지 못했습니다. 다시 시도해주세요." / "<제공자> 로그인을 완료할 수 없습니다." + 사유 / "<제공자> 로그인을 완료할 수 없습니다" + "<제공자> 로그인 서비스에 일시적인 문제가 있습니다." (모든 실패 화면에 "<제공자>로 다시 시도" 버튼) |
 | 로그인·회원가입 (소셜 로그인 버튼) | BE에 그 제공자 설정 없음 / BE가 허용하지 않은 콜백 주소 / 허용하지 않은 인가 주소 | 503 `Google OAuth is not configured`·`GitHub OAuth is not configured`·`Naver OAuth is not configured`(또는 `<Label> OAuth redirect_uri is not configured`) / 400 `Invalid redirect_uri` / (BE 응답의 `authorization_url`이 그 제공자의 `https://` 호스트가 아님) | "<제공자> 로그인을 시작할 수 없습니다." + "<제공자> 로그인을 지금 사용할 수 없습니다." / "허용되지 않은 로그인 경로입니다. 관리자에게 문의해주세요." / "허용되지 않은 소셜 로그인 이동 주소입니다." (개발 서버는 `GOOGLE_*`·`GITHUB_*`·`NAVER_*` 설정 안내) |
-| 소셜 로그인 버튼 · 콜백 | 그 제공자의 토큰 교환 한도(BE 태스크마다 제공자별 분당 300번) 또는 운영 WAF의 IP별 속도 제한 | 429 | "요청이 너무 많습니다." / "로그인 시도가 너무 많습니다." + "보안을 위해 잠시 동안 요청이 제한되었습니다. 잠시 후 다시 시도해주세요." |
+| 소셜 로그인 버튼 · 콜백 | 그 제공자의 토큰 교환 한도(BE 프로세스마다 제공자별 분당 300번) 또는 운영 nginx의 IP별 요청 제한 | 429 | "요청이 너무 많습니다." / "로그인 시도가 너무 많습니다." + "보안을 위해 잠시 동안 요청이 제한되었습니다. 잠시 후 다시 시도해주세요." |
 | 전 화면 | 서버 혼잡: DB 연결 한도 / 검증 호출 한도 / AI 동시 호출 한도 | 503 `Service is busy. …` / 429 `Too many verification requests. …` / 503 `code: AI_SERVICE_BUSY` | "요청이 많아 처리가 지연되고 있습니다. …" / "검증 요청이 너무 많습니다. …" / "분석 요청이 많습니다. …" (모두 "잠시 후 다시 시도해주세요."로 끝나며 같은 안내를 덧붙이지 않음) |
 | 직무 비교 (공고 목록·비교·학습 계획) | 사용자별 한도: AI 묶음 요청(동시 2개·분당 30번) / 24시간 직무 비교·학습 계획 각 200건 / LLM 학습 계획 `CURRICULUM_LLM_DAILY_LIMIT`건(모든 계정 합계 `CURRICULUM_LLM_GLOBAL_DAILY_LIMIT`건) / 계정당 동시 LLM 계획 1건 / AI의 동시 LLM 생성 한도 | 429 `Too many analysis requests. …` / 429 `Daily career analysis limit reached. …`·`Daily curriculum limit reached. …` / 429 `Daily LLM curriculum limit reached. …`·`Daily LLM curriculum service limit reached. …` / 429 `An LLM curriculum is already being generated …` / 503 `code: LLM_BUSY` | "분석 요청이 너무 많습니다. 잠시 후 다시 시도해주세요." / "오늘 만들 수 있는 직무 비교(학습 계획) 수를 모두 썼습니다. 내일 다시 시도해주세요." / "오늘 만들 수 있는 LLM 학습 계획 수를 모두 썼습니다. 템플릿으로 만들거나 내일 다시 시도해주세요."·"오늘 서비스 전체의 LLM 학습 계획 한도에 도달했습니다. …" / "이 계정의 LLM 학습 계획을 이미 만들고 있습니다. 끝난 뒤 다시 시도해주세요." / "LLM 학습 계획 요청이 많습니다. 잠시 후 다시 시도해주세요." |
 | 학습 계획 (LLM 모드) | Gemini 연결 실패·시간 초과 / Gemini 429·5xx / LLM 설정 없음 / 배포 중 설정 변경 | 503 `code: LLM_PROVIDER_UNAVAILABLE` / 503 `code: LLM_PROVIDER_REJECTED` / 503 `code: GENERATOR_CONFIGURATION_REQUIRED` / 503 `code: GENERATOR_CONFIGURATION_CHANGED` | "LLM 서비스에 연결하지 못했습니다. 템플릿 모드를 쓰거나 잠시 후 다시 시도해주세요." / "LLM 서비스가 지금 요청을 받지 못했습니다. 템플릿 모드를 쓰거나 잠시 후 다시 시도해주세요." (422면 "LLM이 계획을 만들지 못했습니다. 템플릿 모드를 사용해주세요.") / "지금은 LLM 모드를 사용할 수 없습니다. 템플릿 모드를 사용해주세요." / "LLM 설정이 바뀌는 중입니다. 잠시 후 다시 시도해주세요." |
@@ -165,7 +165,7 @@ API 계약은 `BE/openapi.yaml`(v0.8.0)을 기준으로 합니다.
 > 서버 주소(`localhost:3000`)·서버 설정 이름(`DXWORKS_*`, `AI_SERVICE_*`, `GOOGLE_*`, `GITHUB_*`, `NAVER_*`, `ai_contract`)·"BE 서버 로그 확인" 같은 운영자용 안내는
 > 개발 서버(`npm run dev`)에서만 보입니다(`import.meta.env.DEV` 분기). 운영 빌드(`npm run build`)에서는 번들에서 빠지고
 > "잠시 후 다시 시도해주세요. 문제가 계속되면 관리자에게 문의해주세요."로 바뀌며, 번역되지 않은 5xx 본문은
-> "서버에서 일시적인 오류가 발생했습니다."로 보여 줍니다. 번역표에 없는 429(운영 WAF·로드밸런서·API 게이트웨이가 보낸 HTML·
+> "서버에서 일시적인 오류가 발생했습니다."로 보여 줍니다. 번역표에 없는 429(프록시·로드밸런서·API 게이트웨이가 보낸 HTML·
 > `{"message": …}`·빈 본문 등)는 개발·운영 빌드 모두 "시도가 너무 많습니다. 잠시 후 다시 시도해주세요."로 보여 주고(`getApiErrorMessage`),
 > BE가 보낸 알려진 429 문구(모의 발급 한도 등)는 그 번역을 그대로 씁니다. 새 안내 문구는 `lib/apiClient.ts`의 `getConnectionHint()`·`RETRY_LATER_MESSAGE`와
 > `KNOWN_ERROR_MESSAGES`의 개발 전용 항목에 둡니다. CI FE 작업은 빌드 후 `dist`에 `localhost:3000`·`AI_SERVICE_TOKEN`·`AI_SERVICE_URL`·`DXWORKS_`·`GOOGLE_`·`GITHUB_`·`NAVER_`·`ai_contract`가 있으면 실패합니다.

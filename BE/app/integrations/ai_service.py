@@ -19,7 +19,7 @@ VC 서명 원본·비밀번호·키는 보내지 않는다. AI는 계산만 하�
   공고 목록을 초당 10번씩 부르면 다른 사용자의 학습자료 검색·직무 비교가 자리를 기다리다 503이 됐다.
   사용자 하나가 동시에 쥘 수 있는 자리는 CORPUS_IN_FLIGHT_PER_USER개, 묶음 요청 수는 분당 CORPUS_REQUESTS_PER_MINUTE번·
   시간당 CORPUS_REQUESTS_PER_HOUR번(토큰 버킷)이다. 넘으면 기다리지 않고 DB·AI를 부르지 않은 채 429 + Retry-After로 답한다
-  (감사 로그 vc-be.audit 한 줄. 프로세스 메모리라 태스크마다 따로 세고 재시작하면 지워진다: IP별 제한은 WAF가 맡는다).
+  (감사 로그 vc-be.audit 한 줄. 프로세스 메모리라 프로세스마다 따로 세고 재시작하면 지워진다: IP별 제한은 운영 nginx가 맡는다).
 """
 import asyncio
 import contextvars

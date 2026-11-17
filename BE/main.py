@@ -93,7 +93,7 @@ def body_limit(method: str, path: str) -> int:
 MAX_VALIDATION_ERRORS = 20
 MAX_VALIDATION_LOC_CHARS = 64
 
-# 접근 로그(uvicorn.access → stdout → CloudWatch)에 남기지 않는 경로 조각.
+# 접근 로그(uvicorn.access → stdout → 운영 서버의 docker compose logs)에 남기지 않는 경로 조각.
 # 공유 링크 토큰은 가진 사람 누구나 링크를 여는 비밀이라(DB에도 해시만 둔다) 그 뒤 경로를 모두 가리고, DID는 그 조각만 가린다.
 # OAuth 콜백(Google·GitHub·Naver)의 쿼리(인가 코드·state·code_verifier)는 통째로 가린다: BE의 GET 콜백(개발용)뿐 아니라
 # BE로 잘못 들어온 FE 콜백 주소(/auth/<제공자>/callback?code=…)도 같은 모양이다.
@@ -197,8 +197,8 @@ class SecurityHeadersMiddleware:
 
     - Cache-Control: no-store: 공유 링크 조회(이름·DID·서명 원본), 로그인 토큰, 개인정보 응답을 브라우저 디스크 캐시·
       프록시·CDN에 남기지 않고, 철회·만료한 공유 링크가 캐시에서 다시 보이지 않게 한다.
-    - API를 FE와 다른 도메인(ALB 직접)으로 서비스해도 같은 보호를 받도록 BE가 직접 붙인다.
-      FE(S3+CloudFront) 쪽 헤더는 deploy/CHECKLIST.md "FE"의 CloudFront 응답 헤더 정책으로 붙인다.
+    - API를 FE와 다른 도메인으로 서비스해도 같은 보호를 받도록 BE가 직접 붙인다.
+      FE 정적 파일 쪽 헤더는 운영 nginx가 붙인다 (deploy/nginx/vc/security-headers.conf, deploy/CHECKLIST.md "FE").
     - CSP는 frame-ancestors만 둔다: /docs(Swagger UI, development에서만 제공)가 CDN 스크립트·인라인 스크립트를 쓰므로
       불러오기 제한은 넣지 않는다.
     - HSTS는 APP_ENV=production에서만 보낸다. 브라우저는 HTTPS 응답의 HSTS만 따르는데, 개발 중 https://localhost 로 띄운
@@ -258,7 +258,7 @@ class RouteBodyLimitMiddleware:
         if path.endswith("\n"):
             # 라우터의 경로 식은 `$`로 끝나 끝의 줄바꿈 하나를 무시한다 ('/api/v1/users/login\n'도 로그인 라우트에 닿는다).
             # 그런 경로는 위의 경로별 상한 목록(글자 그대로 비교)과 맞지 않아 기본 상한을 받으므로, 라우터에 넘기지 않고 없는
-            # 경로로 답한다 (경로별 상한·WAF의 경로 규칙과 어긋나지 않게). 다른 제어 문자가 든 경로는 지금처럼 라우터가 정한다.
+            # 경로로 답한다 (경로별 상한·운영 nginx IP별 제한의 경로 규칙과 어긋나지 않게). 다른 제어 문자가 든 경로는 지금처럼 라우터가 정한다.
             await JSONResponse(status_code=404, content={"detail": "Not Found"})(scope, receive, send)
             return
         await self.limited[body_limit(scope.get("method", ""), path)](scope, receive, send)
@@ -266,7 +266,7 @@ class RouteBodyLimitMiddleware:
 
 # 설정 검사(app.core.config.get_settings)는 uvicorn이 이 모듈을 불러올 때 한 번 한다 (아래 문서 경로·CORS 설정이 쓴다).
 # 설정 오류(RuntimeError: 운영 설정 검사·범위 검사·HOLDER_KEY_ENCRYPTION_KEY 형식. 메시지에는 변수 이름만 있고 값은 없다)는
-# 수십 줄 traceback(CloudWatch 이벤트 수십 개) 대신 그 메시지 한 줄만 stderr에 남기고 종료 코드 1로 끝낸다
+# 수십 줄 traceback(로그 수십 줄) 대신 그 메시지 한 줄만 stderr에 남기고 종료 코드 1로 끝낸다
 # (uvicorn은 import 중의 SystemExit를 그대로 둔다). 위의 LOG_LEVEL 오류도 같다.
 try:
     get_settings()
@@ -280,7 +280,7 @@ except UnicodeError:
     sys.exit(1)
 
 # - redirect_slashes=False: 끝에 /가 붙은 경로를 307로 돌려보내지 않는다. 그 Location은 요청의 Host 헤더로 만들어져
-#   CloudFront 뒤에서는 ALB 주소가 http://로 드러난다. FE는 끝에 /가 붙은 경로를 부르지 않으며, 그런 경로는 이제 404다.
+#   프록시 뒤에서는 내부 주소가 http://로 드러날 수 있다. FE는 끝에 /가 붙은 경로를 부르지 않으며, 그런 경로는 이제 404다.
 # - API 문서(/docs·/redoc·/openapi.json)는 APP_ENV=production에서는 만들지 않는다 (development는 그대로).
 _DOCS_OFF = {"docs_url": None, "redoc_url": None, "openapi_url": None} if get_settings().app_env == "production" else {}
 app = FastAPI(title="VC AI Career Agent BE", redirect_slashes=False, **_DOCS_OFF)
@@ -406,8 +406,8 @@ async def ai_service_error_handler(request: Request, exc: AIServiceError):
 
 
 # async: I/O가 없으므로 이벤트 루프에서 바로 답한다. 동기 함수면 워커 스레드를 하나 써야 해서, DB 자리·잠금을 기다리는
-# 요청이 스레드를 모두 잡고 있는 동안(각 최대 5초) 상태 확인(ALB·ECS, 제한 4~5초)이 함께 밀려 실패한다.
-# DB는 보지 않는다 (DB 장애로 태스크가 줄줄이 교체되지 않게). DB 설정은 운영 시작 때 한 번 확인한다 (DBStartupCheckMiddleware).
+# 요청이 스레드를 모두 잡고 있는 동안(각 최대 5초) 상태 확인(Docker HEALTHCHECK 등, 제한 4~5초)이 함께 밀려 실패한다.
+# DB는 보지 않는다 (DB 장애로 BE 컨테이너가 줄줄이 교체되지 않게). DB 설정은 운영 시작 때 한 번 확인한다 (DBStartupCheckMiddleware).
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "message": "VC AI Career Agent BE (FastAPI) is running"}
@@ -431,6 +431,6 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", 3000))
     # 코드 변경 자동 반영(reload)은 개발용이라 기본으로 끈다. UVICORN_RELOAD가 참 값일 때만 켠다.
     # uvicorn CLI(Dockerfile·compose의 `uvicorn main:app ...`)도 같은 변수를 읽어 리로더를 켜므로 같은 참 값 목록을 쓰고,
-    # 배포 환경(ECS 작업 정의 등)에는 이 변수를 넣지 않는다.
+    # 배포 환경(deploy/backend.env 등)에는 이 변수를 넣지 않는다.
     reload = os.getenv("UVICORN_RELOAD", "").strip().lower() in ("1", "true", "t", "yes", "y", "on")
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=reload)

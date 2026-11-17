@@ -1,0 +1,5 @@
+# 서버에서 만드는 비밀값·인증서 (scripts/init-secrets.sh, scripts/install-cert.sh). 커밋하지 않는다.
+.env
+backend.env
+ai.env
+secrets/

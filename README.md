@@ -18,7 +18,7 @@
 | 학습 계획(커리큘럼) | 부족한 요구사항을 학습 단계·선수 단계·검토된 학습자료·최소 학습 시간으로 바꾸고 기간·주당 시간·예산에 맞춥니다. 기본은 템플릿, 선택으로 Google Gemini API 배분 |
 | 직무별 채용 시장 통계 | 빅데이터·개인정보보호·백엔드·프런트엔드·인프라 5개 직무의 요구 역량 통계 카드 |
 | AI 포트폴리오·공유 링크 | 고른 자격증명을 다시 검증해 서버가 Markdown 포트폴리오 본문을 만들고(초안·게시), 공개할 자격증명만 골라 기한(기본 14일, 최대 90일)이 있는 공유 링크를 만들거나 철회합니다. 포트폴리오 화면의 대화창은 아직 모의 응답입니다 |
-| 입력·과부하 보호 | 경로별 요청 본문 상한, 한 줄 입력 검사(제어·방향 제어 문자 거부), 로그인 실패 제한, 사용자별 검증기·AI 요청 한도와 24시간 한도, AI 동시 처리·LLM 동시 생성 상한, 운영 WAF 규칙 |
+| 입력·과부하 보호 | 경로별 요청 본문 상한, 한 줄 입력 검사(제어·방향 제어 문자 거부), 로그인 실패 제한, 사용자별 검증기·AI 요청 한도와 24시간 한도, AI 동시 처리·LLM 동시 생성 상한, 운영 nginx의 IP별 요청 제한 |
 
 ## 기술 스택
 
@@ -27,9 +27,9 @@
 | FE | React 19.3 · TypeScript 7.0 · Vite 8.3 · Tailwind CSS 4.3 · React Router 7.18 · TanStack Query 5.105 · Zustand 5.0 · React Hook Form 7.91 + Zod 4.6 · Axios 1.21 · Motion 14.9 · Anime.js 4.5 · d3-shape 3.2 · oxlint 1.90 (Node.js 22.12 이상, `FE/package-lock.json` 기준) |
 | BE | Python 3.11 · FastAPI 0.162.0 · Starlette 1.10.0 · Uvicorn 0.54.0 · Pydantic 2.14.3 · psycopg 3.3.8 · httpx 0.28.1 · bcrypt 5.0.0 · PyJWT 2.15.1 · cryptography 50.0.2 · rfc8785 0.1.4 (`BE/requirements.txt`) |
 | AI | Python 3.11 · FastAPI 0.162.0 · Starlette 1.10.0 · Uvicorn 0.54.0 · Pydantic 2.14.3 · httpx 0.28.1 (`ai/requirements.txt`) · 규칙 기반 직무 비교·학습 계획·시장 통계 · (선택) Google Gemini API: Interactions API `v1`, 기본 모델 `gemini-3.5-flash-lite`, SDK 없이 httpx로 호출 · 대안 공급자: OpenAI 호환 API, 로컬 Qwen(GPU, torch 2.5.1 · transformers 4.51.3) |
-| DB | PostgreSQL 16: 로컬·CI는 `pgvector/pgvector:0.8.7-pg16-bookworm` 이미지(확장은 쓰지 않음), 운영은 Amazon RDS for PostgreSQL 16(TLS `verify-full`) · SQL 마이그레이션 실행기 `python -m app.migrate` |
+| DB | PostgreSQL 16: 로컬·CI는 `pgvector/pgvector:0.8.7-pg16-bookworm` 이미지(확장은 쓰지 않음), 운영은 같은 이미지의 postgres 컨테이너(TLS `verify-full`) · SQL 마이그레이션 실행기 `python -m app.migrate` |
 | VC·인증 | DXWorks BaaS(협력사 API: OB3 배지 VC 발급·검증) · 관리형 `did:key` 지갑 · JWT 로그인 토큰 · bcrypt · OAuth 2.0(Google·GitHub·네이버) |
-| 인프라 | Docker(`python:3.11.15-slim-bookworm` 기반 BE·AI 이미지) · Docker Compose(로컬 개발) · AWS: ECR, ECS Fargate(BE·AI, Service Connect), RDS, S3 + CloudFront(OAC·VPC 원본·CloudFront Function), 내부 ALB, AWS WAF, Secrets Manager, CloudWatch Logs |
+| 인프라 | Docker(`python:3.11.15-slim-bookworm` 기반 BE·AI 이미지) · Docker Compose(로컬 개발·운영) · 운영: 네이버 클라우드(NCP) Ubuntu 서버 한 대, nginx(FE 정적 파일·HTTPS·IP별 요청 제한·`/api` 프록시), Let's Encrypt(certbot) |
 | CI | GitHub Actions: `tests.yml`(BE·AI pytest 9.2.0, FE lint·빌드·`dist` 검사, research-vc 타입 검사·vitest, Docker 이미지 빌드), `main.yml`(Strix 보안 스캔) · Dependabot(액션 버전 갱신) |
 
 ## 시스템 구성
@@ -49,7 +49,7 @@ flowchart LR
 - **BE**: 회원(이메일·비밀번호, Google·GitHub·네이버 소셜 로그인)·DID 지갑, VC 발급·검증(DXWorks), 실행 시점 재검증, 포트폴리오·공유 링크, 공고·학습자료 보관, 직무 비교·커리큘럼 API, 직무별 채용 시장 통계 조회
 - **AI**: BE가 보낸 검증된 자격증명과 공고로 직무 요구사항을 비교하고 학습 계획을 계산합니다. DB와 VC 서명 키를 갖지 않습니다(LLM 모드를 켜면 Gemini API 키만 `ai/.env`에 둠). 수집한 공고 묶음으로 직무별 요구 역량 통계도 계산합니다.
 - **FE**: 지갑, 배지 발급, 직무 비교·커리큘럼, AI 포트폴리오·공유 링크 화면과 기업용 공유 링크 조회 화면
-- 포트는 로컬 개발(Docker Compose) 기준입니다. AWS 운영 구성은 CloudFront(FE는 S3) → `/api/*`는 VPC 원본·내부 ALB → BE(ECS Fargate) → AI(ECS Service Connect), DB는 RDS입니다.
+- 포트는 로컬 개발(Docker Compose) 기준입니다. 운영 구성(NCP 서버 한 대의 Docker Compose)은 nginx(80·443) → `/api/*`는 BE → AI이고, BE·AI·DB 포트는 밖으로 열지 않습니다([deploy/README.md](deploy/README.md)).
 
 ## 사용자 시나리오
 
@@ -88,7 +88,7 @@ flowchart LR
 | 폴더·문서 | 내용 |
 |---|---|
 | [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) | 서비스 실행 방법: 준비물, 환경 변수, Docker Compose 실행, 처음 사용하기, LLM 모드·시장 통계, 테스트, 문제 해결 |
-| [deploy/CHECKLIST.md](deploy/CHECKLIST.md) | AWS 배포 체크리스트(항목별 기준). 배포 순서는 [deploy/README.md](deploy/README.md), 변수 표는 [deploy/ENV_MATRIX.md](deploy/ENV_MATRIX.md) |
+| [deploy/README.md](deploy/README.md) | NCP 서버 배포(Docker Compose): 배포 순서·운영·문제 해결. 항목별 기준은 [deploy/CHECKLIST.md](deploy/CHECKLIST.md), 변수 표는 [deploy/ENV_MATRIX.md](deploy/ENV_MATRIX.md) |
 | `BE/` | VC 검증·저장·인증 백엔드, AI 연동 (직무 비교·커리큘럼 API): [BE/README.md](BE/README.md), [BE/openapi.yaml](BE/openapi.yaml) |
 | `FE/` | 사용자 웹 (지갑·발급·직무 비교·커리큘럼·포트폴리오): [FE/README.md](FE/README.md) |
 | `ai/` | **AI 서비스**: 검증된 자격증명과 검토된 채용공고의 직무 비교, 커리큘럼 생성 (BE가 호출): [ai/README.md](ai/README.md)(Gemini 설정은 6번), [ai/docs/CAREER_AI_SERVICE.md](ai/docs/CAREER_AI_SERVICE.md) |

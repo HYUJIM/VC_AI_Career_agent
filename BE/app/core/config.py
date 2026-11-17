@@ -25,7 +25,7 @@ MAX_JWT_EXPIRES_MINUTES = 1440
 DEFAULT_MOCK_ISSUER_DAILY_LIMIT = 10
 # 모의 발급의 모든 사용자를 합친 24시간 발급 한도 기본값 (MOCK_ISSUER_GLOBAL_DAILY_LIMIT을 비우면 이 값)
 DEFAULT_MOCK_ISSUER_GLOBAL_DAILY_LIMIT = 200
-# 프로세스(ECS 태스크) 하나가 동시에 여는 앱 DB 연결 수의 상한 기본값 (DB_MAX_CONNECTIONS를 비우면 이 값)
+# 프로세스(BE 컨테이너) 하나가 동시에 여는 앱 DB 연결 수의 상한 기본값 (DB_MAX_CONNECTIONS를 비우면 이 값)
 DEFAULT_DB_MAX_CONNECTIONS = 20
 # 프로세스 하나가 AI 서비스에 동시에 보내는 공고·학습자료 묶음 요청 수의 상한 기본값 (AI_MAX_CONCURRENCY를 비우면 이 값)
 DEFAULT_AI_MAX_CONCURRENCY = 4
@@ -54,10 +54,10 @@ DEV_DB_PASSWORD = "password"
 _RANDOM_NOT_PUBLISHED = "random, not a test/example value from this repository"
 _DB_PASSWORD_RULE = "DB_PASSWORD (not empty and not the local development default)"
 # production DB 연결의 TLS 규칙 (libpq 변수 PGSSLMODE·PGSSLROOTCERT를 앱이 읽어 검사한다. 넘기는 방법은 db_tls_options).
-# RDS for PostgreSQL 15 이상은 rds.force_ssl=1이 기본이라 암호화는 되지만, libpq 기본값(prefer)·require는 서버 인증서와
-# 호스트 이름을 확인하지 않는다. 그래서 production은 인증서를 확인하는 두 값만 받고, 확인에 쓰는 CA 묶음 파일(이미지 기본값
-# /app/certs/rds-global-bundle.pem, BE/certs/README.md)을 읽을 수 있어야 한다. 값은 앞뒤 공백만 떼고 libpq가 받는 글자
-# 그대로 비교한다 (대소문자를 바꾸지 않는다: libpq는 `VERIFY-FULL`을 받지 않는다).
+# 운영 postgres(deploy/postgres/pg_hba.conf의 hostssl)·RDS(rds.force_ssl=1)는 TLS를 강제해 암호화는 되지만, libpq 기본값(prefer)·
+# require는 서버 인증서와 호스트 이름을 확인하지 않는다. 그래서 production은 인증서를 확인하는 두 값만 받고, 확인에 쓰는 CA 파일
+# (운영 compose는 /run/vc-db-tls/ca.crt, 이미지 기본값은 RDS용 /app/certs/rds-global-bundle.pem, BE/certs/README.md)을 읽을 수
+# 있어야 한다. 값은 앞뒤 공백만 떼고 libpq가 받는 글자 그대로 비교한다 (대소문자를 바꾸지 않는다: libpq는 `VERIFY-FULL`을 받지 않는다).
 VERIFYING_SSLMODES = ("verify-full", "verify-ca")
 _PGSSLMODE_RULE = "PGSSLMODE (verify-full or verify-ca in production)"
 _PGSSLROOTCERT_RULE = "PGSSLROOTCERT (readable CA bundle file)"

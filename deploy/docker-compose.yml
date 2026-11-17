@@ -1,0 +1,200 @@
+# 운영 구성 (NCP 서버 한 대: Ubuntu, 2 vCPU / 4 GB / SSD 50 GB / 공인 IP 1개). 순서와 명령은 deploy/README.md.
+#
+#   인터넷 ── 80/443 ──> nginx (FE 정적 파일, /api/* → backend, HTTPS, IP별 요청 제한)
+#                          └─ edge ──> backend:3000 ── backend ──> ai:8100 (LLM은 외부 Gemini API)
+#                                         └─ db(외부로 나가는 길 없음) ──> postgres:5432 (TLS, verify-full)
+#
+# - 밖으로 여는 포트는 nginx의 80·443뿐이다. backend·ai·postgres는 포트를 열지 않는다(서버 안 Docker 네트워크에서만 닿음).
+# - 값은 이 폴더의 .env(DB 비밀번호·AI 토큰·도메인), backend.env, ai.env에서 읽는다. scripts/init-secrets.sh가 만든다.
+# - BE/docker-compose.yml은 로컬 개발 전용(소스 마운트·--reload·시드 계정)이라 서버에서 쓰지 않는다.
+
+name: vc-career
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-hardening: &hardening
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.7-pg16-bookworm
+    restart: unless-stopped
+    # TLS 키를 postgres 사용자 소유(600)로 옮긴 뒤 원래 entrypoint를 실행한다 (postgres/start.sh).
+    entrypoint: ["/bin/bash", "/opt/vc/start.sh"]
+    command: ["postgres"]
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env (scripts/init-secrets.sh)}
+      # 새 볼륨을 처음 만들 때만 postgres/initdb/10-roles.sh가 읽는다.
+      DB_NAME: ${DB_NAME:-vc_career_agent}
+      DB_OWNER_PASSWORD: ${DB_OWNER_PASSWORD:?set DB_OWNER_PASSWORD in deploy/.env}
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD:?set DB_APP_PASSWORD in deploy/.env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/start.sh:/opt/vc/start.sh:ro
+      - ./postgres/pg_hba.conf:/opt/vc/pg_hba.conf:ro
+      - ./postgres/initdb:/docker-entrypoint-initdb.d:ro
+      - ./secrets/db-tls:/opt/vc/tls-src:ro
+    networks:
+      - db
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ${DB_NAME:-vc_career_agent}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 768m
+    logging: *logging
+
+  # 스키마 마이그레이션: 한 번 실행하고 끝난다. DB 소유 계정(vc_owner)으로 접속하고 서비스 계정(vc_app)에 앱 테이블 DML만 준다.
+  # 시드(--seed)는 쓰지 않는다 (운영에서는 거부됨).
+  migrate:
+    build:
+      context: ../BE
+    image: vc-career/backend:local
+    command: ["python", "-m", "app.migrate"]
+    restart: "no"
+    environment:
+      APP_ENV: production
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:-vc_career_agent}
+      DB_USER: vc_owner
+      DB_PASSWORD: ${DB_OWNER_PASSWORD:?set DB_OWNER_PASSWORD in deploy/.env}
+      DB_APP_ROLE: vc_app
+      PGSSLMODE: verify-full
+      PGSSLROOTCERT: /run/vc-db-tls/ca.crt
+    volumes:
+      - ./secrets/db-tls/ca.crt:/run/vc-db-tls/ca.crt:ro
+    networks:
+      - db
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+    <<: *hardening
+    logging: *logging
+
+  backend:
+    build:
+      context: ../BE
+    image: vc-career/backend:local
+    restart: unless-stopped
+    env_file:
+      - path: ./backend.env
+        required: true
+    # 아래 값이 backend.env보다 우선한다 (DB·AI 연결은 이 구성에 고정).
+    environment:
+      APP_ENV: production
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:-vc_career_agent}
+      DB_USER: vc_app
+      DB_PASSWORD: ${DB_APP_PASSWORD:?set DB_APP_PASSWORD in deploy/.env}
+      PGSSLMODE: verify-full
+      PGSSLROOTCERT: /run/vc-db-tls/ca.crt
+      AI_SERVICE_URL: http://ai:8100
+      # 같은 서버 안 Docker 네트워크라 평문 HTTP를 허용한다 (밖으로 나가지 않음).
+      AI_SERVICE_ALLOW_HTTP: "true"
+      AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:?set AI_SERVICE_TOKEN in deploy/.env}
+      # backend 포트는 열지 않아 nginx(edge 네트워크)만 닿는다. nginx가 X-Forwarded-For를 실제 접속 IP로 덮어쓴다.
+      FORWARDED_ALLOW_IPS: "*"
+    volumes:
+      - ./secrets/db-tls/ca.crt:/run/vc-db-tls/ca.crt:ro
+    networks:
+      - edge
+      - backend
+      - db
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      ai:
+        condition: service_healthy
+    # LLM 학습 계획(최대 90초)처럼 처리 중인 요청을 마치고 끝나도록 기다린다.
+    stop_grace_period: 120s
+    deploy:
+      resources:
+        limits:
+          memory: 1536m
+    <<: *hardening
+    logging: *logging
+
+  ai:
+    build:
+      context: ../ai
+    image: vc-career/ai:local
+    restart: unless-stopped
+    env_file:
+      - path: ./ai.env
+        required: true
+    environment:
+      AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:?set AI_SERVICE_TOKEN in deploy/.env}
+    networks:
+      - backend
+    stop_grace_period: 120s
+    deploy:
+      resources:
+        limits:
+          memory: 1024m
+    <<: *hardening
+    logging: *logging
+
+  # FE 빌드(node) + nginx(비루트, 컨테이너 안 8080/8443). 설정은 deploy/nginx.
+  nginx:
+    build:
+      context: ../FE
+      dockerfile: ../deploy/nginx/Dockerfile
+      additional_contexts:
+        nginx-conf: ./nginx
+    image: vc-career/web:local
+    restart: unless-stopped
+    ports:
+      - "80:8080"
+      - "443:8443"
+    environment:
+      # 도메인(예: career.example.com). 비우면 IP로 HTTP만 서비스한다(인증서 발급 전 첫 배포용).
+      SERVER_NAME: ${SERVER_NAME:-_}
+    volumes:
+      # scripts/install-cert.sh가 Let's Encrypt 인증서를 여기에 복사한다. 파일이 있으면 HTTPS로 뜬다.
+      - ./secrets/tls:/etc/nginx/tls:ro
+      # certbot --webroot가 인증 파일을 쓰는 곳 (scripts/setup-server.sh가 만든다).
+      - ${ACME_WEBROOT:-/var/www/certbot}:/var/www/certbot:ro
+    networks:
+      - edge
+    depends_on:
+      backend:
+        condition: service_healthy
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+    logging: *logging
+
+networks:
+  edge: {}
+  backend: {}
+  # DB 네트워크는 바깥으로 나가는 길이 없다.
+  db:
+    internal: true
+
+volumes:
+  postgres_data:

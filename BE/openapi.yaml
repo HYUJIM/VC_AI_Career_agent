@@ -242,7 +242,7 @@ paths:
         "400":
           description: |
             이미 가입된 이메일. FE 가입 화면의 안내가 이 응답에 기대므로, 이 응답으로 가입 여부를 알 수 있다는 점은 의도된 동작이다
-            (운영에서는 WAF의 IP별 요청 수 제한으로 대량 확인을 막는다).
+            (운영에서는 nginx의 IP별 요청 수 제한으로 대량 확인을 막는다).
           content:
             application/json:
               schema:

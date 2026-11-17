@@ -1,0 +1,8 @@
+# HTTP 모드: 인증서가 아직 없을 때 (첫 배포, 공인 IP로 확인). 소셜 로그인은 이 모드에서 쓰지 않는다.
+# 40-vc-site.sh가 ${SERVER_NAME}만 바꿔 /etc/nginx/conf.d/default.conf로 쓴다.
+server {
+    listen 8080 default_server;
+    server_name _;
+
+    include /etc/nginx/vc/app.conf;
+}

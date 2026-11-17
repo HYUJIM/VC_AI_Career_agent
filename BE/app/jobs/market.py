@@ -232,7 +232,7 @@ def main(argv: list[str] | None = None) -> int:
     i = sub.add_parser("import", help="export한 통계 JSON을 DB에 넣기")
     i.add_argument("--dir", type=Path, required=True)
     args = parser.parse_args(argv)
-    load_dotenv()  # 로컬 실행용 BE/.env. 컨테이너·ECS에서는 이미 있는 환경변수가 우선한다.
+    load_dotenv()  # 로컬 실행용 BE/.env. 컨테이너에서는 이미 있는 환경변수가 우선한다.
     # 서버(main.py)와 같은 규칙: LOG_LEVEL을 따르고(비우면 INFO), 요청마다 전체 URL(출처 공고 주소·AI 서비스 호스트)을 남기는
     # httpx 로그와 접속 호스트·응답 헤더를 남기는 httpcore 로그는 LOG_LEVEL=DEBUG일 때만 낸다.
     try:

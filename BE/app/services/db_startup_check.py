@@ -1,13 +1,13 @@
 """운영(APP_ENV=production) 서버 시작 때 DB 자체 점검.
 
 /health는 DB를 보지 않는다 (main.py). 그래서 DB 주소·계정·비밀번호·TLS(PGSSLMODE·PGSSLROOTCERT)·마이그레이션·권한이 틀린
-태스크도 ECS·ALB 상태 확인을 통과하고 DB를 쓰는 요청만 모두 500이 된다 (배포 회로 차단기가 되돌리지 않는다).
+BE도 상태 확인(Docker HEALTHCHECK 등)을 통과하고 DB를 쓰는 요청만 모두 500이 된다 (배포가 실패로 드러나지 않는다).
 그래서 production에서는 요청을 받기 전(ASGI lifespan startup) 한 번, 요청과 같은 접근자(app_db_connection: 같은 계정·TLS·
 세션 시간 제한)로 CHECK_STATEMENTS(`SELECT 1`, 그리고 마이그레이션이 안 됐거나 권한이 없으면 실패하는 핵심 표 읽기)를 한다.
-- 실패하면 RETRY_INTERVAL_SECONDS 간격으로 다시 시도한다 (RDS가 막 뜨는 중이거나 마이그레이션 태스크가 막 끝난 경우).
+- 실패하면 RETRY_INTERVAL_SECONDS 간격으로 다시 시도한다 (DB가 막 뜨는 중이거나 마이그레이션이 막 끝난 경우).
   RETRY_SECONDS(약 30초) 안에 통과하지 못하면 한 줄(`DB startup check failed: <오류 종류>: <안전한 요약>`)을 남기고 시작을
-  거부한다: uvicorn은 그 줄과 "Application startup failed. Exiting."을 남기고 종료 코드 3으로 끝난다 (ECS 배포 회로 차단기가
-  되돌린다). 다시 시도할 때마다 같은 요약으로 경고 한 줄을 남긴다.
+  거부한다: uvicorn은 그 줄과 "Application startup failed. Exiting."을 남기고 종료 코드 3으로 끝난다 (운영 compose는
+  restart: unless-stopped로 다시 시작하고 docker compose ps·logs에 드러난다). 다시 시도할 때마다 같은 요약으로 경고 한 줄을 남긴다.
 - 요약은 아래 정해 둔 문구만 쓴다. libpq 오류 원문에는 DB 호스트·사용자 이름·DB 이름·인증서 경로가 들어 있으므로 싣지
   않는다 (비밀번호는 원문에도 없다). 설정 오류(RuntimeError)는 변수 이름만 담고 있어 그대로 싣는다.
 - 새 경로(/ready 등)는 만들지 않는다: 요청마다 DB 연결을 여는 인증 없는 경로는 연결 고갈 위험이 있다. /health는 그대로다.

@@ -125,7 +125,7 @@ export function getApiErrorKind(error: unknown): ApiErrorKind {
   }
 }
 
-/** 시도 횟수 초과(429) 안내. 번역표에 없는 429(운영 WAF·로드밸런서의 HTML·{"message": ...} 본문 등)에도 쓴다. */
+/** 시도 횟수 초과(429) 안내. 번역표에 없는 429(BE가 아닌 프록시·로드밸런서의 HTML·{"message": ...} 본문 등)에도 쓴다. */
 const TOO_MANY_ATTEMPTS_MESSAGE = '시도가 너무 많습니다. 잠시 후 다시 시도해주세요.';
 
 /**
@@ -469,7 +469,7 @@ export function getApiErrorMessage(error: unknown): string {
     const axiosError = error as AxiosError<ApiErrorBody>;
     const body = axiosError.response?.data;
     const detail = body?.detail;
-    // 번역표에 없는 429(본문 없음·HTML·{"message": ...} 등 BE가 아닌 WAF·로드밸런서의 거절)도 같은 한국어 안내로 보여 준다.
+    // 번역표에 없는 429(본문 없음·HTML·{"message": ...} 등 BE가 아닌 프록시·로드밸런서의 거절)도 같은 한국어 안내로 보여 준다.
     if (axiosError.response?.status === 429 && !isKnownMessage(detail)) return TOO_MANY_ATTEMPTS_MESSAGE;
     if (Array.isArray(detail)) return formatValidationDetail(detail);
     // 운영 빌드: 번역하지 않은 5xx 본문(외부 서비스·서버 내부 문구일 수 있음)은 화면에 그대로 싣지 않는다.

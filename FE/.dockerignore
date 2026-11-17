@@ -1,0 +1,9 @@
+# deploy/nginx/Dockerfile의 빌드 컨텍스트에서 뺀다 (이미지 안에서 npm ci로 다시 설치하고 빌드함).
+node_modules
+dist
+# 로컬 VITE_* 값이 운영 번들에 들어가지 않게 한다.
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+.DS_Store
