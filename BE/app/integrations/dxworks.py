@@ -5,6 +5,7 @@ domain 모델만 사용한다. 접속 정보(호스트, API 키, 템플릿 ID)�
 """
 import asyncio
 import json
+import logging
 import math
 import re
 import weakref
@@ -20,11 +21,18 @@ from app.domain.credential import (
 from app.integrations.capped_body import BodyTooLarge, CappedBody, UnsupportedEncoding
 from app.integrations.ports import ProviderError
 
+logger = logging.getLogger(__name__)
+
 _PATH_ISSUE_BADGE = "/api/v1/issuer/ob3/credentials"
 _PATH_VERIFY_BADGE = "/api/v1/verifier/ob3/verify"
 _PATH_VERIFY_PRESENTATION = "/api/v1/verifier/holder-presentations/verify"
 _CONNECT_RETRIES = 1
 _RETRY_DELAY_SECONDS = 0.5
+# 협력사가 요청 속도 제한(429)으로 거절한 검증 호출은 아무것도 처리되지 않은 것이므로 잠시 뒤 다시 보낸다 (발급은 다시 보내지 않는다).
+# Retry-After(초)가 오면 그만큼, 없으면 차례로 아래 시간만큼 기다린다. 기다릴 시간이 _THROTTLE_MAX_WAIT_SECONDS보다 길면 기다리지 않고
+# 그대로 실패한다 (요청 하나가 너무 오래 붙잡히지 않게). 기다리는 동안에는 동시 호출 자리를 쥐지 않는다.
+_THROTTLE_BACKOFF_SECONDS = (2.0, 5.0)
+_THROTTLE_MAX_WAIT_SECONDS = 15.0
 # 평문 http는 같은 기기·태스크 안의 루프백 주소(로컬 테스트 서버 등)만 허용한다 (ai_service.LOOPBACK_HOSTS와 같은 목록).
 _LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
 # 프로세스(태스크) 하나가 협력사에 동시에 보내는 요청 수 상한 (배지 검증·VP 검증·발급 공통). 요청이 아무리 몰려도 이보다 많이
@@ -56,6 +64,14 @@ _DIGIT = re.compile(r"[0-9]")
 # 키는 약한 참조지만, 한 번이라도 기다린 호출이 있던 세마포어는 자기 루프를 강하게 붙잡고 있어(값이 키를 참조) 루프가 닫혀도
 # 저절로 지워지지 않는다. 그래서 새 루프의 세마포어를 만들 때 닫힌 루프의 항목을 지운다.
 _in_flight: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore]" = weakref.WeakKeyDictionary()
+
+
+def _retry_after(response) -> Optional[float]:
+    """Retry-After 헤더의 초(0~3600의 정수). 날짜 형식이거나 없거나 이상하면 None."""
+    value = response.headers.get("Retry-After", "").strip()
+    if value.isascii() and value.isdigit() and len(value) <= 4:
+        return float(value)
+    return None
 
 
 def _in_flight_slots() -> asyncio.Semaphore:
@@ -175,8 +191,8 @@ class DXWorksAdapter:
             text = pattern.sub(_REDACTED, text)
         return _LONG_RUN.sub(_redact_long_run, text)
 
-    async def _exchange(self, path: str, payload: dict, headers: dict) -> tuple[int, str, bytes]:
-        """요청 하나를 보내고 (상태 코드, 사유 문구, 본문)을 돌려준다. 본문은 MAX_RESPONSE_BYTES까지만 읽는다."""
+    async def _exchange(self, path: str, payload: dict, headers: dict) -> tuple[int, str, bytes, Optional[float]]:
+        """요청 하나를 보내고 (상태 코드, 사유 문구, 본문, Retry-After 초)를 돌려준다. 본문은 MAX_RESPONSE_BYTES까지만 읽는다."""
         # 주변 프록시 환경변수(HTTP(S)_PROXY·ALL_PROXY)·SSL_CERT_FILE을 쓰지 않고 리다이렉트도 따라가지 않는다
         # (ai_service와 같음).
         async with httpx.AsyncClient(base_url=self.host, timeout=self.timeout, transport=self.transport,
@@ -209,10 +225,13 @@ class DXWorksAdapter:
                     raise too_large from None
                 except zlib.error:
                     content = b""  # 풀 수 없는 압축 본문: JSON이 아닌 응답으로 처리된다 (_post)
-                return status, response.reason_phrase, content
+                return status, response.reason_phrase, content, _retry_after(response)
 
-    async def _post(self, path: str, payload: dict, *, auth: bool) -> tuple[dict, int]:
-        """(응답 본문, HTTP 상태 코드)를 돌려준다. 2xx가 아니거나 본문을 결과로 쓸 수 없으면 ProviderError."""
+    async def _post(self, path: str, payload: dict, *, auth: bool, retry_throttled: bool = False) -> tuple[dict, int]:
+        """(응답 본문, HTTP 상태 코드)를 돌려준다. 2xx가 아니거나 본문을 결과로 쓸 수 없으면 ProviderError.
+
+        retry_throttled=True(검증 호출)면 429를 받았을 때 잠시 기다렸다가 _THROTTLE_BACKOFF_SECONDS 횟수만큼 다시 보낸다.
+        """
         if not self.host:
             raise ProviderError("DXWORKS_API_HOST가 설정되지 않았습니다", unavailable=True)
         if not _is_secure_host(self.host):
@@ -237,47 +256,57 @@ class DXWorksAdapter:
         # 교환(연결·전송·본문 수신. 연결 재시도까지 포함) 전체에 쓰는 시간 상한. httpx의 timeout은 읽기 한 번마다 따로
         # 재므로, 협력사가 본문을 조금씩 흘려보내면 끝없이 늘어난다.
         # 호출 한 번은 최악의 경우 동시 호출 자리 대기(timeout × 2 이하) + 교환(timeout × 2 이하)만큼 걸린다.
-        deadline = self.timeout * 2
-        slots = _in_flight_slots()
-        if slots.locked():
-            try:
-                await asyncio.wait_for(slots.acquire(), timeout=deadline)
-            except asyncio.TimeoutError:
-                # 아직 아무것도 보내지 않았다. 동시 호출 상한이 계속 차 있으면 협력사가 느린 것이므로 장애처럼 답한다.
-                raise ProviderError("DXWorks 호출 대기 시간 초과 (동시 호출 상한)") from None
-        else:
-            await slots.acquire()  # 자리가 있으면 기다리지 않고 바로 잡는다
-        try:
-            loop = asyncio.get_running_loop()
-            ends_at = loop.time() + deadline  # 두 번의 연결 시도가 이 상한 하나를 함께 쓴다
-            for attempt in range(1 + _CONNECT_RETRIES):
+        throttled_retries = 0
+        while True:
+            deadline = self.timeout * 2
+            slots = _in_flight_slots()
+            if slots.locked():
                 try:
-                    status, reason, content = await asyncio.wait_for(self._exchange(path, payload, headers),
-                                                                     timeout=ends_at - loop.time())
-                    break
-                except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
-                    # 연결 자체가 안 된 경우만 재시도한다. 요청이 서버에 닿지 않았으므로 발급 요청도 중복되지 않는다.
-                    # 남은 시간에 시도 한 번(timeout)이 온전히 들어갈 때만 다시 한다: 느리게 실패한 연결(연결 시간 초과)은
-                    # 이미 timeout만큼 썼으므로 다시 하지 않고, 바로 실패한 연결(거절·DNS)은 지금처럼 한 번 다시 한다.
-                    if attempt < _CONNECT_RETRIES and ends_at - loop.time() >= _RETRY_DELAY_SECONDS + self.timeout:
-                        await asyncio.sleep(_RETRY_DELAY_SECONDS)
-                        continue
-                    raise ProviderError(f"DXWorks 연결 실패: {type(exc).__name__}") from exc
-                except httpx.HTTPError as exc:
-                    # 응답 대기 중 시간 초과 등은 서버가 이미 처리했을 수 있어 재시도하지 않는다 (결과를 모르는 실패).
-                    # 요청을 보내기 전에 난 오류(잘못된 헤더 값 등)만 결과를 아는 실패다.
-                    sent = not isinstance(exc, (httpx.LocalProtocolError, httpx.UnsupportedProtocol, httpx.PoolTimeout))
-                    raise ProviderError(f"DXWorks 연결 실패: {type(exc).__name__}", ambiguous=sent) from exc
+                    await asyncio.wait_for(slots.acquire(), timeout=deadline)
                 except asyncio.TimeoutError:
-                    # 전체 제한 시간 초과도 같은 이유로 재시도하지 않는다.
-                    raise ProviderError("DXWorks 연결 실패: 전체 제한 시간 초과", ambiguous=True) from None
-                except (OSError, OverflowError, ValueError, ExceptionGroup, httpx.InvalidURL) as exc:
-                    # httpx.HTTPError가 아닌 실패: 주소를 만들거나 연결을 시작하는 단계에서 난 오류다 (범위 밖의 포트는 anyio가
-                    # OverflowError를 ExceptionGroup으로 감싸 던진다). 아무것도 보내지 않았으므로 결과를 아는 실패이고,
-                    # 500이 아니라 다른 연결 실패처럼 502로 답한다.
-                    raise ProviderError(f"DXWorks 연결 실패: {type(exc).__name__}") from exc
-        finally:
-            slots.release()
+                    # 아직 아무것도 보내지 않았다. 동시 호출 상한이 계속 차 있으면 협력사가 느린 것이므로 장애처럼 답한다.
+                    raise ProviderError("DXWorks 호출 대기 시간 초과 (동시 호출 상한)") from None
+            else:
+                await slots.acquire()  # 자리가 있으면 기다리지 않고 바로 잡는다
+            try:
+                loop = asyncio.get_running_loop()
+                ends_at = loop.time() + deadline  # 두 번의 연결 시도가 이 상한 하나를 함께 쓴다
+                for attempt in range(1 + _CONNECT_RETRIES):
+                    try:
+                        status, reason, content, retry_after = await asyncio.wait_for(
+                            self._exchange(path, payload, headers), timeout=ends_at - loop.time())
+                        break
+                    except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+                        # 연결 자체가 안 된 경우만 재시도한다. 요청이 서버에 닿지 않았으므로 발급 요청도 중복되지 않는다.
+                        # 남은 시간에 시도 한 번(timeout)이 온전히 들어갈 때만 다시 한다: 느리게 실패한 연결(연결 시간 초과)은
+                        # 이미 timeout만큼 썼으므로 다시 하지 않고, 바로 실패한 연결(거절·DNS)은 지금처럼 한 번 다시 한다.
+                        if attempt < _CONNECT_RETRIES and ends_at - loop.time() >= _RETRY_DELAY_SECONDS + self.timeout:
+                            await asyncio.sleep(_RETRY_DELAY_SECONDS)
+                            continue
+                        raise ProviderError(f"DXWorks 연결 실패: {type(exc).__name__}") from exc
+                    except httpx.HTTPError as exc:
+                        # 응답 대기 중 시간 초과 등은 서버가 이미 처리했을 수 있어 재시도하지 않는다 (결과를 모르는 실패).
+                        # 요청을 보내기 전에 난 오류(잘못된 헤더 값 등)만 결과를 아는 실패다.
+                        sent = not isinstance(exc, (httpx.LocalProtocolError, httpx.UnsupportedProtocol, httpx.PoolTimeout))
+                        raise ProviderError(f"DXWorks 연결 실패: {type(exc).__name__}", ambiguous=sent) from exc
+                    except asyncio.TimeoutError:
+                        # 전체 제한 시간 초과도 같은 이유로 재시도하지 않는다.
+                        raise ProviderError("DXWorks 연결 실패: 전체 제한 시간 초과", ambiguous=True) from None
+                    except (OSError, OverflowError, ValueError, ExceptionGroup, httpx.InvalidURL) as exc:
+                        # httpx.HTTPError가 아닌 실패: 주소를 만들거나 연결을 시작하는 단계에서 난 오류다 (범위 밖의 포트는 anyio가
+                        # OverflowError를 ExceptionGroup으로 감싸 던진다). 아무것도 보내지 않았으므로 결과를 아는 실패이고,
+                        # 500이 아니라 다른 연결 실패처럼 502로 답한다.
+                        raise ProviderError(f"DXWorks 연결 실패: {type(exc).__name__}") from exc
+            finally:
+                slots.release()
+            if status == 429 and retry_throttled and throttled_retries < len(_THROTTLE_BACKOFF_SECONDS):
+                wait = retry_after if retry_after is not None else _THROTTLE_BACKOFF_SECONDS[throttled_retries]
+                if wait <= _THROTTLE_MAX_WAIT_SECONDS:
+                    throttled_retries += 1
+                    logger.info("DXWorks rate limited (429): retrying in %.1fs (attempt %d)", wait, throttled_retries)
+                    await asyncio.sleep(wait)
+                    continue
+            break
 
         try:
             # NaN·Infinity·float 범위를 넘는 숫자는 JSON 응답으로 다시 내보낼 수 없으므로(500) 해석 단계에서 거절한다.
@@ -301,7 +330,7 @@ class DXWorksAdapter:
             raise ProviderError(exc.message, upstream_status=status, ambiguous=True) from None
 
     async def verify_badge(self, vc_jwt: str) -> ProviderBadgeResult:
-        data, status = await self._post(_PATH_VERIFY_BADGE, {"vcJwt": vc_jwt}, auth=False)
+        data, status = await self._post(_PATH_VERIFY_BADGE, {"vcJwt": vc_jwt}, auth=False, retry_throttled=True)
         valid = data.get("valid")
         if not isinstance(valid, bool):
             # 판정(valid)이 참·거짓이 아닌 2xx는 판정이 아니다(점검 안내·오류 봉투 등): JSON이 아닌 2xx처럼 형식 오류로 끝낸다.
@@ -337,7 +366,7 @@ class DXWorksAdapter:
         )
 
     async def verify_presentation(self, vp_token: str) -> PresentationResult:
-        data, _ = await self._post(_PATH_VERIFY_PRESENTATION, {"vpToken": vp_token}, auth=True)
+        data, _ = await self._post(_PATH_VERIFY_PRESENTATION, {"vpToken": vp_token}, auth=True, retry_throttled=True)
         holder_did = data.get("holderDid")
         return PresentationResult(
             verified=data.get("verified") is True,
