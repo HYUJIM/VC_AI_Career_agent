@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getCareersByDid } from '@/api/credentials';
-import { createPortfolio } from '@/api/portfolios';
+import { createPortfolio, regeneratePortfolio } from '@/api/portfolios';
 import { CareersErrorAlert } from '@/components/CareersErrorAlert';
 import { ExcludedList } from '@/components/portfolio/ExcludedList';
 import { SavedPortfolios } from '@/components/portfolio/SavedPortfolios';
@@ -17,7 +17,7 @@ import { getApiErrorMessage } from '@/lib/apiClient';
 import { markPortfolioUsed } from '@/lib/onboarding';
 import { useCopy } from '@/lib/useCopy';
 import { useAuthStore } from '@/store/authStore';
-import type { UserProfile, VerifiedCredential } from '@/types/api';
+import type { Portfolio, PortfolioMode, UserProfile, VerifiedCredential } from '@/types/api';
 
 interface ChatMessage {
   id: number;
@@ -30,7 +30,7 @@ const PAGE_SIZE = 10;
 
 type PanelTab = 'chat' | 'preview';
 
-/** 선택한 자격증명과 마지막 요청으로 만드는 포트폴리오 초안 (AI 연동 전 화면 확인용) */
+/** 저장 전 미리보기: 선택한 자격증명으로 브라우저에서 만드는 초안 (실제 본문은 서버가 다시 검증해 만든다) */
 function buildDraft(user: UserProfile, items: VerifiedCredential[], direction: string | null): string {
   const lines = [
     `# ${user.name} 포트폴리오`,
@@ -57,6 +57,37 @@ function buildDraft(user: UserProfile, items: VerifiedCredential[], direction: s
   return lines.filter((l) => l !== null).join('\n');
 }
 
+/** 서버 본문에서 AI가 쓴 요약 한 줄 (BE portfolio_writer.AI_SUMMARY_NOTE 다음 줄). 없으면 null */
+function aiSummaryOf(content: string): string | null {
+  const lines = content.split('\n');
+  const note = lines.findIndex((l) => l.startsWith('(AI 작성:'));
+  if (note < 0) return null;
+  return lines.slice(note + 1).find((l) => l.trim()) ?? null;
+}
+
+/** 대화창에 남기는 에이전트 답 (만든 방식과 빠진 자격증명) */
+function describeResult(p: Portfolio, direction: string): string {
+  const excluded = p.excluded.length > 0 ? `\n\n검증을 통과하지 못한 자격증명 ${p.excluded.length}개는 뺐어요.` : '';
+  if (p.generator === 'llm') {
+    const summary = aiSummaryOf(p.content_markdown);
+    return (
+      `Claude가 "${direction}" 방향으로 소개를 썼어요. 사실 근거는 검증된 자격증명 ${p.credential_count}개뿐이에요.` +
+      (summary ? `\n\n${summary}` : '') +
+      `\n\n미리보기 탭에서 전체 본문을 확인하세요.${excluded}`
+    );
+  }
+  if (p.generator === 'llm_fallback') {
+    return (
+      'Claude가 쓴 문장이 검증 기준(근거에 없는 숫자·링크 등)을 통과하지 못해 버리고, 검증된 자격증명만으로 본문을 만들었어요. ' +
+      `방향을 조금 바꿔 다시 보내 보세요.${excluded}`
+    );
+  }
+  return (
+    `검증된 자격증명 ${p.credential_count}개로 본문을 만들었어요. 소개 문장을 Claude로 쓰려면 아래 "Claude로 작성"에 동의해 주세요.` +
+    excluded
+  );
+}
+
 export function PortfolioBuilderPage() {
   const user = useAuthStore((state) => state.user);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -66,6 +97,10 @@ export function PortfolioBuilderPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [thinking, setThinking] = useState(false);
+  // "Claude로 작성" 동의 (체크해야 AI 모드로 보낸다)
+  const [useAi, setUseAi] = useState(false);
+  // 대화로 만들고 고쳐 쓰는 포트폴리오 (첫 메시지에 만들고, 이후 메시지는 같은 포트폴리오를 다시 쓴다)
+  const [current, setCurrent] = useState<Portfolio | null>(null);
   const [title, setTitle] = useState('');
   const [targetRole, setTargetRole] = useState('');
   // 보낼 값에 보이는 글자가 있어야 BE가 받는다 (결합 문자·이형 선택자만으로 된 값은 422)
@@ -88,14 +123,19 @@ export function PortfolioBuilderPage() {
   const pagedCredentials = credentials.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   // BE v0.6.0 VC_ONLY 포트폴리오: 자격증명 ID만 보내고, BE가 지금 다시 검증해 통과한 것으로만 본문을 만든다.
+  const mode: PortfolioMode = useAi ? 'llm' : 'template';
   const save = useMutation({
     mutationFn: () =>
       createPortfolio({
         title,
         target_role: targetRole,
         record_ids: credentials.filter((c) => selected.has(c.record_id)).map((c) => c.record_id),
+        mode,
+        allow_external_processing: useAi,
+        direction,
       }),
-    onSuccess: () => {
+    onSuccess: (res) => {
+      setCurrent(res.data);
       markPortfolioUsed(user!.did);
       queryClient.invalidateQueries({ queryKey: ['portfolios'] });
       // 재검증으로 상태가 바뀌었을 수 있으므로 지갑도 다시 불러온다.
@@ -116,7 +156,10 @@ export function PortfolioBuilderPage() {
       {
         id: 0,
         role: 'agent',
-        text: `안녕하세요 ${user.name} 님! 검증된 DID 지갑에서 자격증명을 확인했습니다. 어떤 직무나 타겟 기업을 목표로 포트폴리오를 구성할까요?`,
+        text:
+          `안녕하세요 ${user.name} 님! 왼쪽에서 포함할 자격증명을 고르고 강조하고 싶은 방향을 보내 주세요. ` +
+          '서버가 고른 자격증명을 지금 다시 검증해 통과한 것만으로 포트폴리오를 만들어요. ' +
+          '아래 "Claude로 작성"에 동의하면 요약과 관련성 문장을 Claude가 써요.',
       },
     ]);
   }, [user]);
@@ -139,30 +182,47 @@ export function PortfolioBuilderPage() {
     });
   }
 
-  function send(text: string) {
+  async function send(text: string) {
     const trimmed = text.trim();
     if (!trimmed || thinking) return;
+    const recordIds = credentials.filter((c) => selected.has(c.record_id)).map((c) => c.record_id);
     setMessages((prev) => [...prev, { id: Date.now(), role: 'user', text: trimmed }]);
     setInput('');
-    setThinking(true);
-    setDirection(trimmed);
-    markPortfolioUsed(user!.did);
-    // TODO: AI 서버 연동 시 실제 호출로 교체 (현재는 화면 확인용 모의 응답)
-    setTimeout(() => {
-      const names = credentials
-        .filter((c) => selected.has(c.record_id))
-        .map((c) => c.achievement_name)
-        .join(', ');
+    if (recordIds.length === 0) {
       setMessages((prev) => [
         ...prev,
-        {
-          id: Date.now() + 1,
-          role: 'agent',
-          text: `확인했습니다! 블록체인으로 검증된 자격증명(${names || '선택된 항목 없음'})을 근거로 "${trimmed}" 방향의 포트폴리오 초안을 구성하겠습니다. (AI 연동 전 모의 응답입니다)`,
-        },
+        { id: Date.now() + 1, role: 'agent', text: '왼쪽에서 포함할 자격증명을 먼저 골라 주세요.' },
       ]);
+      return;
+    }
+    setThinking(true);
+    setDirection(trimmed);
+    const llm = { mode, allow_external_processing: useAi, direction: trimmed };
+    try {
+      const res = current
+        ? await regeneratePortfolio(current.id, { record_ids: recordIds, ...llm })
+        : await createPortfolio({
+            title: titleOk ? title : `${user!.name} 님 포트폴리오`,
+            target_role: roleOk ? targetRole : null,
+            record_ids: recordIds,
+            ...llm,
+          });
+      setCurrent(res.data);
+      markPortfolioUsed(user!.did);
+      queryClient.invalidateQueries({ queryKey: ['portfolios'] });
+      queryClient.invalidateQueries({ queryKey: ['careers'] });
+      setMessages((prev) => [
+        ...prev,
+        { id: Date.now() + 1, role: 'agent', text: describeResult(res.data, trimmed) },
+      ]);
+    } catch (error) {
+      setMessages((prev) => [
+        ...prev,
+        { id: Date.now() + 1, role: 'agent', text: `포트폴리오를 만들지 못했어요. ${getApiErrorMessage(error)}` },
+      ]);
+    } finally {
       setThinking(false);
-    }, 900);
+    }
   }
 
   const draft = buildDraft(
@@ -345,11 +405,12 @@ export function PortfolioBuilderPage() {
                 isLoading={save.isPending}
                 onClick={() => save.mutate()}
               >
-                검증 후 포트폴리오 저장
+                {useAi ? '검증 후 Claude로 작성해 새로 저장' : '검증 후 포트폴리오 새로 저장'}
               </Button>
               <p className="shrink-0 text-[12px] leading-relaxed text-[var(--color-text-muted)]">
-                자유 텍스트 없이 고른 자격증명만 보내요(VC_ONLY). 서버가 저장 직전에 서명 원본을 다시 검증해 통과한
-                것만 본문에 넣어요.
+                자유 텍스트 본문 없이 고른 자격증명만 보내요(VC_ONLY). 서버가 저장 직전에 서명 원본을 다시 검증해 통과한
+                것만 본문에 넣어요. "Claude로 작성"에 동의하면 요약과 관련성 문장만 Claude가 쓰고, 근거(이름·발급 기관·날짜·검증
+                결과)는 서버가 써요.
               </p>
 
               {save.isError && (
@@ -363,6 +424,9 @@ export function PortfolioBuilderPage() {
                 <div className="shrink-0">
                   <Alert variant="success" title={`"${saved.title}" 포트폴리오를 저장했어요.`} onClose={() => save.reset()}>
                     검증된 자격증명 {saved.credential_count}개로 본문을 만들었어요.
+                    {saved.generator === 'llm' && ' 요약·관련성 문장은 Claude가 썼어요.'}
+                    {saved.generator === 'llm_fallback' &&
+                      ' Claude 문장이 검증 기준을 통과하지 못해 검증된 자격증명만으로 만들었어요.'}
                     {saved.sections.length > 0 && (
                       <div className="mt-2.5 flex flex-col gap-1.5">
                         <span className="font-semibold text-[#029359]">검증을 통과해 반영된 자격증명</span>
@@ -391,14 +455,16 @@ export function PortfolioBuilderPage() {
 
               <div className="flex shrink-0 items-center justify-between gap-2 pt-1">
                 <p className="text-[13px] font-medium text-[var(--color-text-sub)]">
-                  {saved ? '서버가 만든 본문' : `선택한 ${selected.size}개 자격증명으로 만든 초안 (저장 전 미리보기)`}
+                  {current
+                    ? `서버가 만든 본문${current.generator === 'llm' ? ` (Claude 문장 포함 · ${current.model ?? ''})` : ''}`
+                    : `선택한 ${selected.size}개 자격증명으로 만든 초안 (저장 전 미리보기)`}
                 </p>
-                <Button variant="secondary" size="sm" onClick={() => copy(saved?.content_markdown ?? draft)}>
+                <Button variant="secondary" size="sm" onClick={() => copy(current?.content_markdown ?? draft)}>
                   {isCopied() ? '복사됨' : '본문 복사'}
                 </Button>
               </div>
               <pre className="min-h-[300px] shrink-0 whitespace-pre-wrap break-words rounded-2xl bg-[var(--color-surface)] p-4 text-[14px] leading-relaxed text-[var(--color-text)]">
-                {saved?.content_markdown ?? draft}
+                {current?.content_markdown ?? draft}
               </pre>
             </div>
           )}
@@ -442,6 +508,31 @@ export function PortfolioBuilderPage() {
                 </button>
               ))}
             </div>
+            <label className="flex items-start gap-2 text-[12px] leading-relaxed text-[var(--color-text-sub)]">
+              <input
+                type="checkbox"
+                checked={useAi}
+                onChange={(e) => setUseAi(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-primary)]"
+              />
+              <span>
+                <b>Claude로 작성</b>: 고른 자격증명의 이름·발급 기관·발급일·설명·성취 기준과 희망 직무, 보낸 작성 방향이
+                외부 서비스 Anthropic Claude API로 전달되는 것에 동의해요. 이름·이메일·DID와 자격증명 원문은 전달되지 않아요.
+                전달된 내용은 Anthropic의 정책에 따라 처리·보관돼요.
+              </span>
+            </label>
+            {current && (
+              <p className="text-[12px] text-[var(--color-text-muted)]">
+                지금 대화는 &quot;{current.title}&quot; 포트폴리오를 고쳐 써요.{' '}
+                <button
+                  type="button"
+                  className="font-semibold text-[var(--color-primary)] underline"
+                  onClick={() => setCurrent(null)}
+                >
+                  새 포트폴리오로 시작
+                </button>
+              </p>
+            )}
             <form
               className="flex gap-2"
               onSubmit={(e) => {

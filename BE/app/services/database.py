@@ -632,6 +632,21 @@ class DatabaseService:
             )
             return cur.fetchone()
 
+    def replace_portfolio_body(self, user_id: str, portfolio_id: str, *, bio_summary: str, content_markdown: str,
+                               sections: dict, referenced_record_ids: list[str]) -> Optional[dict]:
+        """다시 쓰기: 본문·요약·근거만 바꾼다 (제목·희망 직무·상태는 그대로). 본인 행이 아니면 None."""
+        with app_db_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE portfolios SET bio_summary = %s, content_markdown = %s, sections = %s,
+                                      referenced_record_ids = %s::uuid[], updated_at = %s
+                WHERE id = %s AND user_id = %s RETURNING *
+                """,
+                (bio_summary, content_markdown, json.dumps(sections), referenced_record_ids,
+                 datetime.now(timezone.utc), portfolio_id, user_id),
+            )
+            return cur.fetchone()
+
     def delete_portfolio(self, user_id: str, portfolio_id: str) -> bool:
         with app_db_connection() as conn, conn.cursor() as cur:
             cur.execute("DELETE FROM portfolios WHERE id = %s AND user_id = %s", (portfolio_id, user_id))

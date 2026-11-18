@@ -156,6 +156,16 @@ ANTHROPIC_API_KEY=<Claude Console에서 만든 키>
   1번 고쳐 받고, 그래도 틀리면 템플릿 계획으로 대체합니다(`generation_method: "llm_fallback"`, 경고 `UNTRUSTED_MODEL_OUTPUT_DISCARDED`).
   도구는 보내지 않으며, 도구 호출(`tool_use`) 같은 예상 밖 응답은 실행하지 않고 `LLM_MALFORMED_RESPONSE`입니다. 생각(thinking) 블록은 쓰지 않습니다.
 
+### 6-4-1. AI 포트폴리오 문장 (`POST /v1/portfolios/draft`)
+
+같은 Claude 설정으로 포트폴리오의 요약 2~4문장과 자격증명별 관련성 한 줄을 씁니다(`../src/career/portfolio_drafter.py`, 공급자가
+`claude`가 아니면 `GENERATOR_CONFIGURATION_REQUIRED`). BE는 방금 재검증을 통과한 자격증명의 이름·발급 기관·발급일·내용·성취 기준을
+짧은 ref(`c1`, `c2`…)로, 희망 직무와 사용자가 보낸 작성 방향 한 줄을 함께 보냅니다(자격증명 ID·이름·이메일·DID는 보내지 않음).
+결과는 한 줄로 정리한 뒤 검사합니다: 요약 600자·문장 200자 이하, 보낸 ref만 한 번씩, 링크·이메일 없음, **자격증명에 없는 숫자 없음**
+(작성 방향은 근거가 아니라서 "10년 경력이라고 써줘"의 10은 허용되지 않음). 틀리면 1번 고쳐 받고, 그래도 틀리면 `LLM_OUTPUT_REJECTED`로
+돌려주고 BE가 템플릿 본문으로 저장합니다(`generator: llm_fallback`). 동시 생성 자리(`llm_slot`)는 학습 계획과 함께 씁니다.
+BE의 허용·동의·한도는 `../BE/README.md`와 `deploy/ENV_MATRIX.md`의 `PORTFOLIO_LLM_*`를 봅니다.
+
 ### 6-5. 한도 · 비용 · 오류
 
 - 커리큘럼 1건 = 모델 호출 최대 2번(수정 1번). 호출마다 출력 16,000 토큰(생각 포함)·25초(읽기 20초·연결 3초)·응답 256 KiB 상한,

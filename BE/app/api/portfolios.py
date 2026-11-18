@@ -8,8 +8,10 @@ from starlette.concurrency import run_in_threadpool
 from app.core.auth import Principal, require_user
 from app.core.text import StorableText, ensure_single_line, ensure_storable
 from app.integrations import get_verifier
+from app.integrations.ai_service import AIServiceClient, get_ai_service
 from app.integrations.ports import CredentialVerifier
 from app.services.database import db_service
+from app.services import portfolio_llm
 from app.services.portfolio_writer import PortfolioWriter, get_portfolio_writer, rewrite_header
 from app.services.reverify import raise_on_verifier_outage, reverify_rows
 
@@ -22,6 +24,8 @@ PORTFOLIO_LIMIT_REACHED = "Portfolio limit reached."
 # Optional[StorableText] + Field(max_length)로 쓰면 pydantic이 길이 검사를 검사기 뒤로 미뤄 422 메시지가 바뀐다.
 OptionalTitle = Optional[Annotated[str, Field(min_length=1, max_length=255), AfterValidator(ensure_storable)]]
 OptionalRole = Optional[Annotated[str, Field(max_length=100), AfterValidator(ensure_storable)]]
+# AI(LLM) 모드의 작성 방향 한 줄 (말투·강조점). 본문에 그대로 넣지 않고 AI에 선호로만 전한다.
+OptionalDirection = Optional[Annotated[str, Field(max_length=200), AfterValidator(ensure_storable)]]
 
 
 def _clean_optional(v: Optional[str]) -> Optional[str]:
@@ -39,6 +43,16 @@ class PortfolioCreateRequest(BaseModel):
     target_role: OptionalRole = None
     record_ids: list[UUID] = Field(min_length=1, max_length=50)
     source: Literal["VC_ONLY"]
+    # template: 서버 틀만으로 본문 작성. llm: 같은 틀에 AI(Claude)가 쓴 요약·관련성 문장을 표시와 함께 넣는다
+    # (허용 계정 + allow_external_processing=true 필요, app.services.portfolio_llm).
+    mode: Literal["template", "llm"] = "template"
+    allow_external_processing: bool = False
+    direction: OptionalDirection = None
+
+    @field_validator("direction")
+    @classmethod
+    def strip_direction(cls, v: Optional[str]) -> Optional[str]:
+        return ensure_single_line(_clean_optional(v))
 
     # 제목·희망 직무는 본문 Markdown 머리말 한 줄에 그대로 들어간다. 앞뒤 공백은 지금처럼 잘라 내고, 안쪽의 줄바꿈·제어
     # 문자는 422로 거절한다 (줄을 나눠 '검증된 자격증명' 섹션을 흉내 내지 못하게: VC_ONLY).
@@ -53,6 +67,22 @@ class PortfolioCreateRequest(BaseModel):
     @field_validator("target_role")
     @classmethod
     def strip_role(cls, v: Optional[str]) -> Optional[str]:
+        return ensure_single_line(_clean_optional(v))
+
+
+class PortfolioRegenerateRequest(BaseModel):
+    """다시 쓰기: 고른 자격증명을 지금 다시 검증해 본문·근거를 새로 만든다 (제목·희망 직무·상태는 그대로)."""
+    model_config = ConfigDict(extra="forbid")
+
+    record_ids: list[UUID] = Field(min_length=1, max_length=50)
+    source: Literal["VC_ONLY"]
+    mode: Literal["template", "llm"] = "template"
+    allow_external_processing: bool = False
+    direction: OptionalDirection = None
+
+    @field_validator("direction")
+    @classmethod
+    def strip_direction(cls, v: Optional[str]) -> Optional[str]:
         return ensure_single_line(_clean_optional(v))
 
 
@@ -91,11 +121,63 @@ def _detail(row: dict) -> dict:
         **_summary(row),
         "source": sections.get("source", "VC_ONLY"),
         "generator": sections.get("generator", "template"),
+        # AI(LLM) 모드: 실제로 쓴 모델과 경고(AI 문장을 버리고 템플릿으로 저장한 경우 UNTRUSTED_MODEL_OUTPUT_DISCARDED)
+        "model": sections.get("model"),
+        "warnings": sections.get("warnings", []),
         "content_markdown": row["content_markdown"],
         "sections": sections.get("evidence", []),
         "referenced_record_ids": [str(r) for r in row["referenced_record_ids"] or []],
         "excluded": sections.get("excluded", []),
     }
+
+
+async def _write_body(*, principal: Principal, req, verifier: CredentialVerifier, writer: PortfolioWriter,
+                      ai: AIServiceClient, title: str, target_role: Optional[str], route: str,
+                      before_verify=None) -> dict:
+    """고른 자격증명을 지금 다시 검증해 통과한 것만으로 본문을 만든다 (만들기·다시 쓰기 공용). 저장은 부른 쪽이 한다."""
+    ids = sorted({str(r) for r in req.record_ids})
+    rows = await run_in_threadpool(db_service.get_credential_rows, principal.user_id, ids)
+    if len(rows) != len(ids):
+        raise HTTPException(status_code=404, detail="Credential not found")
+    llm = req.mode == "llm"
+    if llm:
+        portfolio_llm.check_allowed(principal.user_id, req.allow_external_processing)
+    if before_verify is not None:
+        await before_verify()
+    if llm:
+        portfolio_llm.reserve(principal.user_id)  # 한도면 429 (검증기·AI를 부르지 않는다)
+    asked_ai = False
+    try:
+        # 생성 시점에 서명 원본을 다시 검증해 통과한 것만 근거로 쓴다.
+        outcomes = await reverify_rows(rows, verifier, caller=principal.user_id, route=route)
+        # 검증기 장애면 사용자 탓인 422 대신 502/503으로 끝내고 저장하지 않는다.
+        raise_on_verifier_outage(outcomes)
+        evidence = [o.evidence for o in outcomes if o.verified]
+        excluded = [{"record_id": o.record_id, "status": o.status, "reason": o.reason}
+                    for o in outcomes if not o.verified]
+        if not evidence:
+            raise HTTPException(status_code=422, detail="No verified credentials selected")
+        ai_part = {"generator": writer.name, "model": None, "summary": None, "highlights": {}, "warnings": []}
+        if llm:
+            asked_ai = True
+            ai_part = await portfolio_llm.write(ai, principal.user_id, evidence, target_role, req.direction)
+        user = await run_in_threadpool(db_service.get_user_by_id, principal.user_id)
+        content, bio = writer.write(holder_name=user["name"], title=title, target_role=target_role,
+                                    evidence=evidence, ai_summary=ai_part["summary"],
+                                    ai_highlights=ai_part["highlights"])
+        sections = {"source": "VC_ONLY", "generator": ai_part["generator"], "evidence": evidence,
+                    "excluded": excluded}
+        if llm:
+            sections.update(model=ai_part["model"], warnings=ai_part["warnings"])
+        return {"content": content, "bio": bio, "sections": sections,
+                "referenced": [e["record_id"] for e in evidence]}
+    except BaseException:
+        if llm and not asked_ai:
+            portfolio_llm.release_attempt(principal.user_id)  # 모델을 부르기 전에 끝났다: 하루 몫을 쓰지 않는다
+        raise
+    finally:
+        if llm:
+            portfolio_llm.leave(principal.user_id)
 
 
 @router.post("", status_code=201)
@@ -104,39 +186,50 @@ async def create_portfolio(
     principal: Principal = Depends(require_user),
     verifier: CredentialVerifier = Depends(get_verifier),
     writer: PortfolioWriter = Depends(get_portfolio_writer),
+    ai: AIServiceClient = Depends(get_ai_service),
 ):
-    ids = sorted({str(r) for r in req.record_ids})
-    rows = await run_in_threadpool(db_service.get_credential_rows, principal.user_id, ids)
-    if len(rows) != len(ids):
-        raise HTTPException(status_code=404, detail="Credential not found")
-    # 이미 상한까지 만든 사용자는 검증기(DXWorks)를 부르기 전에 돌려보낸다. 동시 요청까지 막는 검사는 저장할 때 한다.
-    if await run_in_threadpool(db_service.portfolio_limit_reached, principal.user_id):
-        raise HTTPException(status_code=409, detail=PORTFOLIO_LIMIT_REACHED)
+    async def limit_check():
+        # 이미 상한까지 만든 사용자는 검증기(DXWorks)·AI를 부르기 전에 돌려보낸다. 동시 요청까지 막는 검사는 저장할 때 한다.
+        if await run_in_threadpool(db_service.portfolio_limit_reached, principal.user_id):
+            raise HTTPException(status_code=409, detail=PORTFOLIO_LIMIT_REACHED)
 
-    # 생성 시점에 서명 원본을 다시 검증해 통과한 것만 근거로 쓴다.
-    outcomes = await reverify_rows(rows, verifier, caller=principal.user_id, route="portfolio_create")
-    # 검증기 장애면 사용자 탓인 422 대신 502/503으로 끝내고 저장하지 않는다.
-    raise_on_verifier_outage(outcomes)
-    evidence = [o.evidence for o in outcomes if o.verified]
-    excluded = [{"record_id": o.record_id, "status": o.status, "reason": o.reason}
-                for o in outcomes if not o.verified]
-    if not evidence:
-        raise HTTPException(status_code=422, detail="No verified credentials selected")
-
-    user = await run_in_threadpool(db_service.get_user_by_id, principal.user_id)
-    content, bio = writer.write(holder_name=user["name"], title=req.title, target_role=req.target_role,
-                                evidence=evidence)
+    body = await _write_body(principal=principal, req=req, verifier=verifier, writer=writer, ai=ai,
+                             title=req.title, target_role=req.target_role, route="portfolio_create",
+                             before_verify=limit_check)
     row = await run_in_threadpool(
         db_service.create_portfolio,
-        user_id=principal.user_id, title=req.title, target_role=req.target_role, bio_summary=bio,
-        content_markdown=content,
-        sections={"source": "VC_ONLY", "generator": writer.name, "evidence": evidence, "excluded": excluded},
-        referenced_record_ids=[e["record_id"] for e in evidence],
+        user_id=principal.user_id, title=req.title, target_role=req.target_role, bio_summary=body["bio"],
+        content_markdown=body["content"], sections=body["sections"], referenced_record_ids=body["referenced"],
     )
     if row is None:
         # 사용자별 상한(database.MAX_PORTFOLIOS_PER_USER)에 닿았다 (위 검사 뒤에 동시 요청이 먼저 채운 경우 포함).
         raise HTTPException(status_code=409, detail=PORTFOLIO_LIMIT_REACHED)
     return {"success": True, "message": "Portfolio created.", "data": _detail(row)}
+
+
+@router.post("/{portfolio_id}/regenerate")
+async def regenerate_portfolio(
+    portfolio_id: UUID,
+    req: PortfolioRegenerateRequest,
+    principal: Principal = Depends(require_user),
+    verifier: CredentialVerifier = Depends(get_verifier),
+    writer: PortfolioWriter = Depends(get_portfolio_writer),
+    ai: AIServiceClient = Depends(get_ai_service),
+):
+    """대화창의 "다시 써 줘": 같은 포트폴리오의 본문·근거를 새로 만든다 (제목·희망 직무·상태·공유는 그대로)."""
+    current = await run_in_threadpool(db_service.get_portfolio, principal.user_id, str(portfolio_id))
+    if not current:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+    body = await _write_body(principal=principal, req=req, verifier=verifier, writer=writer, ai=ai,
+                             title=current["title"], target_role=current["target_role"],
+                             route="portfolio_regenerate")
+    row = await run_in_threadpool(
+        db_service.replace_portfolio_body, principal.user_id, str(portfolio_id), bio_summary=body["bio"],
+        content_markdown=body["content"], sections=body["sections"], referenced_record_ids=body["referenced"],
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+    return {"success": True, "message": "Portfolio rewritten.", "data": _detail(row)}
 
 
 @router.get("")

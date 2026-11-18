@@ -5,7 +5,8 @@
 배지 문구(성취 이름·발급기관·내용·성취 기준)도 발급기관이 서명했을 뿐 우리가 쓴 글이 아니므로 같은 방식으로 한 줄로 넣는다:
 여러 줄 문구로 '## 검증된 자격증명' 같은 섹션이나 목록 항목을 본문에 끼워 넣지 못한다. 방향 제어·보이지 않는 서식 문자
 (U+202E 등)는 지운다. 한 줄 안의 Markdown 기호는 사용자 값과 같이 그대로 둔다 (FE는 본문을 글자 그대로 보여 준다).
-지금은 템플릿 작성기이고, AI 연동 시 같은 포트를 구현하는 작성기로 바꾼다.
+AI(LLM) 모드에서도 본문 틀은 이 작성기가 만든다: AI는 요약 문장과 자격증명별 관련성 한 줄만 쓰고(app.services.portfolio_llm),
+그 문장은 "AI 작성" 표시와 함께 한 줄로 들어간다. 근거(이름·발급 기관·날짜·검증 결과)는 늘 재검증 결과에서 이 틀이 쓴다.
 """
 from typing import Optional, Protocol
 
@@ -16,7 +17,8 @@ class PortfolioWriter(Protocol):
     name: str
 
     def write(self, *, holder_name: str, title: str, target_role: Optional[str],
-              evidence: list[dict]) -> tuple[str, str]:
+              evidence: list[dict], ai_summary: Optional[str] = None,
+              ai_highlights: Optional[dict[str, str]] = None) -> tuple[str, str]:
         """(content_markdown, bio_summary)"""
         ...
 
@@ -42,19 +44,37 @@ def _one_line(value: Optional[str]) -> Optional[str]:
     return " ".join(strip_invisible(text).splitlines())
 
 
+# AI가 쓴 문장 앞에 붙이는 표시 (본문을 받은 사람이 사실 근거와 AI 문장을 구별하게).
+AI_SUMMARY_NOTE = "(AI 작성: 아래 검증된 자격증명만 근거로 Claude가 쓴 소개입니다. 사실 확인은 검증 항목을 기준으로 하세요.)"
+AI_HIGHLIGHT_PREFIX = "- 관련성(AI 작성): "
+
+
+def ordered_evidence(evidence: list[dict]) -> list[dict]:
+    """본문에 싣는 순서 (최근 발급부터). AI에 보내는 ref(c1, c2, ...)도 이 순서로 붙인다."""
+    return sorted(evidence, key=lambda item: item["issued_at"] or "", reverse=True)
+
+
 class TemplatePortfolioWriter:
     name = "template"
 
     def write(self, *, holder_name: str, title: str, target_role: Optional[str],
-              evidence: list[dict]) -> tuple[str, str]:
+              evidence: list[dict], ai_summary: Optional[str] = None,
+              ai_highlights: Optional[dict[str, str]] = None) -> tuple[str, str]:
+        """본문은 늘 이 틀로 만든다. ai_summary·ai_highlights(record_id → 한 줄)를 주면 요약을 AI 문장으로 바꾸고 각
+        자격증명 아래에 AI가 쓴 관련성 한 줄을 표시와 함께 붙인다. 근거(이름·발급 기관·날짜·검증)는 그대로 이 틀이 쓴다."""
         issuers = sorted({e["issuer_name"] for e in evidence})
         summary = (f"{len(issuers)}개 기관에서 발급한 {len(evidence)}개의 검증된 자격증명을 근거로 "
                    f"역량을 증명합니다.")
         lines = [f"# {_one_line(title)}", "", f"- 이름: {_one_line(holder_name)}"]
         if target_role:
             lines.append(f"{ROLE_PREFIX}{_one_line(target_role)}")
-        lines += ["", "## 요약", "", summary, "", "## 검증된 자격증명", ""]
-        for e in sorted(evidence, key=lambda item: item["issued_at"] or "", reverse=True):
+        if ai_summary:
+            summary = _one_line(ai_summary)
+            lines += ["", "## 요약", "", AI_SUMMARY_NOTE, "", summary, "", "## 검증된 자격증명", ""]
+        else:
+            lines += ["", "## 요약", "", summary, "", "## 검증된 자격증명", ""]
+        highlights = ai_highlights or {}
+        for e in ordered_evidence(evidence):
             # 배지 문구는 발급기관이 정한 값이다: 여러 줄이어도 한 줄로 넣는다 (가짜 섹션·목록 항목을 만들지 못하게).
             lines.append(f"### {_one_line(e['achievement_name'])}")
             lines.append(f"- 발급 기관: {_one_line(e['issuer_name'])}")
@@ -65,6 +85,8 @@ class TemplatePortfolioWriter:
             if e.get("criteria"):
                 lines.append(f"- 성취 기준: {_one_line(e['criteria'])}")
             lines.append(f"- 검증: 서명·발급기관·폐기 여부 확인 완료 ({_date(e['verified_at'])} 기준)")
+            if highlights.get(e["record_id"]):
+                lines.append(f"{AI_HIGHLIGHT_PREFIX}{_one_line(highlights[e['record_id']])}")
             lines.append("")
         return "\n".join(lines).rstrip() + "\n", summary
 

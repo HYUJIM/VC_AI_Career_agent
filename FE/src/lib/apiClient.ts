@@ -221,6 +221,15 @@ const KNOWN_ERROR_MESSAGES: Record<string, string> = {
   // 같은 계정의 LLM 모드 계획은 한 번에 한 건 (BE 429 + Retry-After)
   'An LLM curriculum is already being generated for this account. Try again later.':
     '이 계정의 LLM 학습 계획을 이미 만들고 있습니다. 끝난 뒤 다시 시도해주세요.',
+  // AI(LLM) 포트폴리오 한도 (BE 429 + Retry-After, PORTFOLIO_LLM_DAILY_LIMIT / PORTFOLIO_LLM_GLOBAL_DAILY_LIMIT)
+  'Daily LLM portfolio limit reached. Use the template mode or try again later.':
+    '오늘 AI로 쓸 수 있는 포트폴리오 횟수를 모두 썼습니다. AI 없이 저장하거나 내일 다시 시도해주세요.',
+  'Daily LLM portfolio service limit reached. Use the template mode or try again later.':
+    '오늘 서비스 전체의 AI 포트폴리오 한도에 도달했습니다. AI 없이 저장하거나 내일 다시 시도해주세요.',
+  'An LLM portfolio is already being written for this account. Try again later.':
+    '이 계정의 AI 포트폴리오를 이미 쓰고 있습니다. 끝난 뒤 다시 시도해주세요.',
+  'allow_external_processing must be true to write with the LLM':
+    'AI로 쓰려면 Anthropic Claude API로 보내는 데 동의해야 합니다.',
   // 소셜 로그인 (Google·GitHub·네이버 OAuth 2.0). 400 / 409 / 502 / 503
   // 콜백 화면은 아래 이메일·연동 안내 중 일부를 제공자 이름을 넣은 문구로 바꿔 보여 준다 (pages/OAuthCallbackPage.tsx).
   'Invalid or expired OAuth state': '로그인 요청이 만료되었거나 올바르지 않습니다. 처음부터 다시 시도해주세요.',
@@ -305,9 +314,9 @@ const KNOWN_ERROR_MESSAGES: Record<string, string> = {
   'Stored analysis integrity check failed': '저장된 직무 비교 결과가 손상되었습니다. 다시 비교해주세요.',
   'Stored curriculum integrity check failed': '저장된 학습 계획이 손상되었습니다. 계획을 다시 만들어주세요.',
   // 계획 생성 실패 (422). LLM 응답을 쓸 수 없거나 계획 자료에 문제가 있다
-  LLM_PROVIDER_REJECTED: 'LLM이 계획을 만들지 못했습니다. 템플릿 모드를 사용해주세요.',
-  LLM_RESPONSE_TOO_LARGE: 'LLM이 계획을 만들지 못했습니다. 템플릿 모드를 사용해주세요.',
-  LLM_MALFORMED_RESPONSE: 'LLM이 계획을 만들지 못했습니다. 템플릿 모드를 사용해주세요.',
+  LLM_PROVIDER_REJECTED: 'LLM이 결과를 만들지 못했습니다. 템플릿(AI 없이) 모드를 사용해주세요.',
+  LLM_RESPONSE_TOO_LARGE: 'LLM이 결과를 만들지 못했습니다. 템플릿(AI 없이) 모드를 사용해주세요.',
+  LLM_MALFORMED_RESPONSE: 'LLM이 결과를 만들지 못했습니다. 템플릿(AI 없이) 모드를 사용해주세요.',
   CYCLIC_RESOURCE_PREREQUISITES:
     '학습 자료의 선수 조건이 서로 얽혀 있어 계획을 만들 수 없습니다. 관리자에게 문의해주세요.',
   UNTRUSTED_OR_UNSUPPORTED_JOB_INPUT: '학습 계획을 만들지 못했습니다. 다시 비교한 뒤 계획을 만들어주세요.',
@@ -343,8 +352,8 @@ const KNOWN_ERROR_MESSAGES: Record<string, string> = {
 const KNOWN_ERROR_CODES: Record<string, string> = {
   // BE→AI 동시 호출 한도 초과 (503 + Retry-After). 공고 조회·직무 비교·학습 계획
   AI_SERVICE_BUSY: '분석 요청이 많습니다. 잠시 후 다시 시도해주세요.',
-  // AI 서비스의 동시 LLM 생성 한도 초과 (BE 503 + Retry-After). LLM 모드 학습 계획
-  LLM_BUSY: 'LLM 학습 계획 요청이 많습니다. 잠시 후 다시 시도해주세요.',
+  // AI 서비스의 동시 LLM 생성 한도 초과 (BE 503 + Retry-After). LLM 모드 학습 계획·AI 포트폴리오
+  LLM_BUSY: 'LLM 요청이 많습니다. 잠시 후 다시 시도해주세요.',
   // LLM(Claude)에 연결하지 못했거나 응답이 늦음 (BE 503 + Retry-After)
   LLM_PROVIDER_UNAVAILABLE: 'LLM 서비스에 연결하지 못했습니다. 템플릿 모드를 쓰거나 잠시 후 다시 시도해주세요.',
   // AI 서비스에 LLM 설정이 없거나 잘못됨 (BE 503). 템플릿 모드는 그대로 쓸 수 있다

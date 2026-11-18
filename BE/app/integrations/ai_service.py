@@ -54,6 +54,7 @@ from app.ai_contract.api import (
 from app.ai_contract.career import PreviewRequest, SkillCatalog
 from app.ai_contract.curriculum import PlanningContext
 from app.ai_contract.market import MarketSnapshotOutput, MarketSnapshotRequest
+from app.ai_contract.portfolio import PortfolioDraftOutcome, PortfolioDraftRequest
 from app.core.config import get_settings
 from app.services.verifier_budget import MAX_KEYS, VerifierBudget, VerifierBudgetExceeded
 
@@ -361,6 +362,10 @@ class AIServiceClient:
 
     async def generate_curriculum(self, body: GenerationInput) -> GenerationOutcome:
         return await self._call("POST", "/v1/curricula/generate", GenerationOutcome, body, generation=True)
+
+    async def draft_portfolio(self, body: PortfolioDraftRequest) -> PortfolioDraftOutcome:
+        """재검증을 통과한 자격증명(짧은 ref)만 보내 AI(Claude)가 쓴 소개 문장을 받는다. 생성용 시간 제한을 쓴다."""
+        return await self._call("POST", "/v1/portfolios/draft", PortfolioDraftOutcome, body, generation=True)
 
 
 ai_service = AIServiceClient()
