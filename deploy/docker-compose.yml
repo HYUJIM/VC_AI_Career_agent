@@ -1,7 +1,7 @@
 # 운영 구성 (NCP 서버 한 대: Ubuntu, 2 vCPU / 4 GB / SSD 50 GB / 공인 IP 1개). 순서와 명령은 deploy/README.md.
 #
 #   인터넷 ── 80/443 ──> nginx (FE 정적 파일, /api/* → backend, HTTPS, IP별 요청 제한)
-#                          └─ edge ──> backend:3000 ── backend ──> ai:8100 (LLM은 외부 Gemini API)
+#                          └─ edge ──> backend:3000 ── backend ──> ai:8100 (LLM은 외부 Anthropic Claude API)
 #                                         └─ db(외부로 나가는 길 없음) ──> postgres:5432 (TLS, verify-full)
 #
 # - 밖으로 여는 포트는 nginx의 80·443뿐이다. backend·ai·postgres는 포트를 열지 않는다(서버 안 Docker 네트워크에서만 닿음).

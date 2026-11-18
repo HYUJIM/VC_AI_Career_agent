@@ -63,7 +63,7 @@
 | `OAUTH_TIMEOUT_SECONDS` | 선택 | 넣지 않음(10) | `config.py` `_oauth_timeout_seconds()` | 1~120 밖 → 종료 1 |
 | `RESEARCHER_USER_IDS` | 선택 | 관리자(연구자) 계정 UUID (README ⑥) | `get_settings()` | — |
 | `CURRICULUM_LLM_USER_IDS` | 선택 | `*` (예시 파일 값, 로그인한 모든 계정) 또는 계정 UUID | `get_settings()` | 비움 → 아무도 LLM 모드를 못 씀 |
-| `CURRICULUM_LLM_DAILY_LIMIT` | 선택 | 넣지 않음(20) | `get_settings()` `_env_int`, `BE/app/services/career.py` `reserve_llm_generation()` | 1 미만·정수 아님 → 종료 1 `CURRICULUM_LLM_DAILY_LIMIT must be an integer >= 1`. 허용된 계정 하나의 24시간 LLM 모드 학습 계획 수(저장된 LLM 계획은 DB로, Gemini까지 간 실패한 시도는 BE 프로세스 메모리로 셈). 넘으면 429 `Daily LLM curriculum limit reached. …` + `Retry-After` |
+| `CURRICULUM_LLM_DAILY_LIMIT` | 선택 | 넣지 않음(20) | `get_settings()` `_env_int`, `BE/app/services/career.py` `reserve_llm_generation()` | 1 미만·정수 아님 → 종료 1 `CURRICULUM_LLM_DAILY_LIMIT must be an integer >= 1`. 허용된 계정 하나의 24시간 LLM 모드 학습 계획 수(저장된 LLM 계획은 DB로, 외부 LLM(Claude)까지 간 실패한 시도는 BE 프로세스 메모리로 셈). 넘으면 429 `Daily LLM curriculum limit reached. …` + `Retry-After` |
 | `CURRICULUM_LLM_GLOBAL_DAILY_LIMIT` | 선택 | 넣지 않음(200) | `get_settings()` `_env_int`, `career.py` `_reserve_global_llm_generation()` | 1 미만·정수 아님 → 종료 1. 모든 계정을 합친 24시간 LLM 모드 학습 계획 수. 넘으면 429 `Daily LLM curriculum service limit reached. …` + `Retry-After`, 감사 로그 `event=llm_service_limit_denied` |
 | `AI_TIMEOUT_SECONDS` / `AI_GENERATION_TIMEOUT_SECONDS` | 선택 | 넣지 않음(30 / 90) | `get_settings()` `_env_float` | 1~600 밖 → 종료 1. 125초 가까이 올리면 nginx `proxy_read_timeout`(125초)에 먼저 끊김(504) |
 | `AI_MAX_CONCURRENCY` | 선택 | 넣지 않음(4) | `get_settings()` | 1 미만 → 종료 1. 사용자 한 명은 그중 2자리·분당 30번·시간당 300번까지(코드 고정, 넘으면 429 `Too many analysis requests. Try again later.`) |
@@ -85,16 +85,18 @@
 
 | 변수 | 필수 | 값 | 검사하는 코드 | 틀리면 |
 |---|---|---|---|---|
-| `CURRICULUM_LLM_ENABLED` | 선택 | `false` (Gemini를 켤 때만 `true`) | `ai/src/career/gemini_client.py`, `llm_client.py`, `local_selector.py` | `true`가 아니면 LLM 모드 요청만 503 `GENERATOR_CONFIGURATION_REQUIRED`(템플릿 계획은 됨) |
-| `GEMINI_API_KEY` | 조건부(LLM) | Google AI Studio에서 만든 키(실제 사용자에게는 유료 등급) | `gemini_client.py` `GeminiConfig.from_env()` (요청마다) | 없음·공백·줄바꿈·비ASCII → LLM 모드만 503 `GENERATOR_CONFIGURATION_REQUIRED`. 키가 틀림 → 422 `LLM_PROVIDER_REJECTED`, AI 로그 `Gemini API rejected the request: status=401 …`. 값은 로그·응답에 나오지 않음 |
-| `CURRICULUM_LLM_PROVIDER` | 넣지 않음 | 비움 → `gemini` | `llm_client.py` `generator_from_env()` | 그 밖의 값 → LLM 모드만 503. `compatible`(OpenAI 호환, `CURRICULUM_LLM_BASE_URL`·`CURRICULUM_LLM_API_KEY`·`CURRICULUM_LLM_TOKEN_PARAMETER`, 키도 이 파일)도 받음. `local-transformers`는 이미지에 GPU 패키지가 없어 쓸 수 없음 |
-| `CURRICULUM_LLM_MODEL` | 선택 | 넣지 않음 → `gemini-3.5-flash-lite` | `gemini_client.py` | 모델 ID 형식 위반 → LLM 모드만 503. 없는 모델 → 422(Gemini 404) |
-| `CURRICULUM_LLM_THINKING_LEVEL` / `GEMINI_API_VERSION` | 넣지 않음 | 모델 기본값 / `v1` | `gemini_client.py` | `minimal`·`low`·`medium`·`high` / `v1`·`v1beta` 밖 → LLM 모드만 503 |
+| `CURRICULUM_LLM_ENABLED` | 선택 | `false` (LLM을 켤 때만 `true`) | `ai/src/career/claude_client.py`, `gemini_client.py`, `llm_client.py`, `local_selector.py` | `true`가 아니면 LLM 모드 요청만 503 `GENERATOR_CONFIGURATION_REQUIRED`(템플릿 계획은 됨) |
+| `ANTHROPIC_API_KEY` | 조건부(LLM) | Claude Console(platform.claude.com) > API keys에서 만든 키 | `claude_client.py` `ClaudeConfig.from_env()` (요청마다) | 없음·공백·줄바꿈·비ASCII → LLM 모드만 503 `GENERATOR_CONFIGURATION_REQUIRED`. 키가 틀림 → 422 `LLM_PROVIDER_REJECTED`, AI 로그 `Claude API rejected the request: status=401 …`. 값은 `x-api-key` 헤더에만 쓰이고 로그·응답에 나오지 않음 |
+| `CURRICULUM_LLM_PROVIDER` | 넣지 않음 | 비움 → `claude` | `llm_client.py` `generator_from_env()` | 그 밖의 값 → LLM 모드만 503. `gemini`(Google Gemini API, 아래 `GEMINI_*` 행)와 `compatible`(OpenAI 호환, `CURRICULUM_LLM_BASE_URL`·`CURRICULUM_LLM_API_KEY`·`CURRICULUM_LLM_TOKEN_PARAMETER`, 키도 이 파일)도 받음. `local-transformers`는 이미지에 GPU 패키지가 없어 쓸 수 없음 |
+| `CURRICULUM_LLM_MODEL` | 선택 | 넣지 않음 → `claude-sonnet-5-5` (`gemini`면 `gemini-3.5-flash-lite`) | `claude_client.py`, `gemini_client.py` | 모델 ID 형식 위반(Claude는 `claude-`로 시작하지 않는 값 포함) → LLM 모드만 503. 없는 모델 → 422(404) |
+| `CURRICULUM_LLM_EFFORT` | 선택 | 넣지 않음 → `low` | `claude_client.py` | `low`·`medium`·`high`·`xhigh`·`max` 밖 → LLM 모드만 503 |
+| `GEMINI_API_KEY` | `gemini` 공급자만 | Google AI Studio에서 만든 키(실제 사용자에게는 유료 등급) | `gemini_client.py` `GeminiConfig.from_env()` (요청마다) | 없음·공백·줄바꿈·비ASCII → LLM 모드만 503. 키가 틀림 → 422, AI 로그 `Gemini API rejected the request: status=401 …` |
+| `CURRICULUM_LLM_THINKING_LEVEL` / `GEMINI_API_VERSION` | 넣지 않음(`gemini` 공급자만) | 모델 기본값 / `v1` | `gemini_client.py` | `minimal`·`low`·`medium`·`high` / `v1`·`v1beta` 밖 → LLM 모드만 503 |
 | `CURRICULUM_LLM_MAX_CONCURRENCY` | 선택 | 넣지 않음(2) | `llm_client.py` `llm_max_concurrency()`, `app.py` `create_app()` | 1~32의 ASCII 숫자가 아님 → 시작(import) 때 종료 1 `CURRICULUM_LLM_MAX_CONCURRENCY must be an integer from 1 to 32`(한 줄). 넘치는 생성은 10초 뒤 BE 503 `LLM_BUSY` |
 | `AI_MAX_BODY_BYTES` | 선택 | 넣지 않음(32 MiB) | `app.py` `max_body_bytes()`, `ServiceGuard.body_limit()` | 양의 정수가 아님 → 시작(import) 때 종료 1 `AI_MAX_BODY_BYTES must be a positive integer (bytes)`(한 줄). 공고·학습자료 묶음을 싣는 경로(`app.py` `CORPUS_ROUTES`)에만 이 값을 쓰고, 그 밖의 경로(공고 하나·자료 하나·미리보기)는 min(4 MiB, 이 값). 묶음이 이 값을 넘으면 BE에 413 |
 | `CURRICULUM_LOCAL_ALLOW_DOWNLOAD` | 넣지 않음 | (false) | `local_selector.py` | — |
 | `CAREER_AI_SKIP_DOTENV` | 불필요 | — | `app.py` (이미지에 `.env` 없음, `ai/.dockerignore`가 `**/.env`·`**/.env.*` 제외) | — |
-| LLM 나가는 길 | 조건부(LLM) | `generativelanguage.googleapis.com:443` | `gemini_client.py` (프록시 환경변수·리디렉션 안 씀) | NCP ACG 아웃바운드에서 막힘 → 25초 뒤 503 `LLM_PROVIDER_UNAVAILABLE` |
+| LLM 나가는 길 | 조건부(LLM) | `api.anthropic.com:443` (`gemini`면 `generativelanguage.googleapis.com:443`) | `claude_client.py`, `gemini_client.py` (프록시 환경변수·리디렉션 안 씀) | NCP ACG 아웃바운드에서 막힘 → 25초 뒤 503 `LLM_PROVIDER_UNAVAILABLE` |
 
 ---
 
@@ -150,7 +152,7 @@
 | 항목 | 값 | 틀리면 |
 |---|---|---|
 | NCP ACG 인바운드 | TCP 22 ← 운영자 공인 IP만, TCP 80·443 ← `0.0.0.0/0` | 80이 막힘 → `issue-cert.sh`의 확인과 Let's Encrypt 인증·갱신 실패. 443이 막힘 → 사이트가 열리지 않음 |
-| NCP ACG 아웃바운드 | 전체 허용, 또는 최소 TCP 80·443과 UDP 53·123 | 빌드 실패(Docker Hub·PyPI·npm), DXWorks 502 `ConnectTimeout`, 소셜 로그인 502, Gemini 503 `LLM_PROVIDER_UNAVAILABLE`, 인증서 발급 실패 |
+| NCP ACG 아웃바운드 | 전체 허용, 또는 최소 TCP 80·443과 UDP 53·123 | 빌드 실패(Docker Hub·PyPI·npm), DXWorks 502 `ConnectTimeout`, 소셜 로그인 502, LLM 모드(Claude API) 503 `LLM_PROVIDER_UNAVAILABLE`, 인증서 발급 실패 |
 | ufw (`setup-server.sh`) | 22·80·443 허용 | Docker가 연 포트(80·443)는 ufw와 별개로 열림. compose에 `ports:`를 더하지 않음 |
 | DNS | `<도메인>` A 레코드 → 서버 공인 IP (`dig +short <도메인>`) | `issue-cert.sh`가 `http://<도메인> does not reach this server's nginx yet.`로 멈춤 |
 | certbot | `certbot certonly --webroot -w /var/www/certbot -d <도메인> --deploy-hook deploy/scripts/install-cert.sh` (`issue-cert.sh`가 실행), 갱신은 certbot systemd 타이머 | `install-cert.sh`가 `deploy/secrets/tls/`(`fullchain.pem` 644, `privkey.pem` 600, uid 101)로 복사하고 nginx를 다시 시작. 서버가 자기 공인 IP로 돌아오지 못하면 확인만 실패 → `SKIP_PROBE=1` |

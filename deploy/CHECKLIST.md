@@ -187,9 +187,9 @@ DB로 세는 한도(모의 발급의 사용자별·전체 24시간 한도, 포�
   `LOG_LEVEL must be one of: …` 한 줄과 종료 코드 1로 끝남). `DEBUG`면 외부 호출마다 전체 URL(비공개 DXWorks 호스트 포함)을 남기는 httpx 로그와 접속
   호스트·응답 헤더를 남기는 httpcore 로그가 다시 나옵니다. `WARNING` 이상으로 올리면 아래 "상태 확인·로그"의 감사 로그(`vc-be.audit`, INFO)가 남지
   않습니다.
-- [ ] AI 서비스는 `AI_SERVICE_TOKEN`(`deploy/.env`)만 필수입니다. LLM 모드(기본 공급자 Google Gemini API)는 `deploy/ai.env`의
-  `CURRICULUM_LLM_ENABLED=true`·`GEMINI_API_KEY`이고(그 밖의 `CURRICULUM_LLM_*`는 [ai/README.md](../ai/README.md) 6번), 바꾼 뒤
-  `docker compose up -d ai`입니다. 실제 사용자에게 열 때는 유료 등급 키를 씁니다(무료 등급은 Google이 입력·출력을 제품 개선에 쓸 수 있음). BE의
+- [ ] AI 서비스는 `AI_SERVICE_TOKEN`(`deploy/.env`)만 필수입니다. LLM 모드(기본 공급자 Anthropic Claude API)는 `deploy/ai.env`의
+  `CURRICULUM_LLM_ENABLED=true`·`ANTHROPIC_API_KEY`이고(그 밖의 `CURRICULUM_LLM_*`는 [ai/README.md](../ai/README.md) 6번), 바꾼 뒤
+  `docker compose up -d ai`입니다. 서버에서 `api.anthropic.com:443`으로 나갈 수 있어야 합니다. 실제 사용자에게 열기 전에 조직의 API 키를 쓰고 Anthropic의 상용 약관·데이터 정책을 검토합니다. BE의
   `CURRICULUM_LLM_DAILY_LIMIT`(선택, 기본 20, 1 이상)은 허용된 계정 하나가 24시간에 만드는 LLM 모드 학습 계획 수입니다(저장된 LLM 계획은 DB로 세고, 외부
   LLM까지 간 실패한 시도는 BE 프로세스 메모리로 셈. 넘으면 429 + `Retry-After`). `CURRICULUM_LLM_GLOBAL_DAILY_LIMIT`(기본 200)은 모든 계정을 합친 값입니다.
   AI의 `CURRICULUM_LLM_MAX_CONCURRENCY`(기본 2)는 AI 프로세스의 동시 LLM 생성 수입니다.
@@ -293,7 +293,7 @@ DB로 세는 한도(모의 발급의 사용자별·전체 24시간 한도, 포�
   시도해주세요."), 발급 화면에서 "시도가 너무 많습니다. 잠시 후 다시 시도해주세요."를 보여 줍니다.
   - `vc_slow`(IP·경로마다 분당 20번 + 처음 몰아서 20번, 5분에 약 100번): `POST /api/v1/users/register`, `POST /api/v1/verify`(사용자는 배지를 받을 때마다 한
     번만 부름), `POST /api/v1/portfolios`, `POST /api/v1/career-analyses`(요청 하나가 고른·가진 자격증명 수만큼 DXWorks를 부름), `POST /api/v1/curricula`(LLM
-    모드는 외부 Gemini API), `POST /api/mock-issuer/issue`, `GET /api/v1/subjects/<did>/evidence`(FE가 쓰지 않는 API, 요청 하나가 자격증명 수만큼 DXWorks를
+    모드는 외부 Claude API), `POST /api/mock-issuer/issue`, `GET /api/v1/subjects/<did>/evidence`(FE가 쓰지 않는 API, 요청 하나가 자격증명 수만큼 DXWorks를
     부름), `POST /api/v1/users/oauth/<google|github|naver>/callback`(제공자마다, 사용자는 로그인 한 번에 한두 번만 부름), `POST /api/v1/research/*`(연구자 반입).
   - `vc_fast`(분당 60번 + 처음 몰아서 60번, 5분에 약 300번): `POST /api/v1/users/login`, `GET /api/v1/job-postings`, `GET /api/v1/learning-resources`,
     `GET /api/v1/public/shares/*`, `POST /api/v1/credentials/<id>/reverify`(지갑의 일괄 재검증은 자격증명마다 요청을 하나씩 보냄),

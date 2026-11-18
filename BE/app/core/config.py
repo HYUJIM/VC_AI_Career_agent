@@ -300,7 +300,7 @@ class Settings:
     researcher_user_ids: frozenset[str]
     # 커리큘럼 LLM 모드를 쓸 수 있는 사용자 UUID 목록 (LLM 설정 자체는 AI 서비스 .env). "*"가 있으면 로그인한 모든 계정.
     curriculum_llm_user_ids: frozenset[str]
-    # 허용된 사용자 한 명이 24시간에 만들 수 있는 LLM 모드 학습 계획 수 (1 이상, 기본 20). 외부 LLM(Gemini) 비용·한도 보호.
+    # 허용된 사용자 한 명이 24시간에 만들 수 있는 LLM 모드 학습 계획 수 (1 이상, 기본 20). 외부 LLM(Claude) 비용·한도 보호.
     curriculum_llm_daily_limit: int
     # 모든 계정을 합쳐 24시간에 만들 수 있는 LLM 모드 학습 계획 수 (1 이상, 기본 200).
     curriculum_llm_global_daily_limit: int = DEFAULT_CURRICULUM_LLM_GLOBAL_DAILY_LIMIT

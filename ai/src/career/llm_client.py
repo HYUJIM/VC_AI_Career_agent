@@ -350,13 +350,18 @@ def generator_from_env():
     """Select the curriculum generator explicitly; nothing is auto-enabled.
 
     Every provider still requires CURRICULUM_LLM_ENABLED=true.
-    CURRICULUM_LLM_PROVIDER=gemini (default, also when blank): Google Gemini API
-    (src.career.gemini_client, key in GEMINI_API_KEY).
+    CURRICULUM_LLM_PROVIDER=claude (default, also when blank): Anthropic Claude API
+    (src.career.claude_client, key in ANTHROPIC_API_KEY).
+    CURRICULUM_LLM_PROVIDER=gemini: Google Gemini API (src.career.gemini_client, key in GEMINI_API_KEY).
     CURRICULUM_LLM_PROVIDER=compatible: OpenAI-compatible HTTPS endpoint (CURRICULUM_LLM_BASE_URL).
     CURRICULUM_LLM_PROVIDER=local-transformers: the pinned research Qwen model on this
     machine's GPU (src.llm.transformers_llm); no VC data leaves the AI host.
     """
-    provider = os.getenv("CURRICULUM_LLM_PROVIDER", "").strip() or "gemini"
+    provider = os.getenv("CURRICULUM_LLM_PROVIDER", "").strip() or "claude"
+    if provider == "claude":
+        from src.career.claude_client import ClaudeConfig
+
+        return ClaudeConfig.from_env()
     if provider == "gemini":
         from src.career.gemini_client import GeminiConfig
 

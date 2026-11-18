@@ -87,6 +87,6 @@ if [ ${#created[@]} -eq 0 ]; then
   echo "Nothing to do: deploy/.env, backend.env, ai.env and $tls already exist (not changed)."
 else
   echo "Created (values not shown): ${created[*]}"
-  echo "Next: fill DXWORKS_*, GEMINI_API_KEY etc. in backend.env / ai.env, set SERVER_NAME in .env when the domain is ready."
+  echo "Next: fill DXWORKS_*, ANTHROPIC_API_KEY etc. in backend.env / ai.env, set SERVER_NAME in .env when the domain is ready."
   echo "Back up deploy/.env and deploy/backend.env outside this server: losing HOLDER_KEY_ENCRYPTION_KEY makes existing wallets unreadable."
 fi

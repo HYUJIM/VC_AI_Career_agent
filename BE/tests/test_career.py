@@ -979,7 +979,8 @@ def llm_planner(client, ai_app, researcher, register, monkeypatch):
                            headers=student["headers"])
     assert analysis.status_code == 201, analysis.text
     monkeypatch.setenv("CURRICULUM_LLM_ENABLED", "true")
-    monkeypatch.delenv("CURRICULUM_LLM_PROVIDER", raising=False)
+    # 기본 공급자는 claude지만 BE 테스트 환경에는 anthropic SDK가 없다: 공급자와 무관한 BE 한도를 가짜 Gemini로 본다.
+    monkeypatch.setenv("CURRICULUM_LLM_PROVIDER", "gemini")
     monkeypatch.setenv("GEMINI_API_KEY", "fake-" + uuid.uuid4().hex)
     monkeypatch.setenv("CURRICULUM_LLM_USER_IDS", student["id"])
     get_settings.cache_clear()

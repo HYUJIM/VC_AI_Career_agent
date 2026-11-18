@@ -29,7 +29,7 @@
   통과한 요청, 저장된 배지(폐기·만료 포함), 검증기 장애, 검증기가 답한 뒤의 우리 쪽 실패(DB가 바쁨 등)는 자리를 돌려준다.
 - 모의 발급의 시도 한도(mock_issue_attempts: 사용자별): 성공 건수만 세는 DB 한도와 달리 실패한 발급까지 센다.
 - LLM 모드 학습 계획의 시도 한도(llm_curriculum_attempts: 사용자별 24시간, 한도는 CURRICULUM_LLM_DAILY_LIMIT):
-  외부 LLM(Gemini)을 불렀을 수 있는 시도를 실패까지 센다 (저장된 LLM 계획만 세는 DB 한도와 함께 본다: services/career.py).
+  외부 LLM(Claude)을 불렀을 수 있는 시도를 실패까지 센다 (저장된 LLM 계획만 세는 DB 한도와 함께 본다: services/career.py).
   부르기 전에 자리를 잡으므로 동시에 몰아 보내도 넘지 못한다. 모델을 부르지 않고 끝난 요청은 자리를 돌려준다.
   모든 계정을 합친 같은 창(llm_curriculum_global_attempts, 한도는 CURRICULUM_LLM_GLOBAL_DAILY_LIMIT)도 함께 잡는다.
 

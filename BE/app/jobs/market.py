@@ -242,8 +242,8 @@ def main(argv: list[str] | None = None) -> int:
         # logging이 모르는 수준 이름(LOG_LEVEL=verbose 등): traceback 대신 인자 오류처럼 한 줄을 남기고 종료 코드 2로 끝낸다.
         parser.error("LOG_LEVEL은 DEBUG, INFO, WARNING, ERROR, CRITICAL 중 하나여야 합니다 (비우면 INFO)")
     if level != "DEBUG":
-        logging.getLogger("httpx").setLevel(logging.WARNING)
-        logging.getLogger("httpcore").setLevel(logging.WARNING)
+        for name in ("httpx", "httpcore", "httpx2", "httpcore2"):
+            logging.getLogger(name).setLevel(logging.WARNING)
     try:
         if args.command == "collect":
             text = args.ids + "\n" + (args.ids_file.read_text(encoding="utf-8") if args.ids_file else "")

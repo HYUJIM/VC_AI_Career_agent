@@ -27,12 +27,17 @@ from src.career.contracts.verification import (
 @pytest.fixture(autouse=True)
 def generator_settings(monkeypatch):
     monkeypatch.setenv("CURRICULUM_LLM_ENABLED", "false")
-    # 공급자를 정하지 않은 기본(gemini)으로 둔다. 개발자 셸에 있는 LLM 변수(실제 키 포함)는 지운다.
+    # 공급자를 정하지 않은 기본(claude)으로 둔다. 개발자 셸에 있는 LLM 변수(실제 키 포함)는 지운다.
     for name in (
         "CURRICULUM_LLM_PROVIDER",
         "CURRICULUM_LLM_MODEL",
+        "CURRICULUM_LLM_EFFORT",
         "CURRICULUM_LLM_THINKING_LEVEL",
         "CURRICULUM_LLM_MAX_CONCURRENCY",
+        "ANTHROPIC_API_KEY",
+        "ANTHROPIC_AUTH_TOKEN",
+        "ANTHROPIC_BASE_URL",
+        "ANTHROPIC_PROFILE",
         "GEMINI_API_KEY",
         "GEMINI_API_VERSION",
         "GOOGLE_API_KEY",
@@ -287,5 +292,20 @@ def gemini_key():
 @pytest.fixture
 def gemini_settings(monkeypatch, gemini_key):
     monkeypatch.setenv("CURRICULUM_LLM_ENABLED", "true")
+    monkeypatch.setenv("CURRICULUM_LLM_PROVIDER", "gemini")
     monkeypatch.setenv("GEMINI_API_KEY", gemini_key)
     return gemini_key
+
+
+@pytest.fixture
+def claude_key():
+    # 테스트마다 새로 만드는 가짜 키 (실제 Claude API를 부르지 않는다: 모든 테스트가 transport를 주입한다).
+    return "sk-ant-api03-fake-" + secrets.token_urlsafe(30)
+
+
+@pytest.fixture
+def claude_settings(monkeypatch, claude_key):
+    # 공급자는 기본값(claude)으로 둔다.
+    monkeypatch.setenv("CURRICULUM_LLM_ENABLED", "true")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", claude_key)
+    return claude_key

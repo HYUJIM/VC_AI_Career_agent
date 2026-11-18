@@ -43,7 +43,7 @@ from app.services.verifier_budget import LLM_GLOBAL_KEY, llm_curriculum_attempts
 
 SNAPSHOT_TTL = timedelta(minutes=5)  # 분석에 쓰는 재검증 결과의 유효 시간
 OUTCOME_STATUSES = {"verified", "invalid", "revoked", "expired", "unverifiable"}
-# AI가 다시 시도할 수 있다고 답한 생성 실패(LLM_BUSY·LLM_PROVIDER_UNAVAILABLE·Gemini 429/5xx 등)의 503에 붙이는 Retry-After
+# AI가 다시 시도할 수 있다고 답한 생성 실패(LLM_BUSY·LLM_PROVIDER_UNAVAILABLE·Claude 429/529/5xx 등)의 503에 붙이는 Retry-After
 GENERATION_RETRY_AFTER_SECONDS = 5
 # AI가 모델을 부르기 전에 끝난 생성 실패 코드: 이 요청의 LLM 시도 자리를 돌려준다 (그 밖의 실패는 모델을 불렀을 수 있어 센다).
 LLM_NOT_SENT_CODES = frozenset({"LLM_BUSY", "LLM_CONTEXT_TOO_LARGE", "GENERATOR_CONFIGURATION_REQUIRED",
@@ -113,7 +113,7 @@ async def reserve_llm_generation(user_id: str) -> None:
 async def _reserve_global_llm_generation(user_id: str, limit: int) -> None:
     """모든 계정을 합친 LLM 학습 계획 자리 하나 (CURRICULUM_LLM_GLOBAL_DAILY_LIMIT, 24시간). 모자라면 429 + Retry-After.
 
-    계정을 여러 개 만들어 사용자별 한도를 우회해도 외부 LLM(Gemini) 호출 수가 이 값을 넘지 못한다. 사용자별 한도와 같이
+    계정을 여러 개 만들어 사용자별 한도를 우회해도 외부 LLM(Claude) 호출 수가 이 값을 넘지 못한다. 사용자별 한도와 같이
     저장된 LLM 계획 수(DB)와 프로세스 메모리의 시도 창(llm_curriculum_global_attempts)을 함께 본다.
     """
     retry_after = await run_in_threadpool(career_store.global_llm_retry_after, limit)

@@ -104,8 +104,8 @@ services:
       # 디버깅용으로 이 PC에서만 연다. BE는 내부망 주소(http://ai:8100)로 접속한다.
       - "127.0.0.1:${AI_PORT:-8100}:8100"
     env_file:
-      # LLM 설정(CURRICULUM_LLM_*, Google Gemini API 키 GEMINI_API_KEY)은 ai/.env에 둔다. 없으면 템플릿 커리큘럼만 동작한다.
-      # 연결 확인은 컨테이너가 아니라 ai/ 폴더의 venv에서: .venv/bin/python scripts/gemini_check.py (ai/README.md 6번)
+      # LLM 설정(CURRICULUM_LLM_*, Anthropic Claude API 키 ANTHROPIC_API_KEY)은 ai/.env에 둔다. 없으면 템플릿 커리큘럼만 동작한다.
+      # 연결 확인은 컨테이너가 아니라 ai/ 폴더에서: ../BE/.venv/bin/python scripts/claude_check.py (ai/README.md 6번)
       - path: ../ai/.env
         required: false
     environment:

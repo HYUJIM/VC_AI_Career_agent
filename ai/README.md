@@ -21,7 +21,7 @@ python3 -c "import secrets; print(secrets.token_urlsafe(48))"
 cd ../BE && docker compose up --build -d
 ```
 
-AI 상태: <http://127.0.0.1:8100/health>. LLM(기본 Google Gemini API)을 쓰려면 이 폴더에 `.env`를 만들어 6번 설정(`GEMINI_API_KEY` 등)을 넣고 `docker compose up -d ai`로 다시 띄웁니다.
+AI 상태: <http://127.0.0.1:8100/health>. LLM(기본 Anthropic Claude API)을 쓰려면 이 폴더에 `.env`를 만들어 6번 설정(`ANTHROPIC_API_KEY` 등)을 넣고 `docker compose up -d ai`로 다시 띄웁니다.
 
 ## 2. 직접 실행 (개발·디버깅)
 
@@ -80,64 +80,65 @@ BE 테스트(`../BE/tests/test_career.py`)는 이 AI 앱을 같은 프로세스�
 
 차이만 확인하려면 `--check`를 붙입니다(CI에서 실행). BE 쪽 사본(`../BE/app/ai_contract/`)은 직접 고치지 않습니다.
 
-## 6. 커리큘럼 LLM 켜기 — Google Gemini API (선택, 기본 꺼짐)
+## 6. 커리큘럼 LLM 켜기 — Anthropic Claude API (선택, 기본 꺼짐)
 
 LLM 없이도 템플릿 커리큘럼은 만들어집니다. LLM을 쓰려면 ① BE `.env`의 `CURRICULUM_LLM_USER_IDS`에 사용자 UUID(모든 계정이면 `*`)를 넣고,
-② FE에서 "Google Gemini API로 배분" 동의를 체크하고, ③ 이 폴더의 `.env`에서 생성기를 켭니다.
-기본 공급자는 **Google Gemini API**(`CURRICULUM_LLM_PROVIDER=gemini`, 비워 두어도 같음)입니다. SDK 없이 이미 쓰는 `httpx`로
-Interactions API(`POST https://generativelanguage.googleapis.com/v1/interactions`)를 부릅니다(`src/career/gemini_client.py`).
+② FE에서 "Anthropic Claude API로 배분" 동의를 체크하고, ③ 이 폴더의 `.env`에서 생성기를 켭니다.
+기본 공급자는 **Anthropic Claude API**(`CURRICULUM_LLM_PROVIDER=claude`, 비워 두어도 같음)입니다. 공식 Python SDK `anthropic`
+(1.17.0, `requirements.txt`에 고정, httpx2 기반)으로 Messages API(`POST https://api.anthropic.com/v1/messages`, SDK의 베타 경로)를
+부릅니다(`src/career/claude_client.py`). 주소는 고정이고 `ANTHROPIC_BASE_URL`은 읽지 않습니다.
 
-> 예전에 OpenAI 호환 설정(`CURRICULUM_LLM_BASE_URL` 등)만 넣고 `CURRICULUM_LLM_PROVIDER`를 비워 두었다면 이제 Gemini로 해석되어
-> `GEMINI_API_KEY`가 없다는 설정 오류가 납니다. 그 설정을 계속 쓰려면 `CURRICULUM_LLM_PROVIDER=compatible`을 적습니다.
+> 예전에 `CURRICULUM_LLM_PROVIDER`를 비워 두고 Gemini(`GEMINI_API_KEY`)나 OpenAI 호환 설정(`CURRICULUM_LLM_BASE_URL` 등)을 썼다면
+> 이제 Claude로 해석되어 `ANTHROPIC_API_KEY`가 없다는 설정 오류가 납니다(`CURRICULUM_LLM_MODEL`이 `claude-`로 시작하지 않아도 설정 오류).
+> 그 설정을 계속 쓰려면 `CURRICULUM_LLM_PROVIDER=gemini` 또는 `compatible`을 적습니다(6-6).
 
-### 6-1. Gemini API 키 만들기
+### 6-1. Claude API 키 만들기
 
-1. Google 계정(만 18세 이상, 한국은 사용 가능 지역)으로 Google AI Studio의 API 키 화면 <https://aistudio.google.com/apikey>에
-   들어갑니다. 처음 쓰는 계정은 약관에 동의하면 기본 Google Cloud 프로젝트와 키가 만들어집니다.
-2. 이미 있는 Google Cloud 프로젝트를 쓰려면 AI Studio의 Projects → "Import projects"로 가져온 뒤 "Create API key"를 누릅니다
-   (버튼이 비활성이면 그 프로젝트의 편집 권한이 필요). AI Studio에서 새로 만든 키는 Gemini API 전용으로 제한된 키입니다.
-3. 가져온 프로젝트는 무료 등급을 쓰기 전에 프로젝트 확인이 필요할 수 있습니다(안 하면 403 `permission_denied`. 이유로 `FREE_TIER_VERIFICATION_REQUIRED`가 함께 보일 수 있음).
-   결제 계정을 연결한 프로젝트(유료 등급)는 필요 없습니다.
-4. 키는 **이 폴더의 `.env`에만** 넣습니다. 저장소·FE·이슈·채팅에 붙여 넣지 않고, 브라우저(FE)에서 직접 부르지 않습니다.
-   새어 나갔으면 새 키를 만들어 바꾼 뒤 옛 키를 지웁니다. 운영 서버에서는 `deploy/ai.env`(권한 600)의 `GEMINI_API_KEY`에 둡니다
+1. Claude Console(<https://platform.claude.com>)에 로그인해 API keys 화면에서 키를 만듭니다.
+2. 요청마다 그 조직의 결제로 과금되므로, Console에서 결제와 사용 한도를 먼저 확인합니다.
+3. 키는 **이 폴더의 `.env`에만** 넣습니다. 저장소·FE·이슈·채팅에 붙여 넣지 않고, 브라우저(FE)에서 직접 부르지 않습니다.
+   새어 나갔으면 새 키를 만들어 바꾼 뒤 옛 키를 지웁니다. 운영 서버에서는 `deploy/ai.env`(권한 600)의 `ANTHROPIC_API_KEY`에 둡니다
    ([../deploy/ENV_MATRIX.md](../deploy/ENV_MATRIX.md)).
 
 ### 6-2. `.env` 설정
 
 ```dotenv
 CURRICULUM_LLM_ENABLED=true
-CURRICULUM_LLM_PROVIDER=gemini
-GEMINI_API_KEY=<AI Studio에서 만든 키>
+CURRICULUM_LLM_PROVIDER=claude
+ANTHROPIC_API_KEY=<Claude Console에서 만든 키>
 ```
 
 | 변수 | 비우면 | 규칙 · 설명 |
 |---|---|---|
-| `GEMINI_API_KEY` | (필수) | 공백·줄바꿈 없는 출력 가능한 ASCII. 요청의 `x-goog-api-key` 헤더에만 들어가고 주소·로그·오류·감사 기록·`/v1/curricula/generator` 응답에는 나오지 않음. 이 서비스는 `GOOGLE_API_KEY`·`CURRICULUM_LLM_API_KEY`를 Gemini 키로 읽지 않음 |
-| `CURRICULUM_LLM_MODEL` | `gemini-3.5-flash-lite` | 안정(Stable) 모델 중 가장 싸고 빠르며 구조화 JSON 추출용. 다른 안정 모델: `gemini-3.1-flash-lite`(더 쌈), `gemini-3.6-flash`, `gemini-3.8-flash`. `gemini-flash-latest` 같은 별칭(예고 2주 후 바뀜)과 미리보기 모델은 쓰지 않음. `gemini-2.5-flash`·`gemini-2.5-pro`는 지원 중단(2026-12-01부터 다른 모델로 자동 전환) |
-| `CURRICULUM_LLM_THINKING_LEVEL` | 모델 기본값(Flash-Lite는 `minimal`) | `minimal`·`low`·`medium`·`high`만. `gemini-3.8-flash`·Gemini 4 모델에 `minimal`은 설정 오류. 출력 상한 4,096 토큰에 생각 토큰이 포함되므로 높일수록 불완전 응답 → 템플릿 대체가 늘어남 |
-| `GEMINI_API_VERSION` | `v1` | `v1`(안정) 또는 `v1beta`만. v1이 404로 거절될 때만 `v1beta`로 바꿈(요청·응답 형식은 같음) |
+| `ANTHROPIC_API_KEY` | (필수) | 공백·줄바꿈 없는 출력 가능한 ASCII. SDK에 직접 넘겨 요청의 `x-api-key` 헤더에만 들어가고 주소·로그·오류·감사 기록·`/v1/curricula/generator` 응답에는 나오지 않음. 다른 자격 증명(`ANTHROPIC_AUTH_TOKEN` 등)은 읽지 않음 |
+| `CURRICULUM_LLM_MODEL` | `claude-sonnet-5-5` | `claude-`로 시작하는 모델 ID만. 예: `claude-haiku-5-5`(더 싸고 빠름), `claude-opus-5-5`(가장 뛰어남) |
+| `CURRICULUM_LLM_EFFORT` | `low` | `low`·`medium`·`high`·`xhigh`·`max`만. 모델이 답하기 전에 얼마나 생각할지(적응형 생각 자체는 모델 기본값 그대로). 높일수록 느리고 출력 토큰이 늘며, 호출마다 25초 상한은 같음 |
 | `CURRICULUM_LLM_MAX_CONCURRENCY` | `2` | 1~32(ASCII 숫자). AI 프로세스 하나가 동시에 돌리는 LLM 생성 수(공급자 공통). 자리가 10초 안에 나지 않으면 모델을 부르지 않고 실패(BE 503 `LLM_BUSY`). 범위 밖이면 AI가 시작하지 않음(`CURRICULUM_LLM_MAX_CONCURRENCY must be an integer from 1 to 32` 한 줄, 종료 코드 1) |
 
 동시 생성 상한을 뺀 위 규칙에 맞지 않으면(`CURRICULUM_LLM_ENABLED`가 `true`가 아닌 경우 포함) 서비스는 뜨고 LLM 모드 요청만
-503 `GENERATOR_CONFIGURATION_REQUIRED`이며 템플릿 계획은 그대로 됩니다. `temperature`·`top_p`·`top_k`는 보내지 않습니다(3.6 이후 모델은 무시하고 다음 세대는 거절 예정).
+503 `GENERATOR_CONFIGURATION_REQUIRED`이며 템플릿 계획은 그대로 됩니다. 응답은 구조화 출력(`output_config.format`, `CurriculumDraft`에서
+만든 JSON 스키마)으로 받고, `temperature`·`top_p`·`top_k`는 보내지 않습니다(지금 모델은 거절). `claude-sonnet-5-5`·`claude-opus-5-5`·
+`claude-opus-5`·`claude-fable-5-1`·`claude-fable-5-2`는 안전 거절이 나면 같은 호출 안에서 Anthropic이 대체 모델로 다시 시도합니다
+(`fallbacks: "default"`, 베타 `server-side-fallback-2026-07-01`). Haiku는 그러지 않습니다.
 
 ### 6-3. 연결 확인 (실제 호출 1번)
 
 키를 넣은 뒤 이 폴더에서 실행합니다.
 
 ```bash
-.venv/bin/python scripts/gemini_check.py
+.venv/bin/python scripts/claude_check.py
 ```
 
-`.env`를 읽고(셸에 이미 있는 변수가 우선) 서비스와 같은 코드(`gemini_client.py`)로 가짜 단계 2개짜리 요청을 **한 번** 보낸 뒤
-엔드포인트·모델·생각 수준·HTTP 상태·지연 시간(ms)·토큰 사용량·JSON 검사(`json_valid`)·선택 규칙 검사(`draft_valid`)를 출력합니다.
-키·요청·모델이 쓴 글은 출력하지 않습니다. 종료 코드 0 = 연결됐고 응답이 커리큘럼 초안 JSON 형식에 맞음, 1 = 호출 실패 또는 JSON
-불일치(`error:`·`hint:` 줄에 HTTP 상태와 공급자 오류 코드), 2 = 설정 오류. `CURRICULUM_LLM_ENABLED`가 아직 `false`여도 확인은
-됩니다(이 명령의 프로세스에서만 켬). `--model <ID>`, `--api-version v1beta`, `--thinking-level low`로 한 번만 바꿔 볼 수 있고,
-`--no-dotenv`는 `.env`를 읽지 않습니다. 유료 키면 실행마다 요청 1건이 과금됩니다. 이 스크립트는 Docker 이미지에 들어가지 않으므로
-Compose로 띄운 경우에도 이 폴더의 venv로 실행합니다.
+`.env`를 읽고(셸에 이미 있는 변수가 우선) 서비스와 같은 코드(`claude_client.py`: 같은 SDK 호출·스키마·effort·한도·오류 분류)로 가짜 단계
+2개짜리 요청을 **한 번** 보낸 뒤 엔드포인트·모델·effort·거절 대체 여부·HTTP 상태·실제 응답한 모델·지연 시간(ms)·토큰 사용량·JSON 검사(`json_valid`)·
+선택 규칙 검사(`draft_valid`)를 출력합니다. 키·요청·모델이 쓴 글은 출력하지 않습니다. 종료 코드 0 = 연결됐고 응답이 커리큘럼 초안 JSON
+형식에 맞음, 1 = 호출 실패 또는 JSON 불일치(`error:`·`hint:` 줄에 HTTP 상태와 공급자 오류 유형), 2 = 설정 오류. `CURRICULUM_LLM_ENABLED`가
+아직 `false`여도 확인은 됩니다(이 명령의 프로세스에서만 켬). `--model <ID>`, `--effort medium`으로 한 번만 바꿔 볼 수 있고,
+`--no-dotenv`는 `.env`를 읽지 않습니다. 실행마다 과금되는 요청 1건(많아야 수천 토큰)입니다. 이 스크립트는 Docker 이미지에 들어가지
+않으므로 Compose로 띄운 경우에도 이 폴더의 venv로 실행합니다(BE venv에 이 폴더의 `requirements.txt`도 설치했다면
+`../BE/.venv/bin/python scripts/claude_check.py`도 됩니다).
 
-### 6-4. 무엇이 Google로 가는가 (데이터 정책)
+### 6-4. 무엇이 Anthropic으로 가는가 (데이터 정책)
 
 - **보내는 것:** 고정 지시문과 계획 옵션(단계 ID·기술 ID·자료 버전 ID·최소 시간·비용·수준, 학습자료 주석 인용 200자 이내),
   총 시간·예산 한도, 기본 계획, 출력 형식(`../src/career/llm_client.py`의 `selector_payload`). 60,000바이트를 넘으면 보내지 않고
@@ -149,55 +150,73 @@ Compose로 띄운 경우에도 이 폴더의 venv로 실행합니다.
   표시 방식)뿐입니다.
   연구자가 검토한 인용이 겉보기와 달리 모델만 읽는 숨은 지시를 싣지 못하게 하기 위해서입니다. 인용 문구는 여전히 신뢰하지 않는
   입력으로 다루고, 모델 출력은 허용된 단계·자료·시간 안에서만 검사를 통과합니다.
-- 요청마다 `store: false`를 보내 Gemini API가 상호작용을 저장하지 않게 합니다(기본은 저장: 무료 등급 1일, 유료 55일).
-- **무료 등급 키:** Google 약관에 따라 입력·출력이 Google 제품 개선에 쓰이고 사람이 검토할 수 있습니다(`store: false`와 무관).
-  Google은 무료 등급에 민감한 정보를 보내지 말라고 안내합니다. **유료 등급**(Cloud 프로젝트에 결제 계정 연결)은 제품 개선에 쓰지
-  않고, 정책 위반 감지를 위해 제한된 기간만 기록합니다. 실제 사용자 데이터로 운영하면 유료 등급을 씁니다. FE의 동의 문구가
-  외부 처리자로 Google Gemini API를 밝힙니다.
+- Anthropic이 받은 내용은 Anthropic의 약관·정책에 따라 처리됩니다. 실제 사용자 데이터로 운영하기 전에 조직(Organization)의 API 키를
+  쓰고 Anthropic의 상용 약관과 데이터 정책을 검토합니다. FE의 동의 문구가 외부 처리자로 Anthropic Claude API를 밝힙니다.
 - 모델 출력은 신뢰하지 않습니다. 스키마로 JSON을 받아도 `output_validator`가 단계·순서·자료 ID·시간·예산을 다시 검사하고, 틀리면
   1번 고쳐 받고, 그래도 틀리면 템플릿 계획으로 대체합니다(`generation_method: "llm_fallback"`, 경고 `UNTRUSTED_MODEL_OUTPUT_DISCARDED`).
-  도구 호출(`function_call` 등)이 든 응답은 실행하지 않고 `LLM_MALFORMED_RESPONSE`입니다.
+  도구는 보내지 않으며, 도구 호출(`tool_use`) 같은 예상 밖 응답은 실행하지 않고 `LLM_MALFORMED_RESPONSE`입니다. 생각(thinking) 블록은 쓰지 않습니다.
 
 ### 6-5. 한도 · 비용 · 오류
 
-- 커리큘럼 1건 = 모델 호출 최대 2번(수정 1번). 호출마다 출력 4,096 토큰(생각 포함)·25초·응답 256 KiB 상한, 리디렉션을 따라가지
-  않고 `HTTP(S)_PROXY` 같은 프록시 환경변수를 쓰지 않습니다. 동시 생성 자리 대기 10초 + 25초 × 2 = 최대 60초라 BE가 기다리는
-  90초(`AI_GENERATION_TIMEOUT_SECONDS`) 안에 끝납니다. 클라이언트는 스스로 다시 시도하지 않습니다(무료 등급의 분당 한도가 작음).
+- 커리큘럼 1건 = 모델 호출 최대 2번(수정 1번). 호출마다 출력 16,000 토큰(생각 포함)·25초(읽기 20초·연결 3초)·응답 256 KiB 상한,
+  리디렉션을 따라가지 않고 `HTTP(S)_PROXY` 같은 프록시 환경변수를 쓰지 않습니다. 동시 생성 자리 대기 10초 + 25초 × 2 = 최대 60초라
+  BE가 기다리는 90초(`AI_GENERATION_TIMEOUT_SECONDS`) 안에 끝납니다. SDK는 스스로 다시 시도하지 않습니다(`max_retries=0`). 다시 부르는 것은
+  초안이 검사에 걸리거나 불완전할 때 생성기가 하는 1번뿐이고, 공급자 오류는 다시 시도할 수 있는지와 함께 BE로 돌려줍니다.
 - 우리 쪽 한도: AI 프로세스마다 동시 생성 `CURRICULUM_LLM_MAX_CONCURRENCY`(기본 2)개, BE에서 허용된 계정마다 24시간에
-  `CURRICULUM_LLM_DAILY_LIMIT`(BE `.env`, 기본 20)건입니다. BE 한도는 저장된 LLM 계획(DB)과 Gemini까지 간 실패한 시도(BE 프로세스
-  메모리)를 함께 세고, 넘으면 Gemini를 부르지 않고 429 + `Retry-After`입니다([../BE/README.md](../BE/README.md) "직무 비교 · 커리큘럼").
-  하루 최대 호출 수는 대략 허용된 계정 수 × 한도 × 2(수정 1번)이므로 Google 쪽 RPD·지출 한도를 그보다 넉넉하게 둡니다.
-- Google의 한도(RPM·입력 TPM·RPD)는 **키가 아니라 프로젝트 단위**이고 RPD는 태평양 시간 자정에 초기화됩니다. 모델별 무료 등급
-  숫자는 문서에 없으므로 AI Studio의 Rate limit 화면(<https://aistudio.google.com/rate-limit>)에서 확인합니다.
-- 가격(2026-11 문서 기준, 바뀔 수 있음): `gemini-3.5-flash-lite`는 무료 등급 무료, 유료 100만 토큰당 입력 $0.30·출력 $2.50(생각 포함).
-  유료 등급이면 AI Studio의 Spend 화면에서 월 지출 상한과 결제 알림을 둡니다. 유료 등급에는 10분 단위 지출 한도가 있어 넘으면
-  429 `RESOURCE_EXHAUSTED`이고, 선불 잔액이 0이면 그 결제 계정의 모든 키가 402입니다.
+  `CURRICULUM_LLM_DAILY_LIMIT`(BE `.env`, 기본 20)건입니다. BE 한도는 저장된 LLM 계획(DB)과 Claude까지 간 실패한 시도(BE 프로세스
+  메모리)를 함께 세고, 넘으면 Claude를 부르지 않고 429 + `Retry-After`입니다([../BE/README.md](../BE/README.md) "직무 비교 · 커리큘럼").
+  하루 최대 호출 수는 대략 허용된 계정 수 × 한도 × 2(수정 1번)이므로 Claude Console의 사용·지출 한도를 그보다 넉넉하게 둡니다.
+- Anthropic 쪽 요청·토큰 한도와 결제 상태는 Claude Console에서 확인합니다. 한도에 걸리면 429, Anthropic이 과부하면 529이고 둘 다 다시
+  시도할 수 있습니다.
+- 가격(2026-11 기준, 바뀔 수 있음, 100만 토큰당 입력·출력. 생각 토큰은 출력으로 셈): `claude-sonnet-5-5` $2·$10,
+  `claude-haiku-5-5` $0.10·$0.50, `claude-opus-5-5` $4·$20. 출력 상한 16,000 토큰은 상한일 뿐이고 실제 만든 토큰만 과금됩니다.
 
-| Gemini 응답 | AI 오류 코드 (다시 시도 가능) | BE 응답 |
+| Claude 응답 | AI 오류 코드 (다시 시도 가능) | BE 응답 |
 |---|---|---|
-| HTTP 408·429·500·502·503·504 | `LLM_PROVIDER_REJECTED` (가능) | 503 |
-| 그 밖의 HTTP 오류: 400(요청 오류·안전 차단 `safety`·`jailbreak`·`prohibited_content`·`blocklist`), 401(키), 402(선불 잔액), 403(권한·프로젝트 확인), 404(모델), 리디렉션 | `LLM_PROVIDER_REJECTED` (불가) | 422 |
+| HTTP 408·429·500·502·503·504·529 | `LLM_PROVIDER_REJECTED` (가능) | 503 |
+| 그 밖의 HTTP 오류: 400(요청 오류: 모델·effort·스키마·베타 플래그), 401(키), 403(키의 워크스페이스·조직 권한), 404(모델), 413(요청 크기), 리디렉션 | `LLM_PROVIDER_REJECTED` (불가) | 422 |
 | 연결 실패·25초 초과 | `LLM_PROVIDER_UNAVAILABLE` (가능) | 503 |
-| 상태 `failed`·`cancelled` | `LLM_PROVIDER_REJECTED` (불가) | 422 |
-| 상태 `incomplete`(출력 한도)·`requires_continuation` | 오류 아님: 1번 다시 생성 → 그래도 불완전하면 템플릿 대체 `llm_fallback` | 201 (계획 저장) |
-| 해석할 수 없는 응답·도구 호출·글 없음 | `LLM_MALFORMED_RESPONSE` (불가) | 422 |
+| `stop_reason: refusal`(안전 거절. 대체 모델이 있으면 그것까지 거절) | `LLM_PROVIDER_REJECTED` (불가) | 422 |
+| `stop_reason: max_tokens`(출력 한도) | 오류 아님: 1번 다시 생성 → 그래도 불완전하면 템플릿 대체 `llm_fallback` | 201 (계획 저장) |
+| 해석할 수 없는 응답·예상 밖 `stop_reason`(`tool_use` 등)·글 없음 | `LLM_MALFORMED_RESPONSE` (불가) | 422 |
 | 응답 256 KiB 초과 | `LLM_RESPONSE_TOO_LARGE` (불가) | 422 |
 | (호출 전) 동시 생성 자리가 10초 안에 나지 않음 | `LLM_BUSY` (가능) | 503 |
 | (호출 전) BE가 받은 생성기 정보와 지금 AI 설정이 다름 | `GENERATOR_CONFIGURATION_CHANGED` (가능) | 503 |
 
-HTTP 오류는 AI 로그에 `Gemini API rejected the request: status=403 code=permission_denied retryable=False`
-처럼 한 줄 남습니다(상태와 식별자 모양의 오류 코드만. 오류 메시지·본문·키는 남기지 않음). Interactions API의 오류 본문은
-`{"error": {"code": "<snake_case>", "message": …}}`이고(401 `authentication`, 403 `permission_denied`, 404 `model_not_found`,
-429 `rate_limit_exceeded`·`quota_exceeded`), 일부 오류는 예전 Google 형식(`status`·`details[].reason`)으로 와서
-`PERMISSION_DENIED/FREE_TIER_VERIFICATION_REQUIRED`처럼 이유가 함께 찍힐 수 있습니다. 코드는 진단용이고, 다시 시도할지는 HTTP 상태로만 정합니다.
-BE가 생성기 정보를 받은 AI와 생성 요청을 받은 AI의 설정이 다르면(배포 중 AI 프로세스마다 모델·사고 수준·API 버전이 다름) 모델을 부르지 않고
+HTTP 오류는 AI 로그에 `Claude API rejected the request: status=401 type=authentication_error retryable=False`
+처럼 한 줄 남습니다(상태와 식별자 모양의 오류 유형만. 오류 메시지·본문·키는 남기지 않음). 유형은 진단용이고, 다시 시도할지는 HTTP 상태로만 정합니다.
+BE가 생성기 정보를 받은 AI와 생성 요청을 받은 AI의 설정이 다르면(배포 중 AI 프로세스마다 공급자·모델·effort가 다름) 모델을 부르지 않고
 `GENERATOR_CONFIGURATION_CHANGED`(다시 시도 가능, BE 503 + `Retry-After: 5`)로 끝나며 하루 LLM 몫도 쓰지 않습니다.
 
 ### 6-6. 다른 공급자 (선택)
 
-> 공급자를 바꾸면 FE 학습 계획 화면의 동의 문구(`FE/src/pages/CareerPlanPage.tsx`, "외부 서비스 Google Gemini API")도
-> 실제로 데이터를 받는 곳으로 함께 고칩니다. 문구는 지금 Gemini로 고정되어 있어, 고치지 않으면 사용자가 다른 처리자에
+> 공급자를 바꾸면 FE 학습 계획 화면의 동의 문구(`FE/src/pages/CareerPlanPage.tsx`, "외부 서비스 Anthropic Claude API")도
+> 실제로 데이터를 받는 곳으로 함께 고칩니다. 문구는 지금 Claude로 고정되어 있어, 고치지 않으면 사용자가 다른 처리자에
 > 동의한 것이 됩니다.
+
+**Google Gemini API** (`src/career/gemini_client.py`, SDK 없이 `httpx`로 Interactions API `POST https://generativelanguage.googleapis.com/v1/interactions`)
+
+```dotenv
+CURRICULUM_LLM_ENABLED=true
+CURRICULUM_LLM_PROVIDER=gemini
+GEMINI_API_KEY=<AI Studio에서 만든 키>
+```
+
+- 키: Google AI Studio의 API 키 화면 <https://aistudio.google.com/apikey>에서 만듭니다. 가져온 Cloud 프로젝트는 무료 등급을 쓰기 전에
+  프로젝트 확인이 필요할 수 있습니다(안 하면 403 `permission_denied`, 이유 `FREE_TIER_VERIFICATION_REQUIRED`). 키는 `x-goog-api-key` 헤더에만 들어가고,
+  `GOOGLE_API_KEY`·`CURRICULUM_LLM_API_KEY`는 Gemini 키로 읽지 않습니다.
+- `CURRICULUM_LLM_MODEL`(공용)을 비우면 `gemini-3.5-flash-lite`. 다른 안정 모델: `gemini-3.1-flash-lite`, `gemini-3.6-flash`, `gemini-3.8-flash`
+  (별칭·미리보기 모델은 쓰지 않음). `CURRICULUM_LLM_THINKING_LEVEL`은 `minimal`·`low`·`medium`·`high`(비우면 모델 기본값, `gemini-3.8-flash`·Gemini 4에
+  `minimal`은 설정 오류), `GEMINI_API_VERSION`은 `v1`(기본) 또는 `v1beta`. `CURRICULUM_LLM_EFFORT`는 쓰지 않습니다.
+- 출력 상한은 4,096 토큰(생각 포함)이고, 25초·256 KiB 상한과 스스로 다시 시도하지 않는 점은 Claude와 같습니다(다시 시도 가능한 HTTP 상태는
+  408·429·500·502·503·504). 요청마다 `store: false`를 보냅니다.
+  상태 `failed`·`cancelled`는 `LLM_PROVIDER_REJECTED`(불가), `incomplete`·`requires_continuation`은 Claude의 `max_tokens`처럼 1번 다시 생성, 402(선불 잔액 0)는 다시 시도 불가입니다.
+  거절 로그는 `Gemini API rejected the request: status=403 code=permission_denied retryable=False` 모양입니다.
+- **무료 등급 키:** Google 약관에 따라 입력·출력이 Google 제품 개선에 쓰이고 사람이 검토할 수 있습니다(`store: false`와 무관).
+  실제 사용자 데이터로 운영하면 유료 등급(Cloud 프로젝트에 결제 계정 연결)을 씁니다. Google의 한도는 키가 아니라 프로젝트 단위이고
+  AI Studio의 Rate limit 화면(<https://aistudio.google.com/rate-limit>)에서 확인합니다. 가격(2026-11 기준): `gemini-3.5-flash-lite` 유료 100만 토큰당
+  입력 $0.30·출력 $2.50(생각 포함).
+- 연결 확인: `.venv/bin/python scripts/gemini_check.py`(출력·종료 코드는 6-3과 같은 방식, `--model <ID>`, `--api-version v1beta`, `--thinking-level low`, `--no-dotenv`).
 
 **OpenAI 호환 API**
 
@@ -235,7 +254,7 @@ CURRICULUM_LOCAL_ALLOW_DOWNLOAD=true
 - 출력 초과: 오류가 아닙니다. 잘린 초안은 불완전한 출력으로 버리고 한 번 다시 생성하며, 그것도 잘리면 기본(템플릿) 계획을
   `generation_method: "llm_fallback"`과 경고 `UNTRUSTED_MODEL_OUTPUT_DISCARDED`로 돌려줍니다(GPU 생성 2회).
 - 단계마다 UUID가 들어가 출력이 빨리 찹니다. 보완할 기술이 3개 정도만 되어도(기본 `assess` 기준) 기본 계획으로 대체될 수 있으니,
-  큰 계획은 템플릿 모드나 Gemini·OpenAI 호환 API(출력 4,096 토큰)를 쓰거나 대상 공고를 좁힙니다.
+  큰 계획은 템플릿 모드나 Claude(출력 16,000 토큰)·Gemini·OpenAI 호환 API(출력 4,096 토큰)를 쓰거나 대상 공고를 좁힙니다.
 
 ## 7. 문제 해결
 
@@ -247,11 +266,11 @@ CURRICULUM_LOCAL_ALLOW_DOWNLOAD=true
 | `/v1/...`가 503 `AI_SERVICE_TOKEN_NOT_CONFIGURED` | AI의 토큰이 비었거나 32바이트 미만 |
 | AI가 시작하지 않음 `AI_MAX_BODY_BYTES must be a positive integer (bytes)` (한 줄, 종료 코드 1) | `AI_MAX_BODY_BYTES`가 양의 정수(바이트)가 아님(예: `32MiB`, `0`). 부호·밑줄·소수점이 들어간 표기(`+4096`, `4_096`, `4096.0`)와 전각 숫자도 해당 → 지우거나 비우면 기본값 32 MiB, 넣으려면 ASCII 숫자만(예: `33554432`, 18자리까지) |
 | AI가 시작하지 않음 `CURRICULUM_LLM_MAX_CONCURRENCY must be an integer from 1 to 32` (한 줄, 종료 코드 1) | 그 변수를 비우거나(기본 2) 1~32의 ASCII 숫자로 |
-| LLM 모드 계획이 503 `GENERATOR_CONFIGURATION_REQUIRED` | AI의 LLM 설정이 규칙에 맞지 않음: `CURRICULUM_LLM_ENABLED=true`, `GEMINI_API_KEY`(공백·줄바꿈 없음), 모델 ID, `CURRICULUM_LLM_THINKING_LEVEL`, `GEMINI_API_VERSION`(6-2). `scripts/gemini_check.py`가 어느 변수인지 한 줄로 알려 줌(값은 출력하지 않음) |
-| LLM 모드 계획이 422 `LLM_PROVIDER_REJECTED`, AI 로그 `Gemini API rejected the request: status=…` | 401 키가 틀림·폐기됨, 403 권한·프로젝트 확인(`FREE_TIER_VERIFICATION_REQUIRED`)·결제 문제, 404 모델 ID(또는 `GEMINI_API_VERSION=v1beta`), 400 요청 오류·안전 차단, 402 선불 잔액 0 → `scripts/gemini_check.py`로 확인 |
-| LLM 모드 계획이 503 `LLM_PROVIDER_REJECTED`(429·5xx) / `LLM_PROVIDER_UNAVAILABLE` | Google의 분·일 한도(프로젝트 단위) 또는 일시 장애 / AI에서 `generativelanguage.googleapis.com:443`으로 나가는 길(NAT·보안 그룹·DNS) → 잠시 뒤 다시 시도, 자주 나오면 템플릿 모드 |
+| LLM 모드 계획이 503 `GENERATOR_CONFIGURATION_REQUIRED` | AI의 LLM 설정이 규칙에 맞지 않음: `CURRICULUM_LLM_ENABLED=true`, `ANTHROPIC_API_KEY`(공백·줄바꿈 없음), `claude-`로 시작하는 모델 ID, `CURRICULUM_LLM_EFFORT`(6-2. `gemini` 공급자면 `GEMINI_API_KEY`·`CURRICULUM_LLM_THINKING_LEVEL`·`GEMINI_API_VERSION`, 6-6). `scripts/claude_check.py`(`gemini`는 `scripts/gemini_check.py`)가 어느 변수인지 한 줄로 알려 줌(값은 출력하지 않음) |
+| LLM 모드 계획이 422 `LLM_PROVIDER_REJECTED`, AI 로그 `Claude API rejected the request: status=…` | 401 키가 틀림·폐기됨, 403 키의 워크스페이스·조직이 그 모델·기능을 쓸 수 없음, 404 모델 ID, 400 요청 오류(모델·effort·스키마·베타 플래그) → `scripts/claude_check.py`로 확인. 로그 줄 없이 422면 대개 모델의 안전 거절(`stop_reason: refusal`). `gemini` 공급자의 `Gemini API rejected the request: …`는 6-6 |
+| LLM 모드 계획이 503 `LLM_PROVIDER_REJECTED`(429·5xx·529) / `LLM_PROVIDER_UNAVAILABLE` | Anthropic의 요청·토큰 한도(429)·과부하(529) 또는 일시 장애 / AI에서 `api.anthropic.com:443`으로 나가는 길(NAT·보안 그룹·DNS. `gemini`면 `generativelanguage.googleapis.com:443`) → 잠시 뒤 다시 시도, 자주 나오면 템플릿 모드 |
 | LLM 모드 계획이 503 `LLM_BUSY` | AI 프로세스의 동시 LLM 생성이 `CURRICULUM_LLM_MAX_CONCURRENCY`(기본 2)개로 찬 채 10초가 지남. 모델은 부르지 않았음 → 잠시 뒤 다시 시도 |
-| LLM 모드인데 결과가 "LLM 초안 폐기 후 기본 계획"(`llm_fallback`) | 모델 초안이 검사를 2번 통과하지 못했거나 출력 한도(4,096 토큰)에 걸림. `CURRICULUM_LLM_THINKING_LEVEL`을 비우거나 낮추고, 큰 계획은 대상 공고를 좁힘 |
+| LLM 모드인데 결과가 "LLM 초안 폐기 후 기본 계획"(`llm_fallback`) | 모델 초안이 검사를 2번 통과하지 못했거나 출력 한도(Claude 16,000 토큰, Gemini 4,096 토큰)에 걸림. `CURRICULUM_LLM_EFFORT`(`gemini`면 `CURRICULUM_LLM_THINKING_LEVEL`)를 비우거나 낮추고, 큰 계획은 대상 공고를 좁힘 |
 | FE에 "분석 요청이 많습니다…" (BE 503 `AI_SERVICE_BUSY`) | BE 프로세스가 AI로 동시에 보내는 공고·학습자료 묶음 요청이 BE의 `AI_MAX_CONCURRENCY`(기본 4)개로 찬 채 10초가 지남. 이 요청은 AI에 오지 않았음 → 잠시 뒤 다시 시도, 자주 나오면 AI가 느린지(CPU·메모리) 확인 |
 | `/v1/...`의 422 `REQUEST_SCHEMA_INVALID`에 보낸 값이 없음 | `detail`은 오류마다 `loc`·`msg`·`type`만 싣고(입력값 없음) 앞에서부터 20개까지, 64자를 넘는 키 이름은 `<long key>`로 나옴 |
 | 비교할 공고가 없음 | 연구자 반입 공고가 없거나, 수집 7일·게시 90일이 지났거나, `dataset_kind`가 `real`이 아님 |

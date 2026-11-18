@@ -125,19 +125,16 @@ def call(fake, planning):
 # --- configuration --------------------------------------------------------------------------
 
 
-def test_default_provider_is_gemini_and_disabled_by_default():
-    # Provider unset (conftest) and LLM mode off: nothing is enabled implicitly.
+def test_default_provider_is_disabled_by_default():
+    # Provider unset (conftest, default claude) and LLM mode off: nothing is enabled implicitly.
     assert "CURRICULUM_LLM_PROVIDER" not in os.environ
     with pytest.raises(ConfigurationError, match="CURRICULUM_LLM_ENABLED"):
         generator_from_env()
 
 
-@pytest.mark.parametrize("provider", [None, "", "  ", "gemini"])
-def test_gemini_is_selected_by_default_or_explicitly(gemini_settings, monkeypatch, provider):
-    if provider is None:
-        monkeypatch.delenv("CURRICULUM_LLM_PROVIDER", raising=False)
-    else:
-        monkeypatch.setenv("CURRICULUM_LLM_PROVIDER", provider)
+@pytest.mark.parametrize("provider", ["gemini", " gemini "])
+def test_gemini_is_selected_explicitly(gemini_settings, monkeypatch, provider):
+    monkeypatch.setenv("CURRICULUM_LLM_PROVIDER", provider)
     config = generator_from_env()
     assert isinstance(config, GeminiConfig)
     assert config.public_metadata() == {
@@ -155,14 +152,16 @@ def test_gemini_is_selected_by_default_or_explicitly(gemini_settings, monkeypatc
 
 
 def test_env_example_blank_values_mean_the_documented_defaults(monkeypatch, gemini_key):
-    # ai/.env.example as copied to .env: only CURRICULUM_LLM_ENABLED and the key are filled in.
+    # ai/.env.example as copied to .env, switched to gemini: only the provider, CURRICULUM_LLM_ENABLED
+    # and the key are filled in.
     from dotenv import dotenv_values
 
     values = dotenv_values(AI_DIR / ".env.example")
     assert values["CURRICULUM_LLM_ENABLED"] == "false" and values["GEMINI_API_KEY"] == ""
-    assert values["CURRICULUM_LLM_PROVIDER"] == "gemini"
+    assert values["CURRICULUM_LLM_PROVIDER"] == "claude"
     for name, value in values.items():
         monkeypatch.setenv(name, value or "")
+    monkeypatch.setenv("CURRICULUM_LLM_PROVIDER", "gemini")
     monkeypatch.setenv("CURRICULUM_LLM_ENABLED", "true")
     monkeypatch.setenv("GEMINI_API_KEY", gemini_key)
     config = generator_from_env()
