@@ -1354,6 +1354,7 @@ class Partner:
         self.in_flight = self.peak = 0
         self.delay = 0.0
         self.error_status: int | None = None
+        self.throttled: set[str] = set()  # 이 서명 원본들만 429로 거절한다 (같은 원본을 자주 물은 경우)
 
     def sent(self, suffix: str = "") -> int:
         return len([path for path, _ in self.requests if path.endswith(suffix)])
@@ -1370,6 +1371,8 @@ class Partner:
             if self.error_status is not None:
                 return httpx.Response(self.error_status, json={"error": {"code": "E", "message": "refused"}})
             data = json.loads(request.content)
+            if data.get("vcJwt") in self.throttled:
+                return httpx.Response(429, json={"error": {"code": "RATE_LIMITED", "message": "ThrottlerException"}})
             if "vpToken" in data:
                 holder = (decode_jwt_payload(data["vpToken"]) or {}).get("iss")
                 return httpx.Response(200, json={"data": {"verified": True, "holderDid": holder, "claims": {}}})
@@ -1542,10 +1545,16 @@ def test_parallel_junk_tokens_from_one_account_reach_the_partner_at_most_ten_tim
 
 
 @pytest.mark.parametrize("status", [500, 429, 403])
-def test_fan_out_stops_calling_a_failing_partner(client, register, partner, frozen_budget, caplog, status):
+def test_fan_out_stops_calling_a_failing_partner(client, register, partner, frozen_budget, caplog, status,
+                                                 monkeypatch):
     # 회귀: 협력사가 이미 실패하거나 우리를 제한(429)·차단(403)하는 중에도 자격증명 수만큼 끝까지 불렀다.
+    import app.integrations.dxworks as dx
     from app.services.reverify import MAX_CONCURRENCY
     from tests.conftest import make_vc_jwt
+
+    # 429는 이미 시작한 호출마다 잠시 뒤 len(_THROTTLE_BACKOFF_SECONDS)번 더 보낸다 (아직 시작하지 않은 행은 여전히 부르지 않는다).
+    monkeypatch.setattr(dx, "_THROTTLE_BACKOFF_SECONDS", (0.01, 0.01))
+    sends_per_call = 1 + (len(dx._THROTTLE_BACKOFF_SECONDS) if status == 429 else 0)
 
     user = register()
     record_ids = []
@@ -1556,18 +1565,19 @@ def test_fan_out_stops_calling_a_failing_partner(client, register, partner, froz
     with caplog.at_level(logging.WARNING, logger="app.services.reverify"):
         evidence = client.get(f"/api/v1/subjects/{user['did']}/evidence", headers=user["headers"])
     # 처음 실패가 돌아오기 전에 이미 시작한 호출(요청 하나의 동시 호출 수)까지만 나간다.
-    assert 1 <= partner.sent() <= MAX_CONCURRENCY
+    assert 1 <= partner.sent() <= MAX_CONCURRENCY * sends_per_call
     assert evidence.status_code == 200 and evidence.json()["evidence"] == []
     assert {e["reason"] for e in evidence.json()["excluded"]} == {"verifier_error"} and len(
         evidence.json()["excluded"]) == 30
     # 실제로 부른 자격증명만 실패 로그를 남긴다.
     failures = [r.getMessage() for r in caplog.records if r.name == "app.services.reverify"]
-    assert len(failures) == partner.sent() and all("Credential re-verification failed: record=" in m for m in failures)
+    assert len(failures) * sends_per_call == partner.sent()
+    assert all("Credential re-verification failed: record=" in m for m in failures)
 
     partner.requests.clear()
     created = client.post("/api/v1/portfolios", headers=user["headers"],
                           json={"title": "t", "record_ids": record_ids, "source": "VC_ONLY"})
-    assert created.status_code == 502 and 1 <= partner.sent() <= MAX_CONCURRENCY
+    assert created.status_code == 502 and 1 <= partner.sent() <= MAX_CONCURRENCY * sends_per_call
 
 
 @pytest.mark.parametrize("host", ["https://user:pw@dx.invalid", "https://user@dx.invalid", "https://dx.invalid?x=1",
@@ -1607,3 +1617,177 @@ async def test_unusable_timeout_is_a_configuration_error_and_sends_nothing(timeo
             await call()
         assert exc.value.unavailable and "DXWORKS_TIMEOUT_SECONDS" in exc.value.message
     assert sent == []
+
+
+# ── 협력사 요청 속도 제한(429): 검증만 잠시 뒤 다시 보낸다 ─────────────────────────
+
+def _throttled(retry_after=None):
+    headers = {"Retry-After": retry_after} if retry_after is not None else {}
+    return httpx.Response(429, headers=headers, json={"error": {"code": "RATE_LIMITED", "message": "ThrottlerException"}})
+
+
+async def test_badge_verification_is_retried_after_a_rate_limit(monkeypatch):
+    import app.integrations.dxworks as dx
+
+    monkeypatch.setattr(dx, "_THROTTLE_BACKOFF_SECONDS", (0.01, 0.01))
+    calls = []
+
+    def handler(request):
+        calls.append(request.url.path)
+        return _throttled("0") if len(calls) == 1 else httpx.Response(201, json=badge_response())
+
+    result = await adapter(handler).verify_badge("a.b.c")
+    assert result.valid is True and len(calls) == 2
+
+
+async def test_rate_limit_retries_are_bounded(monkeypatch):
+    import app.integrations.dxworks as dx
+
+    monkeypatch.setattr(dx, "_THROTTLE_BACKOFF_SECONDS", (0.01, 0.01))
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        return _throttled()
+
+    with pytest.raises(ProviderError) as exc:
+        await adapter(handler).verify_badge("a.b.c")
+    assert exc.value.upstream_status == 429 and len(calls) == 1 + len(dx._THROTTLE_BACKOFF_SECONDS)
+
+
+async def test_a_long_retry_after_is_not_waited_for(monkeypatch):
+    import app.integrations.dxworks as dx
+
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        return _throttled(str(int(dx._THROTTLE_MAX_WAIT_SECONDS) + 30))
+
+    started = time.monotonic()
+    with pytest.raises(ProviderError):
+        await adapter(handler).verify_badge("a.b.c")
+    assert len(calls) == 1 and time.monotonic() - started < 2
+
+
+async def test_issuance_is_never_retried_on_a_rate_limit(monkeypatch):
+    # 발급은 다시 보내지 않는다 (같은 배지가 두 번 발급될 수 있는 경로를 만들지 않는다).
+    import app.integrations.dxworks as dx
+
+    monkeypatch.setattr(dx, "_THROTTLE_BACKOFF_SECONDS", (0.01, 0.01))
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        return _throttled("0")
+
+    with pytest.raises(ProviderError):
+        await adapter(handler).issue_badge("tpl", DID)
+    assert len(calls) == 1
+
+
+# ── 로그인 사용자 재검증: 최근(REVERIFY_REUSE_SECONDS) 응답 재사용 ─────────────────────
+
+@pytest.fixture
+def reuse_window(monkeypatch):
+    """재사용을 60초로 켜고, 최근 응답 기록에 손으로 움직이는 시계를 끼운다."""
+    from app.core.config import get_settings
+    from app.services import reverify
+
+    monkeypatch.setenv("REVERIFY_REUSE_SECONDS", "60")
+    get_settings.cache_clear()
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(reverify, "recent_results", reverify.RecentResults(clock=lambda: clock["now"]))
+    yield clock
+    get_settings.cache_clear()
+
+
+def test_wallet_then_portfolio_asks_the_partner_once_per_credential(client, register, partner, frozen_budget,
+                                                                     reuse_window):
+    from tests.conftest import make_vc_jwt
+
+    user = register()
+    record_ids = [post_verify(client, user, make_vc_jwt(user["did"])).json()["data"]["record_id"] for _ in range(4)]
+    partner.requests.clear()
+    assert client.get(f"/api/v1/subjects/{user['did']}/evidence", headers=user["headers"]).status_code == 200
+    assert partner.sent() == 4
+    # 바로 이어지는 포트폴리오·근거 조회는 방금 응답을 다시 쓴다: 협력사 호출 0번.
+    created = client.post("/api/v1/portfolios", headers=user["headers"],
+                          json={"title": "t", "record_ids": record_ids, "source": "VC_ONLY"})
+    assert created.status_code == 201 and created.json()["data"]["credential_count"] == 4
+    assert client.get(f"/api/v1/subjects/{user['did']}/evidence", headers=user["headers"]).status_code == 200
+    assert partner.sent() == 4
+    # 재사용 시간이 지나면 다시 묻는다.
+    reuse_window["now"] += 61
+    assert client.get(f"/api/v1/subjects/{user['did']}/evidence", headers=user["headers"]).status_code == 200
+    assert partner.sent() == 8
+
+
+def test_reuse_is_off_when_the_window_is_zero(client, register, partner, frozen_budget, monkeypatch):
+    from app.core.config import get_settings
+    from tests.conftest import make_vc_jwt
+
+    monkeypatch.setenv("REVERIFY_REUSE_SECONDS", "0")
+    get_settings.cache_clear()
+    user = register()
+    post_verify(client, user, make_vc_jwt(user["did"]))
+    partner.requests.clear()
+    for _ in range(2):
+        assert client.get(f"/api/v1/subjects/{user['did']}/evidence", headers=user["headers"]).status_code == 200
+    assert partner.sent() == 2
+
+
+def test_recent_results_are_bounded_and_keyed_by_token():
+    from datetime import datetime, timezone
+
+    from app.services.reverify import RecentResults
+
+    clock = {"now": 0.0}
+    recent = RecentResults(max_entries=2, clock=lambda: clock["now"])
+    at = datetime.now(timezone.utc)
+    for token in ("a.b.c", "d.e.f", "g.h.i"):
+        recent.put(token, at, f"result-{token}")
+    assert recent.get("a.b.c", 60) is None  # 가장 오래된 것부터 잊는다
+    assert recent.get("g.h.i", 60) == (at, "result-g.h.i") and recent.get("g.h.i", 0) is None
+    clock["now"] = 60
+    assert recent.get("g.h.i", 60) is None
+
+
+def test_a_few_rate_limited_credentials_are_excluded_not_fatal(client, register, partner, frozen_budget, monkeypatch):
+    # 회귀: 자주 검증한 배지 둘만 DXWorks가 429로 계속 거절하자 포트폴리오 생성 전체가 502로 끝났다.
+    import app.integrations.dxworks as dx
+    from tests.conftest import make_vc_jwt
+
+    monkeypatch.setattr(dx, "_THROTTLE_BACKOFF_SECONDS", (0.01, 0.01))
+    user = register()
+    tokens = [make_vc_jwt(user["did"]) for _ in range(8)]
+    record_ids = [post_verify(client, user, token).json()["data"]["record_id"] for token in tokens]
+    partner.throttled = set(tokens[:2])
+    partner.requests.clear()
+    created = client.post("/api/v1/portfolios", headers=user["headers"],
+                          json={"title": "t", "record_ids": record_ids, "source": "VC_ONLY"})
+    assert created.status_code == 201, created.text
+    data = created.json()["data"]
+    assert data["credential_count"] == 6
+    assert {e["record_id"] for e in data["excluded"]} == set(record_ids[:2])
+    assert {e["reason"] for e in data["excluded"]} == {"verifier_error"}
+    # 나머지는 모두 물었다 (429 하나로 남은 자격증명을 건너뛰지 않음). 거절된 둘은 재시도까지 3번씩.
+    assert partner.sent() == 6 + 2 * (1 + len(dx._THROTTLE_BACKOFF_SECONDS))
+
+    evidence = client.get(f"/api/v1/subjects/{user['did']}/evidence", headers=user["headers"])
+    assert evidence.status_code == 200 and len(evidence.json()["evidence"]) == 6
+
+
+def test_every_credential_rate_limited_is_still_an_outage(client, register, partner, frozen_budget, monkeypatch):
+    import app.integrations.dxworks as dx
+    from tests.conftest import make_vc_jwt
+
+    monkeypatch.setattr(dx, "_THROTTLE_BACKOFF_SECONDS", (0.01, 0.01))
+    user = register()
+    tokens = [make_vc_jwt(user["did"]) for _ in range(3)]
+    record_ids = [post_verify(client, user, token).json()["data"]["record_id"] for token in tokens]
+    partner.throttled = set(tokens)
+    created = client.post("/api/v1/portfolios", headers=user["headers"],
+                          json={"title": "t", "record_ids": record_ids, "source": "VC_ONLY"})
+    assert created.status_code == 502
+    assert client.get("/api/v1/portfolios", headers=user["headers"]).json()["data"] == []

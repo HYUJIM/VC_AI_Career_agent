@@ -311,6 +311,10 @@ class Settings:
     # 허용된 사용자 한 명 / 모든 계정 합계가 24시간에 AI(LLM)로 쓸 수 있는 포트폴리오 생성·다시 쓰기 수 (1 이상).
     portfolio_llm_daily_limit: int = DEFAULT_PORTFOLIO_LLM_DAILY_LIMIT
     portfolio_llm_global_daily_limit: int = DEFAULT_PORTFOLIO_LLM_GLOBAL_DAILY_LIMIT
+    # 로그인 사용자 재검증에서 같은 서명 원본을 이 초 안에 다시 묻지 않고 그때 응답을 쓴다 (0이면 늘 새로 묻는다, 최대 600).
+    # 화면을 열 때 지갑 전체를 재검증하고 곧바로 직무 비교·포트폴리오가 같은 자격증명을 또 재검증하면 협력사(DXWorks)의
+    # 요청 속도 제한(429)에 걸리기 때문이다. 폐기는 이 시간 뒤의 다음 조회부터 보인다.
+    reverify_reuse_seconds: float = 60.0
 
     def llm_allowed(self, user_id: str) -> bool:
         """이 계정이 LLM 모드(학습 계획·포트폴리오)를 쓸 수 있는지 (CURRICULUM_LLM_USER_IDS에 UUID가 있거나 "*")."""
@@ -512,6 +516,7 @@ def get_settings() -> Settings:
         portfolio_llm_daily_limit=_env_int("PORTFOLIO_LLM_DAILY_LIMIT", DEFAULT_PORTFOLIO_LLM_DAILY_LIMIT, minimum=1),
         portfolio_llm_global_daily_limit=_env_int("PORTFOLIO_LLM_GLOBAL_DAILY_LIMIT",
                                                   DEFAULT_PORTFOLIO_LLM_GLOBAL_DAILY_LIMIT, minimum=1),
+        reverify_reuse_seconds=_env_float("REVERIFY_REUSE_SECONDS", 60.0, minimum=0, maximum=600),
     )
     if production and settings.mock_issuer_enabled:
         logger.warning(

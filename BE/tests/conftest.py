@@ -52,6 +52,9 @@ os.environ.update(
         "MOCK_ISSUER_TEMPLATE_IDS": "tpl",  # 기본 템플릿 말고 모의 발급에 허용하는 템플릿 (가상 값)
         # 테스트 전용 마스터 키 (32바이트 0x01 반복). 실제 키가 아니다.
         "HOLDER_KEY_ENCRYPTION_KEY": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=",
+        # 로그인 사용자 재검증의 최근 응답 재사용을 끈다: 테스트는 협력사 응답을 바꾼 뒤 바로 다시 재검증한다.
+        # 재사용 자체는 tests/test_reverify_reuse.py가 이 값을 켜고 본다.
+        "REVERIFY_REUSE_SECONDS": "0",
     }
 )
 
@@ -90,6 +93,7 @@ def reset_call_budgets():
     from app.integrations.ai_service import clear_corpus_caller_limits
     from app.services.career import clear_llm_in_flight
     from app.services.portfolio_llm import clear_in_flight as clear_portfolio_llm_in_flight
+    from app.services.reverify import recent_results
     from app.services.public_view_gate import public_view_gate
     from app.services.verifier_budget import (
         llm_curriculum_attempts, llm_curriculum_global_attempts, llm_portfolio_attempts,
@@ -113,6 +117,7 @@ def reset_call_budgets():
         llm_portfolio_attempts.clear()
         llm_portfolio_global_attempts.clear()
         clear_portfolio_llm_in_flight()
+        recent_results.clear()
 
     clear()
     yield

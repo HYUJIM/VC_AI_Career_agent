@@ -52,6 +52,7 @@
 | `DXWORKS_API_HOST` | **조건부** | `https://<협력사 호스트>` | `get_settings()`, `BE/app/integrations/dxworks.py` `is_valid_host_setting()` | 비루프백 `http://`·사용자 정보·쿼리·공백 → 종료 1. 비움 → 그 기능만 503 `PROVIDER_NOT_CONFIGURED`. 나가는 길 없음 → 502 `DXWorks 연결 실패: ConnectTimeout`(약 15초) |
 | `DXWORKS_API_KEY` | **조건부** | 협력사 키 | `get_settings()` | ASCII 아님 → 종료 1. 비움 → 발급·검증 503 |
 | `DXWORKS_BADGE_TEMPLATE_ID` | **조건부**(모의 발급) | 협력사 안내서의 템플릿 ID | `get_settings()` | 비움 → 허용 템플릿 없음(403) |
+| `REVERIFY_REUSE_SECONDS` | 선택 | 넣지 않음(60) | `get_settings()` `_env_float`, `BE/app/services/reverify.py` `recent_results` | 0~600 밖 → 종료 1. 로그인 사용자 재검증에서 같은 서명 원본을 이 초 안에 다시 묻지 않음(0이면 매번 물음). DXWorks 요청 속도 제한(429) 완화. 폐기는 이 시간 뒤부터 보임 |
 | `DXWORKS_TIMEOUT_SECONDS` | 선택 | 넣지 않음(15) | `get_settings()` `_env_float` | 1~120 밖 → 종료 1. 최악 4배(기본 60초). 31초보다 크면 4배가 nginx `proxy_read_timeout`(125초)을 넘어 nginx가 먼저 504 |
 | `MOCK_ISSUER_ENABLED` | 시연이면 **필수** | `true` (예시 파일 값) | `get_settings()` | 없음 → production에서 꺼짐(404 `Mock issuer is disabled`). 켜면 시작 로그에 경고 한 줄 |
 | `MOCK_ISSUER_TEMPLATE_IDS` / `MOCK_ISSUER_DAILY_LIMIT` / `MOCK_ISSUER_GLOBAL_DAILY_LIMIT` | 선택 | 비움 / 10 / 시연 인원 × 10보다 조금 크게(기본 200) | `get_settings()` | 한도 1 미만 → 종료 1 |
