@@ -168,6 +168,9 @@ export function Layout() {
               >
                 문의 · 버그 제보
               </a>
+              <Link to="/privacy" className="font-semibold text-[var(--color-text-muted)] hover:underline">
+                개인정보 처리 안내
+              </Link>
             </div>
           </div>
         </div>

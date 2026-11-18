@@ -6,6 +6,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { loginUser } from '@/api/auth';
 import { SocialLoginButtons } from '@/components/SocialLoginButton';
+import { hasPrivacyConsent, PRIVACY_POLICY_PATH, savePrivacyConsent } from '@/lib/privacy';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -62,6 +63,7 @@ export function LoginPage() {
   const setSession = useAuthStore((state) => state.setSession);
   const clearLogoutReason = useAuthStore((state) => state.clearLogoutReason);
   const [loginError, setLoginError] = useState<LoginError | null>(null);
+  const [socialConsent, setSocialConsent] = useState(hasPrivacyConsent);
   // 로그아웃/세션 만료 안내는 스토어에서 한 번만 읽고 바로 비운다.
   const [notice, setNotice] = useState(() => useAuthStore.getState().logoutReason);
 
@@ -219,7 +221,26 @@ export function LoginPage() {
             로그인
           </Button>
         </form>
-        <SocialLoginButtons disabled={mutation.isPending} />
+        {/* 처음 소셜 로그인하면 계정이 만들어진다: 가입 동의와 같은 안내에 동의해야 버튼을 쓸 수 있다 (이 브라우저에 기억) */}
+        <label className="mt-6 flex items-start gap-2 text-[13px] leading-relaxed text-[var(--color-text-sub)]">
+          <input
+            type="checkbox"
+            checked={socialConsent}
+            onChange={(e) => {
+              savePrivacyConsent(e.target.checked);
+              setSocialConsent(e.target.checked);
+            }}
+            className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-primary)]"
+          />
+          <span>
+            [필수] 소셜 계정으로 처음 시작하면 계정이 만들어져요.{' '}
+            <Link to={PRIVACY_POLICY_PATH} className="font-semibold text-[var(--color-primary)] hover:underline">
+              개인정보 수집·이용·처리 위탁
+            </Link>
+            에 동의하고, 만 14세 이상입니다.
+          </span>
+        </label>
+        <SocialLoginButtons disabled={mutation.isPending || !socialConsent} />
         <p className="mt-5 text-center text-[15px] text-[var(--color-text-muted)]">
           계정이 없으신가요?{' '}
           <Link to="/register" className="font-semibold text-[var(--color-primary)] hover:underline">
