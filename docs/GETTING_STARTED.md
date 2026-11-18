@@ -199,13 +199,13 @@ cp -n ai/.env.example ai/.env
 
 ## 7. (선택) 커리큘럼 LLM 모드
 
-기본은 LLM 없이 만드는 템플릿 계획입니다. LLM(기본 공급자 Google Gemini API)을 쓰려면 `BE/.env`의 `CURRICULUM_LLM_USER_IDS`에 계정 UUID(모든 계정이면 `*`)를 넣고, `ai/.env`(`cp -n ai/.env.example ai/.env`)에 `CURRICULUM_LLM_ENABLED=true`와 Google AI Studio에서 만든 `GEMINI_API_KEY`를 넣은 뒤 다시 띄웁니다. 키는 `ai/.env`에만 두고 저장소·FE에 넣지 않습니다.
+기본은 LLM 없이 만드는 템플릿 계획입니다. LLM(기본 공급자 Anthropic Claude API)을 쓰려면 `BE/.env`의 `CURRICULUM_LLM_USER_IDS`에 계정 UUID(모든 계정이면 `*`)를 넣고, `ai/.env`(`cp -n ai/.env.example ai/.env`)에 `CURRICULUM_LLM_ENABLED=true`와 Claude Console(platform.claude.com) > API keys에서 만든 `ANTHROPIC_API_KEY`를 넣은 뒤 다시 띄웁니다. 키는 `ai/.env`에만 두고 저장소·FE에 넣지 않습니다.
 
 ```bash
 (cd BE && docker compose up -d --force-recreate backend ai)
 ```
 
-FE **직무 비교·커리큘럼** 화면에서 "LLM(외부 서비스 Google Gemini API)으로 단계 순서·시간을 배분" 동의를 체크해야 사용됩니다. 키를 넣은 뒤 연결은 `(cd ai && .venv/bin/python scripts/gemini_check.py)`로 한 번 확인합니다(실제 호출 1번. 이 스크립트는 Docker 이미지에 들어가지 않으므로 Compose로 띄웠어도 6번처럼 만든 `ai/.venv`로 실행). 키 발급·모델·데이터 정책·한도와 다른 공급자(OpenAI 호환 API, 로컬 Qwen(GPU)) 설정은 [ai/README.md](../ai/README.md) 6번을 보세요.
+FE **직무 비교·커리큘럼** 화면에서 "LLM(외부 서비스 Anthropic Claude API)으로 단계 순서·시간을 배분" 동의를 체크해야 사용됩니다. 키를 넣은 뒤 연결은 `(cd ai && .venv/bin/python scripts/claude_check.py)`로 한 번 확인합니다(실제 호출 1번. 이 스크립트는 Docker 이미지에 들어가지 않으므로 Compose로 띄웠어도 6번처럼 만든 `ai/.venv`로 실행). 키 발급·모델·데이터 정책·한도와 다른 공급자(Google Gemini API, OpenAI 호환 API, 로컬 Qwen(GPU)) 설정은 [ai/README.md](../ai/README.md) 6번을 보세요.
 
 ## 7-1. (선택) 직무별 채용 시장 통계 넣기
 
@@ -279,7 +279,7 @@ GitHub Actions(`.github/workflows/tests.yml`)가 PR마다 같은 검사를 실�
 | 여러 화면이 503 `Service is busy. Try again later.` ("요청이 많아 처리가 지연되고 있습니다…") | DB가 바쁨. BE 로그의 `Database busy: method=… path=… reason=…` 줄에서 `reason`이 `DatabaseBusy`면 그 BE 프로세스의 DB 연결 자리(`DB_MAX_CONNECTIONS`, 기본 20)를 5초 안에 얻지 못한 것, `QueryCanceled`면 DB 문장이 15초를 넘은 것, `LockNotAvailable`이면 잠금을 5초 안에 얻지 못한 것, `OperationalError: …`면 DB에 접속하지 못했거나 연결이 끊긴 것(뒤의 요약이 원인: 접속 거부·시간 초과·비밀번호 등)입니다. 응답의 `Retry-After`(5초) 뒤에 다시 시도하고, 계속되면 오래 걸리는 쿼리·잠금을 쥔 세션(`pg_stat_activity`)을 확인합니다 |
 | 공고 목록·직무 비교·학습 계획이 429 `Too many analysis requests. Try again later.` ("분석 요청이 너무 많습니다…") | 그 계정이 AI 묶음 요청을 동시에 2개 넘게 보냈거나 분당 30번·시간당 300번을 넘음(BE 프로세스마다 셈). DB·AI를 부르지 않았으므로 `Retry-After`(초) 뒤에 다시 시도. BE 로그에 `event=corpus_budget_denied` 줄이 남습니다 |
 | 직무 비교·학습 계획이 429 `Daily … limit reached …` ("오늘 만들 수 있는 … 수를 모두 썼습니다…") | 그 계정의 24시간 한도: 직무 비교 200건, 학습 계획 200건, LLM 모드 학습 계획 `CURRICULUM_LLM_DAILY_LIMIT`건(기본 20. 템플릿 모드는 그대로 쓸 수 있음). `Retry-After`는 가장 오래된 건이 24시간을 지날 때까지의 초. BE 로그에 `event=daily_limit_denied` 줄이 남습니다 |
-| LLM 모드 학습 계획이 429 `An LLM curriculum is already being generated for this account. …` ("이 계정의 LLM 학습 계획을 이미 만들고 있습니다…") | 같은 계정의 LLM 모드 계획이 아직 끝나지 않음(계정당 한 번에 한 건, BE 프로세스마다 셈). Gemini·하루 몫을 쓰지 않았으므로 앞의 계획이 끝난 뒤 다시 시도. BE 로그에 `event=llm_in_flight_denied` 줄이 남습니다 |
+| LLM 모드 학습 계획이 429 `An LLM curriculum is already being generated for this account. …` ("이 계정의 LLM 학습 계획을 이미 만들고 있습니다…") | 같은 계정의 LLM 모드 계획이 아직 끝나지 않음(계정당 한 번에 한 건, BE 프로세스마다 셈). Claude·하루 몫을 쓰지 않았으므로 앞의 계획이 끝난 뒤 다시 시도. BE 로그에 `event=llm_in_flight_denied` 줄이 남습니다 |
 | 공고 목록·직무 비교·학습 계획이 503 `code: AI_SERVICE_BUSY` ("분석 요청이 많습니다…") | 그 BE 프로세스가 AI로 동시에 보내는 공고·학습자료 묶음 요청이 `AI_MAX_CONCURRENCY`(기본 4)개로 찬 채 10초가 지남. AI를 부르지 않았으므로 `Retry-After`(5초) 뒤에 다시 시도(직무 비교는 자격증명 재검증을 마친 뒤에 자리를 기다리므로, 이 503으로 끝나도 그 요청의 검증기 호출 몫은 이미 쓴 상태) |
 | 포트폴리오·공유 링크 만들기가 409 `Portfolio limit reached.` / `Share link limit reached. Revoke unused links first.` | 사용자별 상한(포트폴리오 100개, 철회·만료되지 않은 공유 링크 100개) → 쓰지 않는 포트폴리오를 지우거나 링크를 철회. 두 목록 조회는 한 번에 200개까지 돌려줍니다 |
 | 소셜 로그인 버튼이 "<제공자> 로그인을 지금 사용할 수 없습니다"(개발 서버에서는 "BE에 … OAuth 설정이 없습니다 …") (503 `Google OAuth is not configured`·`GitHub OAuth is not configured`·`Naver OAuth is not configured`) | 그 제공자의 `*_CLIENT_ID`·`*_CLIENT_SECRET`(예: `GITHUB_CLIENT_ID`·`GITHUB_CLIENT_SECRET`) 중 빈 값이 있음 → `BE/.env`에 둘 다 넣고 backend 재시작. 503 `<Label> OAuth redirect_uri is not configured`면 그 제공자의 콜백 주소(`*_REDIRECT_URI`)가 빈 값이거나 운영에서 넣지 않음 → 예시 파일 값(로컬)이나 FE의 `https://` 콜백 주소(운영)를 넣음 |

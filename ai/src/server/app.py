@@ -7,7 +7,7 @@ Run from the `ai/` folder:  uvicorn src.server.app:app --host 127.0.0.1 --port 8
 - Request bodies are capped while they stream, with or without Content-Length: AI_MAX_BODY_BYTES
   (default 32 MiB) only on the routes that carry a whole job/resource corpus (CORPUS_ROUTES), and
   min(4 MiB, AI_MAX_BODY_BYTES) on every other path (one posting, one resource, one preview text).
-- Curriculum LLM generations (default provider: Google Gemini API) run at most
+- Curriculum LLM generations (default provider: Anthropic Claude API) run at most
   CURRICULUM_LLM_MAX_CONCURRENCY at a time per process (src.career.llm_client.llm_slot).
 - Every response except an unhandled-exception 500 carries the contract ID; a client
   announcing another ID is refused.

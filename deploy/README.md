@@ -5,7 +5,7 @@
 
 ```
 인터넷 ── 80/443 ──> nginx  (FE 정적 파일, HTTPS, IP별 요청 제한, /api/* → backend)
-                      └─ edge ──> backend:3000 ── backend ──> ai:8100 ──> Google Gemini API (LLM 모드일 때)
+                      └─ edge ──> backend:3000 ── backend ──> ai:8100 ──> Anthropic Claude API (LLM 모드일 때)
                                     │                └──> DXWorks API, Google·GitHub·네이버 로그인 (HTTPS)
                                     └─ db (밖으로 나가는 길 없음) ──> postgres:5432 (TLS + 비밀번호)
 ```
@@ -29,7 +29,7 @@
 | `docker-compose.yml` | 운영 구성 (postgres, migrate, backend, ai, nginx) |
 | `.env.example` → `.env` | compose가 읽는 값: 도메인 `SERVER_NAME`, DB 비밀번호 3개, `AI_SERVICE_TOKEN` |
 | `backend.env.example` → `backend.env` | BE만 읽는 값: JWT·지갑 키, DXWorks, 소셜 로그인, 모의 발급, 권한·한도 |
-| `ai.env.example` → `ai.env` | AI만 읽는 값: Gemini 키와 LLM 설정 |
+| `ai.env.example` → `ai.env` | AI만 읽는 값: Claude 키(`ANTHROPIC_API_KEY`)와 LLM 설정 |
 | `nginx/` | FE 빌드 + nginx 이미지(`Dockerfile`), HTTP/HTTPS 설정, 보안 헤더, IP별 요청 제한 |
 | `postgres/` | DB TLS 시작 래퍼, 접속 규칙(`pg_hba.conf`), 첫 실행 때 계정을 만드는 `initdb/10-roles.sh` |
 | `scripts/setup-server.sh` | 서버 준비 (Docker, 방화벽, certbot, 자동 보안 업데이트, 스왑) |
@@ -47,7 +47,7 @@
 
 - 서버: Ubuntu 24.04, 2 vCPU / 4 GB, SSD 50 GB, 공인 IP 1개
 - ACG(방화벽) 인바운드: TCP 22 ← 운영자 공인 IP만, TCP 80·443 ← `0.0.0.0/0`. 아웃바운드: 전체 허용(또는 최소 TCP 80·443, UDP 53·123).
-  서버가 나가야 하는 곳: Docker Hub·PyPI·npm(빌드), Let's Encrypt, Google Gemini API, DXWorks, Google·GitHub·네이버 로그인.
+  서버가 나가야 하는 곳: Docker Hub·PyPI·npm(빌드), Let's Encrypt, Anthropic Claude API(`api.anthropic.com:443`), DXWorks, Google·GitHub·네이버 로그인.
 - SSH: 운영자 공개키를 서버 계정의 `~/.ssh/authorized_keys`에 넣습니다.
 
 ### ② 접속하고 코드 받기
@@ -78,7 +78,7 @@ Docker Engine·Compose 플러그인(Docker 공식 저장소), ufw(22·80·443), 
 cd /opt/vc-career
 deploy/scripts/init-secrets.sh
 nano deploy/backend.env   # DXWORKS_*, (나중에) 소셜 로그인
-nano deploy/ai.env        # LLM을 쓰면 CURRICULUM_LLM_ENABLED=true, GEMINI_API_KEY
+nano deploy/ai.env        # LLM을 쓰면 CURRICULUM_LLM_ENABLED=true, ANTHROPIC_API_KEY
 ```
 
 - DB 비밀번호 3개·`AI_SERVICE_TOKEN`·`JWT_SECRET`·`HOLDER_KEY_ENCRYPTION_KEY`는 무작위로 채워지고 화면에 나오지 않습니다.
@@ -188,7 +188,7 @@ docker compose start backend nginx
 | migrate 실패 (`service "migrate" didn't complete successfully`) | `docker compose logs migrate`의 `마이그레이션 실패:` 줄 |
 | `password authentication failed` | `.env`의 DB 비밀번호를 볼륨을 만든 뒤에 바꿨는지 (위 "비밀번호 바꾸기") |
 | 화면은 뜨는데 발급·검증·직무 비교가 503 `PROVIDER_NOT_CONFIGURED` | `backend.env`의 `DXWORKS_*` |
-| LLM 모드만 503 `GENERATOR_CONFIGURATION_REQUIRED` | `ai.env`의 `CURRICULUM_LLM_ENABLED=true`·`GEMINI_API_KEY`, 그 뒤 `docker compose up -d ai` |
+| LLM 모드만 503 `GENERATOR_CONFIGURATION_REQUIRED` | `ai.env`의 `CURRICULUM_LLM_ENABLED=true`·`ANTHROPIC_API_KEY`(`CURRICULUM_LLM_MODEL`을 넣었다면 `claude-`로 시작), 그 뒤 `docker compose up -d ai` |
 | 소셜 로그인 400 `Invalid redirect_uri` | 브라우저 주소(`https://<도메인>`)와 `*_REDIRECT_URI`·제공자 콘솔 값이 글자 그대로 같은지 |
 | 429 `Too many attempts. Try again later.` | nginx의 IP별 제한(`nginx/http.conf`). 같은 IP의 단체 실습이면 그 경로의 값을 올리고 `deploy.sh` |
 | 인증서 발급 실패 | DNS A 레코드, ACG·ufw 80, `docker compose ps`의 nginx, `sudo certbot certificates` |
@@ -200,4 +200,4 @@ docker compose start backend nginx
   메모리 또는 DB로 셉니다. 예전 AWS WAF의 관리형 규칙(IP 평판·알려진 공격 입력)에 해당하는 것은 없습니다.
 - Docker가 연 포트(80·443)는 ufw 규칙과 별개로 열립니다. 이 구성은 그 둘만 열고, 바깥 방화벽은 NCP ACG입니다.
 - BE↔AI 구간은 같은 서버 안 Docker 네트워크의 평문 HTTP입니다(서버 밖으로 나가지 않음). DB 구간은 TLS입니다.
-- 무료 등급 Gemini 키는 Google이 입력·출력을 제품 개선에 쓸 수 있습니다. 실제 사용자에게 열 때는 유료 등급 키를 씁니다.
+- LLM 모드의 계획 옵션은 Anthropic의 정책에 따라 처리됩니다. 실제 사용자에게 열기 전에 조직의 API 키를 쓰고 Anthropic의 상용 약관·데이터 정책을 검토합니다.

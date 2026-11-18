@@ -345,7 +345,7 @@ const KNOWN_ERROR_CODES: Record<string, string> = {
   AI_SERVICE_BUSY: '분석 요청이 많습니다. 잠시 후 다시 시도해주세요.',
   // AI 서비스의 동시 LLM 생성 한도 초과 (BE 503 + Retry-After). LLM 모드 학습 계획
   LLM_BUSY: 'LLM 학습 계획 요청이 많습니다. 잠시 후 다시 시도해주세요.',
-  // Gemini에 연결하지 못했거나 응답이 늦음 (BE 503 + Retry-After)
+  // LLM(Claude)에 연결하지 못했거나 응답이 늦음 (BE 503 + Retry-After)
   LLM_PROVIDER_UNAVAILABLE: 'LLM 서비스에 연결하지 못했습니다. 템플릿 모드를 쓰거나 잠시 후 다시 시도해주세요.',
   // AI 서비스에 LLM 설정이 없거나 잘못됨 (BE 503). 템플릿 모드는 그대로 쓸 수 있다
   GENERATOR_CONFIGURATION_REQUIRED: '지금은 LLM 모드를 사용할 수 없습니다. 템플릿 모드를 사용해주세요.',
@@ -355,7 +355,7 @@ const KNOWN_ERROR_CODES: Record<string, string> = {
 
 /**
  * 다시 시도하면 될 수 있는 실패(503 + Retry-After)일 때 KNOWN_ERROR_CODES 대신 쓰는 문구.
- * Gemini 429·5xx(LLM_PROVIDER_REJECTED)는 같은 코드라도 503이면 기다렸다 다시 하면 되고, 422면 다시 해도 같다.
+ * LLM(Claude) 429·529·5xx(LLM_PROVIDER_REJECTED)는 같은 코드라도 503이면 기다렸다 다시 하면 되고, 422면 다시 해도 같다.
  */
 const RETRYABLE_ERROR_CODES: Record<string, string> = {
   LLM_PROVIDER_REJECTED: 'LLM 서비스가 지금 요청을 받지 못했습니다. 템플릿 모드를 쓰거나 잠시 후 다시 시도해주세요.',

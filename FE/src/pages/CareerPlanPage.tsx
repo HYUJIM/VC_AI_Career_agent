@@ -463,9 +463,9 @@ export function CareerPlanPage() {
               onChange={(e) => setUseLlm(e.target.checked)}
               className="mt-0.5 h-4 w-4 accent-[var(--color-primary)]"
             />
-            LLM(외부 서비스 Google Gemini API)으로 단계 순서·시간을 배분할게요. 허용된 계정만 사용할 수 있고, 계획
-            옵션(기술·자료 ID·시간·비용, 학습자료 설명 일부)이 Google Gemini API로 전달되는 것에 동의해요. 자격증명 원문과
-            개인정보는 전달되지 않아요. 서비스 설정에 따라 전달된 내용이 Google의 정책대로 서비스 개선에 쓰일 수 있어요.
+            LLM(외부 서비스 Anthropic Claude API)으로 단계 순서·시간을 배분할게요. 허용된 계정만 사용할 수 있고, 계획
+            옵션(기술·자료 ID·시간·비용, 학습자료 설명 일부)이 Anthropic Claude API로 전달되는 것에 동의해요. 자격증명
+            원문과 개인정보는 전달되지 않아요. 전달된 내용은 Anthropic의 정책에 따라 처리·보관돼요.
           </label>
           <div className="flex flex-wrap items-center gap-3">
             <Button

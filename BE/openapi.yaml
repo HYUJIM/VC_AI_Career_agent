@@ -1963,8 +1963,8 @@ paths:
         시도도 센다)과 AI 묶음 요청 한도(TooManyAnalysisRequests). 넘으면 429 + `Retry-After`. 같은 `idempotency_key`로 다시
         받는 계획은 한도에 세지 않는다. LLM 모드 계획은 계정마다 한 번에 한 건이다: 겹친 요청은 429
         `An LLM curriculum is already being generated for this account. Try again later.` + `Retry-After: 5`.
-        LLM 모드의 외부 처리자는 Google Gemini API(AI 서비스가 부름)다. AI가 다시 시도할 수 있다고 답한 생성 실패(`LLM_BUSY`·
-        `LLM_PROVIDER_UNAVAILABLE`, Gemini 429·5xx의 `LLM_PROVIDER_REJECTED`, 배포 중 설정이 바뀐 `GENERATOR_CONFIGURATION_CHANGED`)는
+        LLM 모드의 외부 처리자는 Anthropic Claude API(AI 서비스가 부름)다. AI가 다시 시도할 수 있다고 답한 생성 실패(`LLM_BUSY`·
+        `LLM_PROVIDER_UNAVAILABLE`, Claude 429·5xx의 `LLM_PROVIDER_REJECTED`, 배포 중 설정이 바뀐 `GENERATOR_CONFIGURATION_CHANGED`)는
         503 + `Retry-After: 5`다.
       operationId: createCurriculum
       security:
@@ -2523,7 +2523,7 @@ components:
         걸려 10초를 기다려도 자리가 없던 경우다. AI를 부르지 않았고 `Retry-After`(초) 헤더가 붙는다.
         직무 비교(`POST /api/v1/career-analyses`)는 자격증명 재검증을 마친 뒤에 자리를 기다리므로, 이 응답이어도 그 요청의
         검증기 호출 몫은 이미 쓴 상태다. 학습 계획(`POST /api/v1/curricula`)에서 AI가 다시 시도할 수 있다고 답한 생성 실패
-        (`LLM_BUSY`: AI의 동시 LLM 생성 상한, `LLM_PROVIDER_UNAVAILABLE`, Gemini 429·5xx의 `LLM_PROVIDER_REJECTED`,
+        (`LLM_BUSY`: AI의 동시 LLM 생성 상한, `LLM_PROVIDER_UNAVAILABLE`, Claude 429·5xx의 `LLM_PROVIDER_REJECTED`,
         배포 중 설정이 바뀐 `GENERATOR_CONFIGURATION_CHANGED`)와 다시 시도할 수 있는 AI 연결 실패(`AI_SERVICE_UNAVAILABLE` 등)에도
         `Retry-After: 5`가 붙는다.
       headers:

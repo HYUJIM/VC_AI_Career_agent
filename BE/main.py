@@ -39,11 +39,12 @@ except RuntimeError as exc:
     sys.exit(1)
 logging.basicConfig(level=LOG_LEVEL)
 # httpx는 INFO로 요청마다 전체 URL(비공개 DXWorks 호스트 포함)을, httpcore는 DEBUG로 접속 호스트·응답 헤더를 남긴다.
-# LOG_LEVEL=DEBUG일 때만 그대로 두고, 그 밖의 값에서는 둘 다 WARNING으로 묶는다 (루트가 모든 수준을 남기는 NOTSET은
+# httpx2·httpcore2(같은 로그를 남기는 후속 패키지. 설치돼 있으면 Starlette TestClient 등이 이쪽을 쓴다)도 같이 묶는다.
+# LOG_LEVEL=DEBUG일 때만 그대로 두고, 그 밖의 값에서는 모두 WARNING으로 묶는다 (루트가 모든 수준을 남기는 NOTSET은
 # log_level()이 받지 않는다).
 if LOG_LEVEL != "DEBUG":
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    for _name in ("httpx", "httpcore", "httpx2", "httpcore2"):
+        logging.getLogger(_name).setLevel(logging.WARNING)
 logger = logging.getLogger("vc-be")
 
 # 요청 본문 상한(바이트). FastAPI는 인증 의존성보다 먼저 본문 전체를 읽고 JSON으로 파싱하므로, 상한이 없으면
