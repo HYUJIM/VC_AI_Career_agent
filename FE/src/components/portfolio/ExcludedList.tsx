@@ -7,7 +7,7 @@ const REASON_TEXT: Record<string, string> = {
   revoked: '발급 기관이 취소함',
   expired: '유효기간 만료',
   invalid: '서명·형식 검증 실패',
-  verifier_error: '검증 서버 호출 실패',
+  verifier_error: '검증 서버가 지금 응답하지 않음 (잠시 뒤 다시 시도)',
   recipient_mismatch: '서명 원본의 수신자가 내 DID와 다름',
   record_mismatch: '서명 원본이 저장된 기록과 다름',
 };

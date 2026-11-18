@@ -237,7 +237,9 @@ async def reverify_rows(rows: list[dict], verifier: CredentialVerifier, *, calle
     gate는 기업용 조회(로그인 없음) 전용이다: 최근 응답을 다시 쓰고, 다른 조회가 묻고 있는 원본은 그 응답을 기다리며,
     새로 부를 몫이 모자라면 검증기를 하나도 부르지 않고 public_view_gate.BudgetExceeded를 던진다 (public_view_gate.py).
     검증기 장애(is_verifier_outage)가 한 번 확인되면 아직 시작하지 않은 행은 검증기를 부르지 않고 그 오류로 '검증 불가'가 된다
-    (장애 중이거나 우리를 제한하는 협력사를 남은 자격증명 수만큼 더 부르지 않는다).
+    (장애 중이거나 우리를 제한하는 협력사를 남은 자격증명 수만큼 더 부르지 않는다). 다만 이 요청에서 협력사가 이미 다른 원본에
+    답했으면(최근 응답 재사용 포함) 429는 그 원본 하나에 대한 제한으로 보고 멈추지 않는다 (DXWorks는 같은 원본을 자주 물으면
+    그 원본만 한동안 429로 거절한다).
     """
     signed = [row for row in rows if row.get("raw_token")]
     # 행과 같은 자리의 할 일 (게이트가 없거나 서명 원본이 없는 행은 None). record_id로 찾지 않고 자리로 짝짓는다:
@@ -245,6 +247,7 @@ async def reverify_rows(rows: list[dict], verifier: CredentialVerifier, *, calle
     steps: list[Optional[tuple[str, Any]]] = [None] * len(rows)
     stats = {"calls": 0, "failed": 0}
     outage: list[ProviderError] = []  # 처음 확인된 검증기 장애
+    answered: list[bool] = []  # 이 요청에서 협력사가 답한(또는 최근 응답을 다시 쓴) 서명 원본
     if gate is None:
         ttl = get_settings().reverify_reuse_seconds
         for index, row in enumerate(rows):
@@ -268,8 +271,11 @@ async def reverify_rows(rows: list[dict], verifier: CredentialVerifier, *, calle
                     gate.settle(step[1], outage[0])
                 return _not_verifiable(row, "verifier_error", "검증기 호출 실패", error=outage[0])
             outcome = await _reverify_one(row, verifier, persist=persist, stats=stats, gate=gate, step=step)
-            if outcome.error is not None and not outage and is_verifier_outage(outcome.error):
-                outage.append(outcome.error)
+            if outcome.error is None and row.get("raw_token"):
+                answered.append(True)
+            elif outcome.error is not None and not outage and is_verifier_outage(outcome.error):
+                if not (_rate_limited(outcome.error) and answered):
+                    outage.append(outcome.error)
             return outcome
 
     try:
@@ -281,6 +287,10 @@ async def reverify_rows(rows: list[dict], verifier: CredentialVerifier, *, calle
             if step is not None and step[0] == "call":
                 gate.settle(step[1], abandoned)
         log_verifier_calls(caller, route, stats["calls"], stats["failed"])
+
+
+def _rate_limited(exc: ProviderError) -> bool:
+    return exc.upstream_status == 429
 
 
 def is_verifier_outage(exc: ProviderError) -> bool:
@@ -300,9 +310,14 @@ def raise_on_verifier_outage(outcomes: list[ReverifyOutcome]) -> None:
     서명 원본이 둘 이상인데 하나도 빠짐없이 검증기 오류로 끝났으면, 상태 코드가 자격증명 하나의 거절(400·404 등)처럼 보여도
     장애로 본다 (협력사가 우리 호출을 통째로 거절하는 상태를 '검증된 자격증명 없음'으로 저장하지 않는다).
     모든 재검증이 끝난 뒤에 확인하므로 백그라운드에 남는 호출이 없다. main.py가 502/503으로 답한다.
+    429(요청 속도 제한)는 협력사가 같은 요청의 다른 원본에 답했으면 장애로 보지 않는다: 그 자격증명만 '검증 불가'로 빼고
+    나머지로 저장한다 (자주 물은 원본 하나가 제한돼 포트폴리오·직무 비교 전체가 실패하지 않게).
     """
+    partner_answered = any(outcome.error is None and outcome.vc_jwt for outcome in outcomes)
     for outcome in outcomes:
         if outcome.error is not None and is_verifier_outage(outcome.error):
+            if _rate_limited(outcome.error) and partner_answered:
+                continue
             raise outcome.error
     signed = [outcome for outcome in outcomes if outcome.vc_jwt]
     if len(signed) >= 2 and all(outcome.error is not None for outcome in signed):

@@ -1354,6 +1354,7 @@ class Partner:
         self.in_flight = self.peak = 0
         self.delay = 0.0
         self.error_status: int | None = None
+        self.throttled: set[str] = set()  # 이 서명 원본들만 429로 거절한다 (같은 원본을 자주 물은 경우)
 
     def sent(self, suffix: str = "") -> int:
         return len([path for path, _ in self.requests if path.endswith(suffix)])
@@ -1370,6 +1371,8 @@ class Partner:
             if self.error_status is not None:
                 return httpx.Response(self.error_status, json={"error": {"code": "E", "message": "refused"}})
             data = json.loads(request.content)
+            if data.get("vcJwt") in self.throttled:
+                return httpx.Response(429, json={"error": {"code": "RATE_LIMITED", "message": "ThrottlerException"}})
             if "vpToken" in data:
                 holder = (decode_jwt_payload(data["vpToken"]) or {}).get("iss")
                 return httpx.Response(200, json={"data": {"verified": True, "holderDid": holder, "claims": {}}})
@@ -1748,3 +1751,43 @@ def test_recent_results_are_bounded_and_keyed_by_token():
     assert recent.get("g.h.i", 60) == (at, "result-g.h.i") and recent.get("g.h.i", 0) is None
     clock["now"] = 60
     assert recent.get("g.h.i", 60) is None
+
+
+def test_a_few_rate_limited_credentials_are_excluded_not_fatal(client, register, partner, frozen_budget, monkeypatch):
+    # 회귀: 자주 검증한 배지 둘만 DXWorks가 429로 계속 거절하자 포트폴리오 생성 전체가 502로 끝났다.
+    import app.integrations.dxworks as dx
+    from tests.conftest import make_vc_jwt
+
+    monkeypatch.setattr(dx, "_THROTTLE_BACKOFF_SECONDS", (0.01, 0.01))
+    user = register()
+    tokens = [make_vc_jwt(user["did"]) for _ in range(8)]
+    record_ids = [post_verify(client, user, token).json()["data"]["record_id"] for token in tokens]
+    partner.throttled = set(tokens[:2])
+    partner.requests.clear()
+    created = client.post("/api/v1/portfolios", headers=user["headers"],
+                          json={"title": "t", "record_ids": record_ids, "source": "VC_ONLY"})
+    assert created.status_code == 201, created.text
+    data = created.json()["data"]
+    assert data["credential_count"] == 6
+    assert {e["record_id"] for e in data["excluded"]} == set(record_ids[:2])
+    assert {e["reason"] for e in data["excluded"]} == {"verifier_error"}
+    # 나머지는 모두 물었다 (429 하나로 남은 자격증명을 건너뛰지 않음). 거절된 둘은 재시도까지 3번씩.
+    assert partner.sent() == 6 + 2 * (1 + len(dx._THROTTLE_BACKOFF_SECONDS))
+
+    evidence = client.get(f"/api/v1/subjects/{user['did']}/evidence", headers=user["headers"])
+    assert evidence.status_code == 200 and len(evidence.json()["evidence"]) == 6
+
+
+def test_every_credential_rate_limited_is_still_an_outage(client, register, partner, frozen_budget, monkeypatch):
+    import app.integrations.dxworks as dx
+    from tests.conftest import make_vc_jwt
+
+    monkeypatch.setattr(dx, "_THROTTLE_BACKOFF_SECONDS", (0.01, 0.01))
+    user = register()
+    tokens = [make_vc_jwt(user["did"]) for _ in range(3)]
+    record_ids = [post_verify(client, user, token).json()["data"]["record_id"] for token in tokens]
+    partner.throttled = set(tokens)
+    created = client.post("/api/v1/portfolios", headers=user["headers"],
+                          json={"title": "t", "record_ids": record_ids, "source": "VC_ONLY"})
+    assert created.status_code == 502
+    assert client.get("/api/v1/portfolios", headers=user["headers"]).json()["data"] == []
