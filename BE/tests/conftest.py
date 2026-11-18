@@ -89,9 +89,11 @@ def reset_call_budgets():
     from app.api.oauth import github_exchange_budget, naver_exchange_budget, oauth_exchange_budget
     from app.integrations.ai_service import clear_corpus_caller_limits
     from app.services.career import clear_llm_in_flight
+    from app.services.portfolio_llm import clear_in_flight as clear_portfolio_llm_in_flight
     from app.services.public_view_gate import public_view_gate
     from app.services.verifier_budget import (
-        llm_curriculum_attempts, llm_curriculum_global_attempts, mock_issue_attempts, mock_issue_breaker,
+        llm_curriculum_attempts, llm_curriculum_global_attempts, llm_portfolio_attempts,
+        llm_portfolio_global_attempts, mock_issue_attempts, mock_issue_breaker,
         rejected_verifications, verifier_budget,
     )
 
@@ -108,6 +110,9 @@ def reset_call_budgets():
         llm_curriculum_attempts.clear()
         llm_curriculum_global_attempts.clear()
         clear_llm_in_flight()
+        llm_portfolio_attempts.clear()
+        llm_portfolio_global_attempts.clear()
+        clear_portfolio_llm_in_flight()
 
     clear()
     yield

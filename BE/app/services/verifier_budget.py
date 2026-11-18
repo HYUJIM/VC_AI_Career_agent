@@ -300,6 +300,10 @@ llm_curriculum_attempts = AttemptWindow(1, LLM_CURRICULUM_WINDOW_SECONDS)
 # 모든 계정을 합친 LLM 시도 창 (키는 LLM_GLOBAL_KEY 하나, 한도는 reserve 때마다 CURRICULUM_LLM_GLOBAL_DAILY_LIMIT).
 LLM_GLOBAL_KEY = "all"
 llm_curriculum_global_attempts = AttemptWindow(1, LLM_CURRICULUM_WINDOW_SECONDS)
+# AI(LLM) 포트폴리오 생성·다시 쓰기 시도 창: 사용자별(PORTFOLIO_LLM_DAILY_LIMIT)과 모든 계정 합계
+# (PORTFOLIO_LLM_GLOBAL_DAILY_LIMIT, 키 LLM_GLOBAL_KEY). 다시 쓰기는 같은 행을 고치므로 DB 행 수로 셀 수 없어 메모리로만 센다.
+llm_portfolio_attempts = AttemptWindow(1, LLM_CURRICULUM_WINDOW_SECONDS)
+llm_portfolio_global_attempts = AttemptWindow(1, LLM_CURRICULUM_WINDOW_SECONDS)
 
 
 def caller_key(principal) -> str:

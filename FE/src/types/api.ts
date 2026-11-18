@@ -193,11 +193,28 @@ export interface ReverifyResponse {
 export type PortfolioStatus = 'draft' | 'published';
 
 /** 자유 텍스트 본문은 보낼 수 없다. 정의되지 않은 필드가 있으면 BE가 422로 거절한다. */
+/** template: 서버 틀만. llm: 같은 틀에 AI(Claude)가 쓴 요약·관련성 문장을 "AI 작성" 표시와 함께 넣는다 */
+export type PortfolioMode = 'template' | 'llm';
+
 export interface PortfolioCreateRequest {
   title: string;
   target_role?: string | null;
   record_ids: string[];
   source: 'VC_ONLY';
+  mode?: PortfolioMode;
+  /** mode가 llm이면 true여야 한다 (Anthropic으로 자격증명 문구·희망 직무·작성 방향 전달 동의) */
+  allow_external_processing?: boolean;
+  /** 작성 방향 한 줄 (말투·강조점, 200자). AI에 선호로만 전하고 본문에 그대로 넣지 않는다 */
+  direction?: string | null;
+}
+
+/** POST /portfolios/{id}/regenerate — 같은 포트폴리오의 본문·근거를 다시 만든다 (제목·희망 직무·상태는 그대로) */
+export interface PortfolioRegenerateRequest {
+  record_ids: string[];
+  source: 'VC_ONLY';
+  mode?: PortfolioMode;
+  allow_external_processing?: boolean;
+  direction?: string | null;
 }
 
 /** 본문은 수정할 수 없다 (VC_ONLY). */
@@ -219,8 +236,12 @@ export interface PortfolioSummary {
 
 export interface Portfolio extends PortfolioSummary {
   source: 'VC_ONLY';
-  /** 본문을 만든 방식. 현재 template (이후 ai) */
+  /** 본문을 만든 방식: template | llm (AI 문장 포함) | llm_fallback (AI 문장을 버리고 템플릿으로 저장) */
   generator: string;
+  /** AI 문장을 쓴 모델 (llm일 때) */
+  model?: string | null;
+  /** 예: UNTRUSTED_MODEL_OUTPUT_DISCARDED */
+  warnings?: string[];
   content_markdown: string;
   /** 본문에 들어간 근거 (생성 시점 재검증 결과) */
   sections: Evidence[];

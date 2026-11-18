@@ -6,6 +6,7 @@ import { DashboardPage } from '@/pages/DashboardPage';
 import { IssueCredentialPage } from '@/pages/IssueCredentialPage';
 import { OAuthCallbackPage } from '@/pages/OAuthCallbackPage';
 import { PortfolioBuilderPage } from '@/pages/PortfolioBuilderPage';
+import { PrivacyPolicyPage } from '@/pages/PrivacyPolicyPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { RegisterPage } from '@/pages/RegisterPage';
 import { SharedViewPage } from '@/pages/SharedViewPage';
@@ -41,6 +42,8 @@ function App() {
             element={<OAuthCallbackPage key={provider} provider={provider} />}
           />
         ))}
+        {/* 개인정보 처리 안내 (로그인 불필요) */}
+        <Route path="/privacy" element={<PrivacyPolicyPage />} />
         {/* 기업용 공유 링크 조회 (로그인 불필요, BE share_path = /share/{token}) */}
         <Route path="/share/:token" element={<SharedViewPage />} />
         <Route

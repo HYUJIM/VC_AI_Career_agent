@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { registerUser } from '@/api/auth';
+import { PrivacyConsent } from '@/components/PrivacyConsent';
 import { SocialLoginButtons } from '@/components/SocialLoginButton';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
@@ -19,6 +20,7 @@ import {
   needsRetryHint,
   RETRY_LATER_MESSAGE,
 } from '@/lib/apiClient';
+import { hasPrivacyConsent, PRIVACY_POLICY_PATH, PRIVACY_POLICY_VERSION, savePrivacyConsent } from '@/lib/privacy';
 import { SINGLE_LINE_PATTERN } from '@/lib/text';
 import { startSession } from '@/store/authStore';
 
@@ -64,6 +66,8 @@ export function RegisterPage() {
   const location = useLocation();
   const prefillEmail = (location.state as { email?: string } | null)?.email ?? '';
   const [registerError, setRegisterError] = useState<RegisterError | null>(null);
+  // 가입 첫 단계: 개인정보 수집·이용 동의 (이 브라우저에서 현재 버전에 이미 동의했으면 바로 양식)
+  const [consented, setConsented] = useState(hasPrivacyConsent);
 
   const {
     register,
@@ -157,6 +161,21 @@ export function RegisterPage() {
     }
   }
 
+  if (!consented) {
+    return (
+      <div className="flex min-h-[70vh] items-center justify-center">
+        <Card className="w-full max-w-2xl p-8">
+          <PrivacyConsent
+            onAgree={() => {
+              savePrivacyConsent(true);
+              setConsented(true);
+            }}
+          />
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-[70vh] items-center justify-center">
       <Card className="w-full max-w-md p-8">
@@ -165,6 +184,23 @@ export function RegisterPage() {
         </h1>
         <p className="mb-8 mt-2 text-[15px] text-[var(--color-text-sub)]">
           가입과 동시에 나만의 탈중앙 식별자(DID)가 발급돼요.
+        </p>
+        <p className="-mt-5 mb-6 text-[12px] text-[var(--color-text-muted)]">
+          개인정보 수집·이용에 동의했어요 (시행일 {PRIVACY_POLICY_VERSION}).{' '}
+          <Link to={PRIVACY_POLICY_PATH} className="underline">
+            안내 보기
+          </Link>{' '}
+          ·{' '}
+          <button
+            type="button"
+            className="underline"
+            onClick={() => {
+              savePrivacyConsent(false);
+              setConsented(false);
+            }}
+          >
+            동의 다시 하기
+          </button>
         </p>
         <form className="flex flex-col gap-4" noValidate onSubmit={handleSubmit(onSubmit)}>
           <Input

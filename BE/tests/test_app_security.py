@@ -200,7 +200,11 @@ def largest_bodies() -> dict[tuple[str, str], dict]:
         ("POST", "/api/v1/verify"): {"type": "identity", "token": "a" * (256 * 1024)},
         ("POST", "/api/mock-issuer/issue"): {"templateId": "t" * 255, "holderDid": "d" * 255},
         ("POST", "/api/v1/portfolios"): {"title": "가" * 255, "target_role": "가" * 100, "record_ids": ids(50),
-                                         "source": "VC_ONLY"},
+                                         "source": "VC_ONLY", "mode": "llm", "allow_external_processing": True,
+                                         "direction": "가" * 200},
+        ("POST", "/api/v1/portfolios/{portfolio_id}/regenerate"): {
+            "record_ids": ids(50), "source": "VC_ONLY", "mode": "llm", "allow_external_processing": True,
+            "direction": "가" * 200},
         ("PATCH", "/api/v1/portfolios/{portfolio_id}"): {"title": "가" * 255, "target_role": "가" * 100,
                                                          "status": "published"},
         ("POST", "/api/v1/shares"): {"record_ids": ids(50), "label": "가" * 100, "expires_in_days": 90},
@@ -255,6 +259,7 @@ def test_every_route_that_reads_a_body_has_a_cap_that_fits_its_largest_normal_bo
     # 나머지는 모두 기본 상한이다: 가장 큰 것은 커리큘럼 요청(대안 선택 200개)이다.
     default = set(sizes) - large - verify - public
     assert default == {("POST", "/api/mock-issuer/issue"), ("POST", "/api/v1/portfolios"),
+                       ("POST", "/api/v1/portfolios/{portfolio_id}/regenerate"),
                        ("PATCH", "/api/v1/portfolios/{portfolio_id}"), ("POST", "/api/v1/shares"),
                        ("POST", "/api/v1/career-analyses"), ("POST", "/api/v1/curricula")}
     assert max(sizes[route] for route in default) == sizes[("POST", "/api/v1/curricula")] < 40_000
@@ -468,9 +473,18 @@ def test_largest_normal_requests_of_the_default_class_are_processed(client, regi
     share = send("POST", "/api/v1/shares", {**bodies[("POST", "/api/v1/shares")], "record_ids": record_ids}, auth)
     assert share.status_code == 201 and len(share.json()["data"]["record_ids"]) == 50, share.text[:300]
     assert share.json()["data"]["label"] == "가" * 100
+    # 가장 큰 본문 그대로(작성 방향 200자 포함), 이 테스트에서는 AI 없이 템플릿으로 만든다 (AI 모드는 test_portfolio_llm).
+    no_ai = {"mode": "template", "allow_external_processing": False}
     portfolio = send("POST", "/api/v1/portfolios",
-                     {**bodies[("POST", "/api/v1/portfolios")], "record_ids": record_ids}, auth)
+                     {**bodies[("POST", "/api/v1/portfolios")], "record_ids": record_ids, **no_ai}, auth)
     assert portfolio.status_code == 201 and portfolio.json()["data"]["credential_count"] == 50, portfolio.text[:300]
+    from app.services.verifier_budget import verifier_budget
+
+    verifier_budget.clear()  # 같은 50개를 또 재검증한다: 이 계정의 검증기 호출 몫을 비우고 본문 크기만 본다
+    rewritten = send("POST", f"/api/v1/portfolios/{portfolio.json()['data']['id']}/regenerate",
+                     {**bodies[("POST", "/api/v1/portfolios/{portfolio_id}/regenerate")], "record_ids": record_ids,
+                      **no_ai}, auth)
+    assert rewritten.status_code == 200 and rewritten.json()["data"]["credential_count"] == 50, rewritten.text[:300]
     patched = send("PATCH", f"/api/v1/portfolios/{portfolio.json()['data']['id']}",
                    {"title": "나" * 255, "target_role": "다" * 100, "status": "published"}, auth)
     assert patched.status_code == 200 and patched.json()["data"]["title"] == "나" * 255, patched.text[:300]

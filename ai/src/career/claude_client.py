@@ -218,15 +218,16 @@ class ClaudeClient:
         self.last_latency_ms: int | None = None
         self.last_model: str | None = None
 
-    def request_body(self, payload: dict) -> dict:
+    def build_body(self, *, system: str, payload: dict, schema: dict) -> dict:
+        """One Messages API request: fixed system prompt, the payload as JSON text, JSON output by schema."""
         body = {
             "model": self.config.model,
             "max_tokens": MAX_OUTPUT_TOKENS,
-            "system": SELECTOR_SYSTEM_PROMPT,
+            "system": system,
             "messages": [{"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
             "output_config": {
                 "effort": self.config.effort,
-                "format": {"type": "json_schema", "schema": DRAFT_RESPONSE_SCHEMA},
+                "format": {"type": "json_schema", "schema": schema},
             },
         }
         if self.config.refusal_fallback:
@@ -234,13 +235,24 @@ class ClaudeClient:
             body["fallbacks"] = "default"
         return body
 
+    def request_body(self, payload: dict) -> dict:
+        """The curriculum selector request."""
+        return self.build_body(system=SELECTOR_SYSTEM_PROMPT, payload=payload, schema=DRAFT_RESPONSE_SCHEMA)
+
     async def generate(self, context, request, errors=None):
         return await self.complete(selector_payload(context, request, errors))
 
     async def complete(self, payload: dict) -> LLMReply:
+        """The curriculum selector call."""
+        return await self.send(self.request_body(payload))
+
+    async def call(self, *, system: str, payload: dict, schema: dict) -> LLMReply:
+        """Any other structured call (portfolio drafting), with the same limits and error mapping."""
+        return await self.send(self.build_body(system=system, payload=payload, schema=schema))
+
+    async def send(self, body: dict) -> LLMReply:
         import anthropic
 
-        body = self.request_body(payload)
         self.last_status = self.last_latency_ms = self.last_model = None
         started = time.monotonic()
         try:

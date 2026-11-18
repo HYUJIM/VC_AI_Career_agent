@@ -56,12 +56,14 @@ from src.career.contracts.market import (
     MarketSnapshotOutput,
     MarketSnapshotRequest,
 )
+from src.career.contracts.portfolio import PortfolioDraftOutcome, PortfolioDraftRequest
 from src.career.curriculum_generator import generate
 from src.career.curriculum_service import planning_context, search_resources
 from src.career.errors import ConfigurationError, EvidenceError, Rejection
 from src.career.job_requirements import preview_requirements, validate_annotations
 from src.career.learning_retrieval import validate_resource
 from src.career.llm_client import generator_from_env, llm_max_concurrency
+from src.career.portfolio_drafter import draft as draft_portfolio
 from src.career.skill_catalog import CATALOG
 from src.market.catalog import CATALOG as MARKET_CATALOG
 from src.market.statistics import build_snapshot
@@ -218,6 +220,7 @@ def create_app() -> FastAPI:
     app.state.clock = lambda: datetime.now(timezone.utc)
     app.state.generator_loader = generator_from_env
     app.state.selector_client_factory = None
+    app.state.portfolio_client_factory = None
 
     app.add_middleware(ServiceGuard)
 
@@ -341,6 +344,10 @@ def create_app() -> FastAPI:
     @app.post("/v1/curricula/generate", response_model=GenerationOutcome, dependencies=secured)
     async def curriculum_generate(body: GenerationInput):
         return await generate(body, app.state.selector_client_factory, app.state.generator_loader)
+
+    @app.post("/v1/portfolios/draft", response_model=PortfolioDraftOutcome, dependencies=secured)
+    async def portfolio_draft(body: PortfolioDraftRequest):
+        return await draft_portfolio(body, app.state.portfolio_client_factory, app.state.generator_loader)
 
     return app
 

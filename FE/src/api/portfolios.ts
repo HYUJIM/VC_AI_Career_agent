@@ -11,6 +11,7 @@ import { cleanEvidenceText, sanitizeSingleLine } from '@/lib/text';
 import type {
   PortfolioCreateRequest,
   PortfolioListResponse,
+  PortfolioRegenerateRequest,
   PortfolioResponse,
   PortfolioUpdateRequest,
   SimpleSuccess,
@@ -52,9 +53,31 @@ export async function createPortfolio(
     target_role: payload.target_role ? sanitizeSingleLine(payload.target_role) || null : null,
     record_ids: payload.record_ids,
     source: 'VC_ONLY',
+    ...llmFields(payload),
   };
   if (import.meta.env.DEV && isPreviewSession()) return previewCreatePortfolio(body);
   const { data } = await apiClient.post<PortfolioResponse>('/v1/portfolios', body);
+  return cleanPortfolio(data);
+}
+
+/** AI(LLM) 모드 필드: llm일 때만 동의와 작성 방향(한 줄)을 붙인다 */
+function llmFields(payload: Pick<PortfolioCreateRequest, 'mode' | 'allow_external_processing' | 'direction'>) {
+  if (payload.mode !== 'llm') return {};
+  const direction = payload.direction ? sanitizeSingleLine(payload.direction).slice(0, 200) || null : null;
+  return { mode: 'llm' as const, allow_external_processing: Boolean(payload.allow_external_processing), direction };
+}
+
+/** POST /api/v1/portfolios/{id}/regenerate — 지금 다시 검증해 같은 포트폴리오의 본문을 새로 만든다 */
+export async function regeneratePortfolio(
+  id: string,
+  payload: Omit<PortfolioRegenerateRequest, 'source'>,
+): Promise<PortfolioResponse> {
+  const body: PortfolioRegenerateRequest = { record_ids: payload.record_ids, source: 'VC_ONLY', ...llmFields(payload) };
+  if (import.meta.env.DEV && isPreviewSession()) return previewGetPortfolio(id);
+  const { data } = await apiClient.post<PortfolioResponse>(
+    `/v1/portfolios/${encodeURIComponent(id)}/regenerate`,
+    body,
+  );
   return cleanPortfolio(data);
 }
 

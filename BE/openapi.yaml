@@ -1322,7 +1322,15 @@ paths:
         부르지 않고 429 + `Retry-After`(아무것도 만들지 않음).
         포트폴리오는 사용자마다 100개까지다. 이미 100개면 검증기를 부르지 않고 409 `Portfolio limit reached.`
         (쓰지 않는 것을 지우면 다시 만들 수 있다).
-        본문은 현재 템플릿으로 만든다 (`generator: template`). 이후 AI 생성으로 바뀌어도 요청 형식은 같다.
+        본문 틀(이름·발급 기관·날짜·검증 결과)은 늘 서버가 재검증 결과로 쓴다 (`generator: template`).
+        `mode: llm`이면 같은 틀의 요약 문장과 자격증명별 관련성 한 줄을 AI(Claude)가 쓰고 "AI 작성" 표시와 함께 넣는다
+        (`generator: llm`, `model`). 이 모드는 허용 계정(`CURRICULUM_LLM_USER_IDS`)과 `allow_external_processing: true`가
+        필요하다(아니면 403 / 422). AI로는 재검증을 통과한 자격증명의 이름·발급 기관·발급일·내용·성취 기준과 희망 직무,
+        `direction`(작성 방향 한 줄)만 가고 자격증명 ID·이름·이메일·DID는 가지 않는다. AI 문장이 검사(근거에 없는 숫자,
+        링크·이메일, 길이 등)를 두 번 통과하지 못하면 템플릿 본문으로 저장하고 `generator: llm_fallback`,
+        `warnings: [UNTRUSTED_MODEL_OUTPUT_DISCARDED]`다. AI 공급자 장애는 저장하지 않고 503(+`Retry-After`, `code`) 또는
+        422(`code`)다. 한도(넘으면 429 + `Retry-After`, AI를 부르지 않음): 계정당 진행 중 1건, 계정당 24시간
+        `PORTFOLIO_LLM_DAILY_LIMIT`(기본 20), 서비스 전체 24시간 `PORTFOLIO_LLM_GLOBAL_DAILY_LIMIT`(기본 200).
         제목·희망 직무는 본문 머리말에 한 줄로 들어가므로, 앞뒤 공백·줄바꿈을 자른 값 안에 줄바꿈·탭 같은 제어 문자나
         U+2028·U+2029가 있으면 422 `Value error, must be a single line without control characters`다 (NUL도 422).
       operationId: createPortfolio
@@ -1380,6 +1388,71 @@ paths:
                 detail: No verified credentials selected
         "429":
           $ref: "#/components/responses/TooManyVerifications"
+        "502":
+          $ref: "#/components/responses/ProviderError"
+        "503":
+          $ref: "#/components/responses/ProviderUnavailable"
+
+  /api/v1/portfolios/{portfolio_id}/regenerate:
+    parameters:
+      - $ref: "#/components/parameters/PortfolioId"
+    post:
+      tags: [portfolios]
+      summary: 포트폴리오 본문 다시 쓰기 (VC_ONLY, 선택적으로 AI)
+      description: |
+        고른 자격증명을 지금 다시 검증해 같은 포트폴리오의 본문·근거(`sections`·`referenced_record_ids`·`excluded`)를 새로 만든다.
+        제목·희망 직무·상태는 그대로다. `mode`·`allow_external_processing`·`direction`과 오류·한도는 생성과 같다
+        (사용자별 100개 상한은 세지 않는다). 본인 포트폴리오가 아니면 404.
+      operationId: regeneratePortfolio
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PortfolioRegenerateRequest"
+            example:
+              record_ids: [7c9e6679-7425-40de-944b-e07fc1f90ae7]
+              source: VC_ONLY
+              mode: llm
+              allow_external_processing: true
+              direction: 협업 경험을 강조해줘
+      responses:
+        "200":
+          description: 다시 씀
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortfolioResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: 이 계정은 AI(LLM) 모드를 쓸 수 없음
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: 포트폴리오나 자격증명이 없거나 본인 것이 아님
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: 요청 형식 오류, 동의 없음, 검증을 통과한 자격증명이 없음, AI 공급자가 거절(`code`)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ErrorResponse"
+                  - $ref: "#/components/schemas/ValidationErrorResponse"
+        "429":
+          description: 검증기 호출 몫 또는 AI(LLM) 포트폴리오 한도 초과 (`Retry-After`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "502":
           $ref: "#/components/responses/ProviderError"
         "503":
@@ -2978,6 +3051,46 @@ components:
           type: string
           const: VC_ONLY
           description: 근거 출처. 검증된 자격증명만 쓴다는 표시로 항상 VC_ONLY
+        mode:
+          type: string
+          enum: [template, llm]
+          default: template
+          description: llm이면 요약·관련성 문장을 AI(Claude)가 쓴다 (허용 계정 + 동의 필요)
+        allow_external_processing:
+          type: boolean
+          default: false
+          description: "AI 공급자(Anthropic)로 자격증명 문구·희망 직무·작성 방향을 보내는 데 동의 (`mode: llm`이면 true여야 함)"
+        direction:
+          type: [string, "null"]
+          maxLength: 200
+          description: 작성 방향 한 줄 (말투·강조점). AI에 선호로만 전하고 본문에 그대로 넣지 않는다. 사실 근거가 되지 않는다
+
+    PortfolioRegenerateRequest:
+      type: object
+      additionalProperties: false
+      required: [record_ids, source]
+      properties:
+        record_ids:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items: { type: string, format: uuid }
+        source:
+          type: string
+          const: VC_ONLY
+        mode:
+          type: string
+          enum: [template, llm]
+          default: template
+          description: llm이면 요약·관련성 문장을 AI(Claude)가 쓴다 (허용 계정 + 동의 필요)
+        allow_external_processing:
+          type: boolean
+          default: false
+          description: "AI 공급자(Anthropic)로 자격증명 문구·희망 직무·작성 방향을 보내는 데 동의 (`mode: llm`이면 true여야 함)"
+        direction:
+          type: [string, "null"]
+          maxLength: 200
+          description: 작성 방향 한 줄 (말투·강조점). AI에 선호로만 전하고 본문에 그대로 넣지 않는다. 사실 근거가 되지 않는다
 
     PortfolioUpdateRequest:
       type: object
@@ -3016,7 +3129,15 @@ components:
             source: { type: string, const: VC_ONLY }
             generator:
               type: string
-              description: 본문을 만든 방식. 현재 template (이후 ai)
+              enum: [template, llm, llm_fallback]
+              description: 본문을 만든 방식. llm은 AI(Claude) 문장 포함, llm_fallback은 AI 문장을 버리고 템플릿으로 저장
+            model:
+              type: [string, "null"]
+              description: AI 문장을 쓴 모델 (llm일 때)
+            warnings:
+              type: array
+              items: { type: string }
+              description: 예 UNTRUSTED_MODEL_OUTPUT_DISCARDED (llm_fallback)
             content_markdown: { type: string }
             sections:
               type: array
