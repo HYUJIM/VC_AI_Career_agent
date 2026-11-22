@@ -9,7 +9,7 @@ import json
 import math
 import re
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -332,6 +332,41 @@ def evaluate_badge(result: ProviderBadgeResult, token: str, now: Optional[dateti
         issued_at=issued_at,
         expires_at=expires_at,
         vc=vc or {},
+    )
+
+
+# 올릴 때 검증기가 발급자 서명·신뢰를 확인하지 못한 배지(위조·변조 의심)를 '미검증 기록'으로 격리 보관하는 출처
+# (credentials.source_provider). 이 출처의 레코드는 실행 시점 재검증 결과와 상관없이 근거로 쓰지 않는다 (reverify.py).
+UNVERIFIED_UPLOAD = "unverified_upload"
+
+
+def is_unverified_upload(row: dict) -> bool:
+    return row.get("source_provider") == UNVERIFIED_UPLOAD
+
+
+def quarantine_evaluation(evaluation: BadgeEvaluation, user_id: str, token: str) -> BadgeEvaluation:
+    """확인되지 않은 업로드를 '미검증 기록'으로 보관할 때의 판정.
+
+    확인되지 않은 본문(자격증명 ID·수신자·배지 이름)은 누구나 만들 수 있으므로 레코드 키로 쓰지 않는다. 키는 올린 사용자와
+    서명 원본의 SHA-256으로만 정한다: 진짜 레코드를 덮어쓰거나, 자격증명 ID를 선점하거나, 다른 사용자가 그 ID를 가졌는지
+    알아내는 데 쓸 수 없다. 상태는 항상 invalid다 (본문의 폐기·만료 표시도 확인되지 않은 값이다).
+    """
+    digest = "sha256:" + hashlib.sha256(token.encode("utf-8", "surrogatepass")).hexdigest()
+    # 이름·발급기관은 검증기가 돌려준 값(자기 기록에서 찾은 원래 이름일 수 있다)보다 이 원본이 주장하는 값을 보여 준다:
+    # 무엇을 주장하는 기록인데 확인되지 않았는지가 '미검증 기록'에서 보여야 할 내용이다.
+    subject = evaluation.vc.get("credentialSubject")
+    achievement = subject.get("achievement") if isinstance(subject, dict) else None
+    claimed_name = (_text(achievement.get("name")) if isinstance(achievement, dict) else None) \
+        or _text(evaluation.vc.get("name"))
+    claimed_issuer = _text(_issuer_name_from_vc(evaluation.vc))
+    return replace(
+        evaluation,
+        achievement_name=(claimed_name or evaluation.achievement_name)[:_MAX_TEXT],
+        issuer_name=(claimed_issuer or evaluation.issuer_name)[:_MAX_TEXT],
+        status="invalid",
+        external_id=digest,
+        record_id=str(uuid.uuid5(uuid.NAMESPACE_URL, f"{UNVERIFIED_UPLOAD}:{user_id}:{digest}")),
+        issuer_trust_level="unknown",
     )
 
 

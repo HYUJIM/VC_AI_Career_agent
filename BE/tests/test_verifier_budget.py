@@ -770,8 +770,11 @@ def test_which_badge_verifications_stay_in_the_rejected_window(client, register,
     assert res.status_code == status, res.text
     if status == 200:
         assert res.json()["success"] is (case == "verified")
+        # 서명·발급자를 확인하지 못한 본인 DID 배지는 '미검증 기록'으로 격리 보관한다 (거절된 검증 자리는 그대로 남는다).
+        quarantined = case in ("verifier-says-invalid", "issuer-not-confirmed")
+        assert res.json()["data"]["unverified_upload"] is quarantined
         assert (res.json()["data"]["record_id"] is not None) is (case in ("verified", "saved-as-revoked",
-                                                                          "saved-as-expired"))
+                                                                          "saved-as-expired") or quarantined)
     assert len(window._attempts.get(user["id"], ())) == (1 if kept else 0)
     assert other["id"] not in window._attempts  # 다른 사용자의 정상 검증은 남지 않는다
 

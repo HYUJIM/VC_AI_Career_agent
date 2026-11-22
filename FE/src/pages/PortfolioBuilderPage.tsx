@@ -7,7 +7,7 @@ import { CareersErrorAlert } from '@/components/CareersErrorAlert';
 import { ExcludedList } from '@/components/portfolio/ExcludedList';
 import { SavedPortfolios } from '@/components/portfolio/SavedPortfolios';
 import { ShareLinksCard } from '@/components/portfolio/ShareLinksCard';
-import { StatusBadge } from '@/components/StatusBadge';
+import { StatusBadge, UnverifiedRecordTag } from '@/components/StatusBadge';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -17,12 +17,14 @@ import { getApiErrorMessage } from '@/lib/apiClient';
 import { markPortfolioUsed } from '@/lib/onboarding';
 import { useCopy } from '@/lib/useCopy';
 import { useAuthStore } from '@/store/authStore';
-import type { Portfolio, PortfolioMode, UserProfile, VerifiedCredential } from '@/types/api';
+import type { ExcludedEvidence, Portfolio, PortfolioMode, UserProfile, VerifiedCredential } from '@/types/api';
 
 interface ChatMessage {
   id: number;
   role: 'agent' | 'user';
   text: string;
+  /** 에이전트 답: 실행 시점 재검증을 통과하지 못해 근거에서 뺀 '미검증 기록' */
+  excluded?: ExcludedEvidence[];
 }
 
 const SUGGESTIONS = ['경력 중심으로 강조해줘', '해커톤 수상 내역 추가', 'GitHub 링크 반영'];
@@ -31,7 +33,9 @@ const PAGE_SIZE = 10;
 type PanelTab = 'chat' | 'preview';
 
 /** 저장 전 미리보기: 선택한 자격증명으로 브라우저에서 만드는 초안 (실제 본문은 서버가 다시 검증해 만든다) */
-function buildDraft(user: UserProfile, items: VerifiedCredential[], direction: string | null): string {
+function buildDraft(user: UserProfile, selected: VerifiedCredential[], direction: string | null): string {
+  const items = selected.filter((c) => c.status === 'verified');
+  const unverified = selected.filter((c) => c.status !== 'verified');
   const lines = [
     `# ${user.name} 포트폴리오`,
     '',
@@ -48,6 +52,9 @@ function buildDraft(user: UserProfile, items: VerifiedCredential[], direction: s
               `- ${c.achievement_name} — ${c.issuer} (${new Date(c.issued_at).toLocaleDateString('ko-KR')} 발급, 블록체인 검증 완료)`,
           )
       : ['- (선택된 자격증명이 없습니다)']),
+    ...(unverified.length > 0
+      ? ['', '## 미검증 기록 (근거로 쓰지 않음)', ...unverified.map((c) => `- [미검증 기록] ${c.achievement_name} — ${c.issuer}`)]
+      : []),
     '',
     '## 요약',
     items.length > 0
@@ -67,7 +74,10 @@ function aiSummaryOf(content: string): string | null {
 
 /** 대화창에 남기는 에이전트 답 (만든 방식과 빠진 자격증명) */
 function describeResult(p: Portfolio, direction: string): string {
-  const excluded = p.excluded.length > 0 ? `\n\n검증을 통과하지 못한 자격증명 ${p.excluded.length}개는 뺐어요.` : '';
+  const excluded =
+    p.excluded.length > 0
+      ? `\n\n⚠ 미검증 기록 ${p.excluded.length}개: 만들 때 서명 원본을 다시 검증했더니 통과하지 못해 근거에서 뺐어요.`
+      : '';
   if (p.generator === 'llm') {
     const summary = aiSummaryOf(p.content_markdown);
     return (
@@ -85,6 +95,18 @@ function describeResult(p: Portfolio, direction: string): string {
   return (
     `검증된 자격증명 ${p.credential_count}개로 본문을 만들었어요. 소개 문장을 Claude로 쓰려면 아래 "Claude로 작성"에 동의해 주세요.` +
     excluded
+  );
+}
+
+/** AI 결과 옆에 붙이는 '미검증 기록' 경고: 만들 때 다시 검증했더니 통과하지 못해 근거에서 뺀 기록 */
+function UnverifiedBox({ excluded, names }: { excluded: ExcludedEvidence[]; names: Map<string, string> }) {
+  return (
+    <div className="flex shrink-0 flex-col gap-2 rounded-2xl border border-[#f5c2c7] bg-[#fff8f8] px-4 py-3">
+      <p className="text-[13px] font-semibold text-[#d22030]">
+        ⚠ 미검증 기록 {excluded.length}개 — 실행 시점 재검증을 통과하지 못해 AI 결과의 근거로 쓰지 않았어요
+      </p>
+      <ExcludedList excluded={excluded} names={names} />
+    </div>
   );
 }
 
@@ -116,7 +138,10 @@ export function PortfolioBuilderPage() {
     enabled: Boolean(user?.did),
   });
 
-  const credentials = (data?.verified_credentials ?? []).filter((c) => c.status === 'verified');
+  // 지갑의 모든 자격증명을 보여 준다. 저장된 상태를 믿지 않고 만들 때 서명 원본을 다시 검증해, 통과한 것만 근거로 쓰고
+  // 나머지(위조·변조 의심 업로드, 폐기·만료 등)는 결과에 '미검증 기록'으로 표시한다.
+  const credentials = data?.verified_credentials ?? [];
+  const verifiedIds = new Set(credentials.filter((c) => c.status === 'verified').map((c) => c.record_id));
   const credentialNames = new Map(credentials.map((c) => [c.record_id, c.achievement_name]));
   const totalPages = Math.max(1, Math.ceil(credentials.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -144,7 +169,7 @@ export function PortfolioBuilderPage() {
   });
   const saved = save.data?.data;
 
-  // 검증된 자격증명은 기본으로 모두 포함
+  // 지갑의 자격증명은 기본으로 모두 포함 (검증을 통과하지 못한 것은 결과에 '미검증 기록'으로 남는다)
   useEffect(() => {
     setSelected(new Set(credentials.map((c) => c.record_id)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -158,7 +183,8 @@ export function PortfolioBuilderPage() {
         role: 'agent',
         text:
           `안녕하세요 ${user.name} 님! 왼쪽에서 포함할 자격증명을 고르고 강조하고 싶은 방향을 보내 주세요. ` +
-          '서버가 고른 자격증명을 지금 다시 검증해 통과한 것만으로 포트폴리오를 만들어요. ' +
+          '서버가 고른 자격증명을 지금 다시 검증해 통과한 것만으로 포트폴리오를 만들고, 통과하지 못한 것은 ' +
+          "'미검증 기록'으로 표시해요. " +
           '아래 "Claude로 작성"에 동의하면 요약과 관련성 문장을 Claude가 써요.',
       },
     ]);
@@ -213,7 +239,7 @@ export function PortfolioBuilderPage() {
       queryClient.invalidateQueries({ queryKey: ['careers'] });
       setMessages((prev) => [
         ...prev,
-        { id: Date.now() + 1, role: 'agent', text: describeResult(res.data, trimmed) },
+        { id: Date.now() + 1, role: 'agent', text: describeResult(res.data, trimmed), excluded: res.data.excluded },
       ]);
     } catch (error) {
       setMessages((prev) => [
@@ -236,7 +262,8 @@ export function PortfolioBuilderPage() {
       <section className="flex flex-col gap-2 px-1">
         <h1 className="text-[26px] font-bold leading-snug tracking-tight">AI 포트폴리오 만들기</h1>
         <p className="text-[15px] text-[var(--color-text-sub)]">
-          검증된 자격증명만 골라서 포트폴리오의 근거로 사용해요.
+          만들 때 서명 원본을 다시 검증해 통과한 자격증명만 근거로 쓰고, 통과하지 못한 기록은 &apos;미검증 기록&apos;으로
+          표시해요.
         </p>
       </section>
 
@@ -278,7 +305,7 @@ export function PortfolioBuilderPage() {
             )}
             {!isLoading && !isError && credentials.length === 0 && (
               <p className="px-5 text-[13px] text-[var(--color-text-muted)]">
-                검증된 자격증명이 없어요.{' '}
+                자격증명이 없어요.{' '}
                 <Link to="/issue" className="font-semibold text-[var(--color-primary)] hover:underline">
                   발급받기
                 </Link>
@@ -294,12 +321,17 @@ export function PortfolioBuilderPage() {
                       onChange={() => toggle(c.record_id)}
                       className="h-5 w-5 shrink-0 accent-[var(--color-primary)]"
                     />
-                    <span className="min-w-0">
+                    <span className="min-w-0 flex-1">
                       <span className="block truncate text-[15px] font-semibold">{c.achievement_name}</span>
                       <span className="block truncate text-[13px] text-[var(--color-text-muted)]">
                         {c.issuer}
                       </span>
                     </span>
+                    {c.unverified_upload ? (
+                      <UnverifiedRecordTag title="올릴 때 서명·발급자를 확인하지 못해 격리 보관한 기록" />
+                    ) : (
+                      c.status !== 'verified' && <StatusBadge status={c.status} />
+                    )}
                   </label>
                 </li>
               ))}
@@ -445,7 +477,7 @@ export function PortfolioBuilderPage() {
                     )}
                     {saved.excluded.length > 0 && (
                       <div className="mt-2.5 flex flex-col gap-1.5">
-                        <span className="font-semibold text-[#c77700]">검증을 통과하지 못해 빠진 자격증명</span>
+                        <span className="font-semibold text-[#d22030]">미검증 기록 (실행 시점 재검증 실패, 근거에서 제외)</span>
                         <ExcludedList excluded={saved.excluded} names={credentialNames} />
                       </div>
                     )}
@@ -463,6 +495,9 @@ export function PortfolioBuilderPage() {
                   {isCopied() ? '복사됨' : '본문 복사'}
                 </Button>
               </div>
+              {current && current.excluded.length > 0 && (
+                <UnverifiedBox excluded={current.excluded} names={credentialNames} />
+              )}
               <pre className="min-h-[300px] shrink-0 whitespace-pre-wrap break-words rounded-2xl bg-[var(--color-surface)] p-4 text-[14px] leading-relaxed text-[var(--color-text)]">
                 {current?.content_markdown ?? draft}
               </pre>
@@ -475,15 +510,18 @@ export function PortfolioBuilderPage() {
           >
             {messages.map((m) => (
               <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : ''}`}>
-                <p
-                  className={`max-w-[80%] whitespace-pre-wrap px-4 py-2.5 text-[15px] leading-relaxed ${
-                    m.role === 'user'
-                      ? 'rounded-[20px] rounded-br-md bg-[var(--color-primary)] text-white'
-                      : 'rounded-[20px] rounded-bl-md bg-[var(--color-surface)] text-[var(--color-text)]'
-                  }`}
-                >
-                  {m.text}
-                </p>
+                <div className="flex max-w-[80%] flex-col gap-2">
+                  <p
+                    className={`whitespace-pre-wrap px-4 py-2.5 text-[15px] leading-relaxed ${
+                      m.role === 'user'
+                        ? 'rounded-[20px] rounded-br-md bg-[var(--color-primary)] text-white'
+                        : 'rounded-[20px] rounded-bl-md bg-[var(--color-surface)] text-[var(--color-text)]'
+                    }`}
+                  >
+                    {m.text}
+                  </p>
+                  {m.excluded && m.excluded.length > 0 && <UnverifiedBox excluded={m.excluded} names={credentialNames} />}
+                </div>
               </div>
             ))}
             {thinking && (
@@ -556,7 +594,11 @@ export function PortfolioBuilderPage() {
 
       <div className="grid items-start gap-4 lg:grid-cols-2">
         <SavedPortfolios />
-        <ShareLinksCard selectedIds={credentials.filter((c) => selected.has(c.record_id)).map((c) => c.record_id)} />
+        <ShareLinksCard
+          selectedIds={credentials
+            .filter((c) => selected.has(c.record_id) && verifiedIds.has(c.record_id))
+            .map((c) => c.record_id)}
+        />
       </div>
     </div>
   );

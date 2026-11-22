@@ -109,6 +109,11 @@ export interface VerificationCheck {
 export interface BadgeVerifyData {
   /** 저장된 자격증명 ID. 원본을 해석할 수 없어 저장하지 않았으면 null */
   record_id: string | null;
+  /**
+   * 서명·발급자를 확인하지 못했지만 내 DID에 발급됐다고 적힌 배지를 '미검증 기록'으로 격리 보관했는지.
+   * 이 기록은 AI 포트폴리오·직무 비교의 근거로 쓰지 않고 '미검증 기록'으로 표시한다.
+   */
+  unverified_upload?: boolean;
   status: CredentialStatus;
   valid: boolean;
   achievement_name: string;
@@ -147,6 +152,8 @@ export interface VerifiedCredential {
   status: CredentialStatus;
   issued_at: string;
   raw_data: Record<string, unknown>;
+  /** 올릴 때 검증되지 않아 격리 보관한 '미검증 기록' (근거로 쓰지 않음) */
+  unverified_upload?: boolean;
 }
 
 export interface CareersResponse {

@@ -19,7 +19,9 @@ from typing import Any, Optional
 from starlette.concurrency import run_in_threadpool
 
 from app.core.config import get_settings
-from app.domain.credential import BadgeEvaluation, CheckResult, ProviderBadgeResult, evaluate_badge
+from app.domain.credential import (
+    BadgeEvaluation, CheckResult, ProviderBadgeResult, evaluate_badge, is_issuer_confirmed, is_unverified_upload,
+)
 from app.integrations.ports import CredentialVerifier, ProviderError
 from app.services.database import db_service
 from app.services.public_view_gate import PublicViewGate
@@ -150,12 +152,33 @@ def _flight_wait_seconds() -> float:
 
 
 def _guard(row: dict, evaluation: BadgeEvaluation) -> Optional[tuple[str, CheckResult]]:
-    """서명 원본이 이 레코드·이 사용자의 것이 맞는지. DB의 원본 토큰을 바꿔치기한 경우를 잡는다."""
+    """서명 원본이 이 레코드·이 사용자의 것이 맞는지. DB의 원본 토큰을 바꿔치기한 경우를 잡는다.
+
+    '미검증 기록'(격리 보관한 업로드)은 키가 사용자 + 원본 해시라서 자격증명 ID 대조는 하지 않는다 (근거로 쓰지 않는다).
+    """
     if evaluation.recipient_did != row["subject_did"]:
         return "recipient_mismatch", CheckResult("recipient", "fail", "서명 원본의 수신자가 소유자 DID와 다름")
-    if evaluation.record_id != str(row["record_id"]):
+    if not is_unverified_upload(row) and evaluation.record_id != str(row["record_id"]):
         return "record_mismatch", CheckResult("schema", "fail", "서명 원본의 자격증명 ID가 레코드와 다름")
     return None
+
+
+def _quarantine(row: dict, result: ProviderBadgeResult, evaluation: BadgeEvaluation, status: str,
+                reason: Optional[str]) -> tuple[str, Optional[str], Optional[CheckResult]]:
+    """'미검증 기록'은 실행 시점 재검증 결과와 상관없이 근거로 쓰지 않는다.
+
+    - 검증기가 발급자 서명·신뢰를 지금도 확인하지 못하면: invalid (본문의 폐기·만료 표시도 확인되지 않은 값이다).
+    - 지금은 확인되더라도(검증기 판단이 바뀐 경우): 올릴 때 검증되지 않은 기록이므로 invalid('unverified_upload').
+      진짜 배지라면 다시 올리면 정상 경로(자격증명 ID 키, 소유자 확인)로 저장된다.
+    """
+    if not is_unverified_upload(row) or reason == "recipient_mismatch":
+        return status, reason, None
+    if not is_issuer_confirmed(result, evaluation):
+        return "invalid", "invalid", None
+    if status == "verified":
+        return "invalid", "unverified_upload", CheckResult(
+            "issuer_trust", "fail", "올릴 때 검증되지 않아 격리 보관한 기록 (근거로 쓰려면 다시 올려 주세요)")
+    return status, reason, None
 
 
 async def _reverify_one(row: dict, verifier: CredentialVerifier, *, persist: bool,
@@ -213,6 +236,9 @@ async def _reverify_one(row: dict, verifier: CredentialVerifier, *, persist: boo
         reason, check = mismatch
         status = "invalid"
         checks.append(check)
+    status, reason, quarantine_check = _quarantine(row, result, evaluation, status, reason)
+    if quarantine_check is not None:
+        checks.append(quarantine_check)
 
     if persist:
         await run_in_threadpool(db_service.update_reverification, str(row["record_id"]), status, checks,

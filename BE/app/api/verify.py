@@ -6,7 +6,7 @@ from app.core.auth import Principal, ensure_can_write, get_principal
 from app.core.config import get_settings
 from app.core.text import StorableText
 from app.domain.credential import (
-    BadgeEvaluation, ProviderBadgeResult, evaluate_badge, is_compact_jws, is_issuer_confirmed,
+    BadgeEvaluation, ProviderBadgeResult, evaluate_badge, is_compact_jws, is_issuer_confirmed, quarantine_evaluation,
 )
 from app.integrations import get_verifier
 from app.integrations.ports import CredentialVerifier, ProviderError
@@ -22,12 +22,21 @@ router = APIRouter()
 # 서명 원본(VC-JWT·VP) 최대 길이. 실제 토큰은 수 KB이며, 이 값은 검증기(DXWorks)로 보내고 credentials.raw_token에
 # 저장하는 크기의 상한이다.
 MAX_TOKEN_CHARS = 256 * 1024
+NOT_SAVED = "Badge verification failed."
+# 검증기가 발급자 서명·신뢰를 확인하지 못했지만 본인 DID에 발급됐다고 적힌 VC: '미검증 기록'으로 격리 보관했다.
+SAVED_AS_UNVERIFIED = "Badge verification failed. Saved as unverified record."
+UNVERIFIED_LIMIT_REACHED = "Badge verification failed. Unverified record limit reached."
 
 
-def _badge_data(result: ProviderBadgeResult, evaluation: BadgeEvaluation, record_id) -> dict:
-    """FE용 공통 형식. 외부 검증기 응답 원문은 내보내지 않는다 (협력사 API 형식은 어댑터 안에만 둔다)."""
+def _badge_data(result: ProviderBadgeResult, evaluation: BadgeEvaluation, record_id,
+                unverified_upload: bool = False) -> dict:
+    """FE용 공통 형식. 외부 검증기 응답 원문은 내보내지 않는다 (협력사 API 형식은 어댑터 안에만 둔다).
+
+    unverified_upload: 이 요청으로 '미검증 기록'(격리 보관, 근거로 쓰지 않음)으로 저장했는지.
+    """
     return {
         "record_id": record_id,
+        "unverified_upload": unverified_upload,
         "status": evaluation.status,
         "valid": evaluation.verified,
         "achievement_name": evaluation.achievement_name,
@@ -106,6 +115,11 @@ async def _verify_identity(token: str, principal: Principal, verifier: Credentia
     }
 
 
+def _addressed_to(evaluation: BadgeEvaluation, did: str) -> bool:
+    """해석한 VC에 credentialSubject가 있고 수신자가 이 DID라고 적혀 있는지 (확인되지 않은 값일 수 있다)."""
+    return isinstance(evaluation.vc.get("credentialSubject"), dict) and evaluation.recipient_did == did
+
+
 async def _verify_badge(token: str, principal: Principal, verifier: CredentialVerifier) -> dict:
     caller = caller_key(principal)
     if not is_compact_jws(token):
@@ -118,7 +132,7 @@ async def _verify_badge(token: str, principal: Principal, verifier: CredentialVe
                                      issued_at=None)
         return {
             "success": False,
-            "message": "Badge verification failed.",
+            "message": NOT_SAVED,
             "data": _badge_data(result, evaluate_badge(result, token), None),
         }
     # 토큰이 거절된 검증은 호출자마다 10분에 10번까지다 (verifier_budget.rejected_verifications). 부르기 전에 자리를 잡고,
@@ -148,12 +162,25 @@ async def _verify_badge(token: str, principal: Principal, verifier: CredentialVe
 
         if not evaluation.vc or not evaluation.recipient_did or not is_issuer_confirmed(result, evaluation):
             # 원본을 해석할 수 없거나 수신자를 알 수 없으면 누구의 자격증명인지 정할 수 없으므로 저장하지 않는다.
-            # 검증기가 발급자 서명·신뢰를 확인하지 못한 토큰도 본문(자격증명 ID·수신자)을 믿을 수 없으므로
-            # 계정·소유 여부를 따지지 않고(DB 조회 없이) 저장하지 않는다 (위조 토큰으로 남의 레코드 덮어쓰기·ID 선점 차단).
+            # 검증기가 발급자 서명·신뢰를 확인하지 못한 토큰(위조·변조 의심)은 본문(자격증명 ID·수신자)을 믿을 수 없으므로
+            # 진짜 배지처럼 저장하지 않는다 (남의 레코드 덮어쓰기·ID 선점 차단: 소유 여부를 DB에서 찾지 않는다).
+            # 다만 본인 DID에 발급됐다고 적힌 VC는 '미검증 기록'으로 격리 보관한다: 키는 사용자 + 원본 해시이고 상태는
+            # invalid이며, 포트폴리오·직무 비교를 실행할 때마다 다시 검증하지만 근거로는 쓰지 않고 '미검증 기록'으로 표시한다.
+            # 거절된 검증이므로 rejected-verification 자리는 그대로 남긴다 (위조 업로드를 반복하는 양도 묶인다).
             rejected = True
+            if _addressed_to(evaluation, principal.did):
+                quarantined = quarantine_evaluation(evaluation, principal.user_id, token)
+                saved = await run_in_threadpool(db_service.save_unverified_upload, user_id=principal.user_id,
+                                                evaluation=quarantined, vc_jwt=token)
+                return {
+                    "success": False,
+                    "message": SAVED_AS_UNVERIFIED if saved else UNVERIFIED_LIMIT_REACHED,
+                    "data": _badge_data(result, quarantined, saved["record_id"] if saved else None,
+                                        unverified_upload=saved is not None),
+                }
             return {
                 "success": False,
-                "message": "Badge verification failed.",
+                "message": NOT_SAVED,
                 "data": _badge_data(result, evaluation, None),
             }
 

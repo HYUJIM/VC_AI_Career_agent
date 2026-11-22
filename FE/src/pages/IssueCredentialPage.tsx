@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { issueMockBadge, verifyCredential } from '@/api/credentials';
+import { BadgeUploadCard } from '@/components/BadgeUploadCard';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
@@ -185,9 +186,9 @@ export function IssueCredentialPage() {
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
       <section className="flex flex-col gap-2 px-1">
-        <h1 className="text-[26px] font-bold leading-snug tracking-tight">자격증명 발급받기</h1>
+        <h1 className="text-[26px] font-bold leading-snug tracking-tight">자격증명 발급받기·올리기</h1>
         <p className="text-[15px] leading-relaxed text-[var(--color-text-sub)]">
-          모의 발급 서버에서 배지를 받고, 검증을 통과하면 지갑에 저장돼요.
+          모의 발급 서버에서 배지를 받거나 가지고 있는 배지를 올려요. 검증을 통과하면 지갑에 저장돼요.
         </p>
       </section>
 
@@ -322,6 +323,8 @@ export function IssueCredentialPage() {
           </div>
         )}
       </Card>
+
+      <BadgeUploadCard did={user.did} />
     </div>
   );
 }

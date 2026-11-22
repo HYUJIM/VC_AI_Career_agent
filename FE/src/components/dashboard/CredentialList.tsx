@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { IssuerAvatar } from '@/components/IssuerAvatar';
-import { StatusBadge } from '@/components/StatusBadge';
+import { StatusBadge, UnverifiedRecordTag } from '@/components/StatusBadge';
 import { BatchReverifyModal } from '@/components/dashboard/BatchReverifyModal';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -241,6 +241,9 @@ export function CredentialList({ credentials, counts, isLoading, loaded, onSelec
                         {credential.issuer} · {new Date(credential.issued_at).toLocaleDateString('ko-KR')}
                       </p>
                     </div>
+                    {credential.unverified_upload && (
+                      <UnverifiedRecordTag title="올릴 때 서명·발급자를 확인하지 못해 격리 보관한 기록 (근거로 쓰지 않음)" />
+                    )}
                     <StatusBadge status={credential.status} />
                     {!selectMode && (
                       <span aria-hidden="true" className="text-[18px] text-[var(--color-text-muted)]">
