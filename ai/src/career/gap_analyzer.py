@@ -14,6 +14,9 @@ from src.career.canonical import digest_json
 from src.career.skill_catalog import CATALOG, normalized_text
 
 CAPTURE_FRESHNESS_DAYS = 7
+# 채용 시장 통계에서 만든 기준 요구사항(단일 공고가 아님)의 출처. 마감·내림이 없으므로 '수집 뒤 7일' 규칙(공고가 아직
+# 열려 있을 가능성)을 적용하지 않고, 기준 시각(posted_at = 통계 집계 시각)의 30/90일 창만 적용한다.
+MARKET_STATS_SOURCE = "market_stats"
 MINIMUM_SAMPLE_SIZE = 5  # Pilot policy, not a claim of statistical representativeness.
 MAX_POSTINGS = 200
 
@@ -36,12 +39,21 @@ def canonical_url(url: str) -> str:
     )
 
 
+def capture_expires_at(posting) -> datetime | None:
+    """수집 시점 때문에 더는 쓸 수 없게 되는 시각. 시장 통계 기준(MARKET_STATS_SOURCE)은 수집 기한이 없다(None)."""
+    if posting.source == MARKET_STATS_SOURCE:
+        return None
+    return posting.captured_at + timedelta(days=CAPTURE_FRESHNESS_DAYS)
+
+
 def open_and_fresh(version: JobVersion, now: datetime) -> bool:
     posting = version.posting
+    expires = capture_expires_at(posting)
     return (
         posting.dataset_kind == "real"
         and posting.is_open
-        and now - timedelta(days=CAPTURE_FRESHNESS_DAYS) <= posting.captured_at <= now
+        and posting.captured_at <= now
+        and (expires is None or now <= expires)
         and (posting.closes_at is None or posting.closes_at > now)
     )
 
