@@ -145,8 +145,10 @@ def test_verify_badge_stores_original_token_and_checks(client, register, db):
 
     careers = client.get(f"/api/v1/subjects/{user['did']}/careers", headers=user["headers"]).json()
     assert [c["record_id"] for c in careers["verified_credentials"]] == [body["record_id"]]
+    # FE 계약 유지 (v0.7.0에 '미검증 기록' 표시 unverified_upload만 더함)
     assert set(careers["verified_credentials"][0]) == {"record_id", "issuer", "achievement_name", "status",
-                                                      "issued_at", "raw_data"}  # FE 계약 유지
+                                                      "issued_at", "raw_data", "unverified_upload"}
+    assert careers["verified_credentials"][0]["unverified_upload"] is False
 
 
 def test_verify_same_badge_twice_updates_in_place(client, register, db):

@@ -22,3 +22,19 @@ export function StatusBadge({ status }: { status: CredentialStatus }) {
     </span>
   );
 }
+
+/**
+ * '미검증 기록' 경고 태그: 실행 시점 재검증을 통과하지 못해 AI 결과의 근거에서 뺀 기록,
+ * 또는 올릴 때 서명·발급자를 확인하지 못해 격리 보관한 업로드(위조·변조 의심).
+ */
+export function UnverifiedRecordTag({ title }: { title?: string }) {
+  return (
+    <span
+      title={title}
+      className="inline-flex shrink-0 items-center gap-1 rounded-md border border-[#f5c2c7] bg-[#fff4f4] px-2 py-0.5 text-xs font-semibold text-[#d22030]"
+    >
+      <span aria-hidden="true">⚠</span>
+      미검증 기록
+    </span>
+  );
+}

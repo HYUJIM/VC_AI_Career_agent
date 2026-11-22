@@ -261,6 +261,12 @@ docker compose up -d --build
   - 시드(`DB/seeds/03_seed_data.sql`)를 다시 만들어야 하면 가상 데이터만 든 임시 DB에서 뜹니다. 시드는 마이그레이션(04~)보다 먼저 기본 스키마에 들어가므로 기본 스키마만 적용한 DB여야 합니다(`migrate --seed`처럼 마이그레이션까지 적용한 DB의 덤프는 `users.token_version`(09) 같은 컬럼 때문에 불러와지지 않음).
   - 순서: 빈 임시 DB에 `DB/schema/schema_PostgreSQL.sql`만 `psql`로 적용 → `DB_NAME=<임시 DB> python generate_test_data.py`로 채움 → 비밀번호 해시·서명된 VC가 덤프에 들어가지 않게 `UPDATE users SET password_hash = NULL; UPDATE credentials SET raw_token = NULL;`(불러올 때 04가 시드 계정에 공개된 시드 비밀번호를 다시 넣으므로 운영 마이그레이션의 시드 계정 검사도 그대로 걸림) → `pg_dump --data-only --inserts --exclude-table=holder_keys --exclude-table=shares --exclude-table=mock_issuances --exclude-table=schema_migrations <임시 DB> > DB/seeds/03_seed_data.sql`. 새 시드는 빈 DB에 `python -m app.migrate --seed`로 불러와 확인하고, 임시 DB는 지웁니다.
 
+### ✅ 위조·변조 배지 업로드와 '미검증 기록' (v0.7.0)
+- **올리기:** FE "자격증명 발급받기·올리기" 화면에서 가지고 있는 VC-JWT를 붙여 넣거나 파일로 올리면 `POST /api/v1/verify`(`type: badge`)로 검증합니다.
+- **격리 보관:** 검증기(DXWorks)가 발급자 서명·신뢰를 확인하지 못했지만(위조·변조 의심) 본인 DID에 발급됐다고 적힌 배지는 진짜 배지로 저장하지 않고 '미검증 기록'으로 격리 보관합니다: `source_provider = unverified_upload`, 키는 사용자 + 원본 SHA-256(자격증명 ID와 무관 → 진짜 레코드 덮어쓰기·ID 선점·소유 여부 확인 불가), 상태는 항상 `invalid`, 이름·발급기관은 원본이 주장하는 값. 응답은 200 `success: false`, `message: "Badge verification failed. Saved as unverified record."`, `data.unverified_upload: true`. 사용자마다 10개까지(`MAX_UNVERIFIED_UPLOADS_PER_USER`, 같은 원본은 갱신). 거절된 검증이므로 거절 창(10분 10번)에 남습니다.
+- **실행 시점 탐지:** 포트폴리오 생성·다시 쓰기, 직무 비교, 근거 조회, 재검증 때마다 서명 원본을 다시 검증하고, 결과와 상관없이 근거로 쓰지 않습니다(제외 사유: 지금도 확인되지 않으면 `invalid`, 지금은 확인되면 `unverified_upload`). AI 결과(포트폴리오 대화·미리보기, 비교 결과·학습 계획)와 지갑에 `⚠ 미검증 기록` 태그로 표시합니다. 모델(Claude)에는 근거로 쓴 자격증명만 보내므로 미검증 기록의 주장은 AI 문장에 들어가지 않습니다.
+- `alg: none`·JWT 모양이 아닌 값은 지금처럼 검증기로 보내지 않고 저장하지 않습니다. 수신자가 다른 DID라고 적힌 미확인 토큰도 저장하지 않습니다.
+
 ### ✅ 실행 시점 재검증 · 포트폴리오 · 선택 공개 (v0.6.0)
 - **재검증:** `POST /api/v1/credentials/{record_id}/reverify` — 저장된 서명 원본을 지금 다시 검증해 상태(폐기·만료)를 갱신합니다. 검증기가 이 서명 원본 하나만 확인하지 못한 경우(400·404·422 같은 거절, 형식이 틀린 2xx)는 근거 조회·포트폴리오와 같은 분류로 200 `success: false`, `message: "Re-verification failed: verifier_error"`, `data.status: "unverifiable"`로 답하고 저장된 상태는 바꾸지 않습니다(예전에는 502여서 FE의 일괄 재검증이 그 항목에서 멈췄음). 502/503은 아래 "검증기(DXWorks) 장애"일 때만입니다.
 - **근거 조회:** `GET /api/v1/subjects/{did}/evidence?mode=strict|labeled` — DB 상태를 믿지 않고 요청 시점에 다시 검증한 뒤 **서명 원본 안의 본문**으로 근거를 줍니다 (논문 RAG-VC). 서명 원본이 없는 시드 데이터는 `no_signed_original`로 제외됩니다.

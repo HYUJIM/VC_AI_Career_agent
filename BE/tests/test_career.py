@@ -286,6 +286,27 @@ def test_revoked_credential_is_excluded_not_treated_as_missing_skill(client, ai_
     assert "EXCLUDED_CREDENTIALS_LIMIT_PROFILE_COVERAGE" in analysis["warnings"]
 
 
+def test_forged_upload_is_an_unverified_record_not_evidence(client, ai_app, researcher, register, fake_dx, db):
+    """위조·변조 의심 업로드('미검증 기록')는 비교할 때 다시 검증해 제외 목록에만 남고 기술 근거가 되지 않는다."""
+    student = register("학생")
+    verify_badge(client, student, name="SQL 평가 통과")
+    forged = make_vc_jwt(student["did"], name="Kafka 실무 경험 확인")
+    fake_dx.set_badge_result(forged, valid=False, signature_ok=False)
+    upload = client.post("/api/v1/verify", json={"type": "badge", "token": forged}, headers=student["headers"]).json()
+    assert upload["data"]["unverified_upload"] is True
+    quarantined = upload["data"]["record_id"]
+    posting = import_posting(client, researcher)
+    res = client.post("/api/v1/career-analyses", json={"target_posting_id": posting["posting_id"]},
+                      headers=student["headers"])
+    assert res.status_code == 201, res.text
+    analysis = res.json()["data"]
+    assert analysis["excluded_record_ids"] == [quarantined]
+    assert quarantined not in {e["record_id"] for e in analysis["skill_evidence"]}
+    assert "kafka" not in {e["skill_id"] for e in analysis["skill_evidence"]}
+    assert db.execute("SELECT status FROM credentials WHERE record_id = %s",
+                      (quarantined,)).fetchone()["status"] == "invalid"
+
+
 def test_ai_outage_is_503_and_nothing_is_saved(client, ai_app, researcher, register, db, monkeypatch, caplog):
     from app.integrations import ai_service as module
 

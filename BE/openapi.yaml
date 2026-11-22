@@ -844,11 +844,20 @@ paths:
           - **검증기가 발급자 서명·신뢰를 확인한 배지만 저장한다**: 검증을 통과한 배지(`verified`)와, 서명(`signature_ok`)과
             발급자 신뢰(`issuer_trusted`)가 모두 확인된 폐기·만료 배지(`revoked`/`expired`, `success: false`,
             메시지 `Badge verification failed. Saved with status '<status>'.`).
-          - 그 밖의 토큰(서명·발급자 신뢰를 확인하지 못한 `invalid` 등)과 해석할 수 없거나 수신자를 알 수 없는 토큰
-            (NaN·Infinity·범위를 넘는 숫자, NUL·짝 없는 서로게이트, dict·list가 64단계(최상위 객체 = 1단계)보다 깊게 중첩된
-            페이로드 포함. 검증기가 확인한 토큰이어도 같음)은 저장하지 않고
-            200 `success: false`, 메시지 `Badge verification failed.`, `data.record_id: null`로 답한다. 본문의 자격증명 ID·수신자를
-            믿을 수 없으므로 DB를 조회하지 않고(아래 403·409도 나오지 않음), 이미 저장된 같은 자격증명의 레코드도 바꾸지 않는다.
+          - 그 밖의 토큰(서명·발급자 신뢰를 확인하지 못한 `invalid` 등, 위조·변조 의심)은 진짜 배지로 저장하지 않는다.
+            본문의 자격증명 ID·수신자를 믿을 수 없으므로 소유자를 조회하지 않고(아래 403·409도 나오지 않음), 이미 저장된 같은
+            자격증명의 레코드도 바꾸지 않는다.
+            - 본문의 수신자(`credentialSubject.id`)가 토큰 사용자 DID이면 **'미검증 기록'으로 격리 보관**한다 (v0.7.0):
+              `source_provider: unverified_upload`, 키는 사용자 + 원본 SHA-256(`source_external_id: sha256:<64 hex>`, 자격증명
+              ID와 무관), 상태는 항상 `invalid`. 200 `success: false`, 메시지 `Badge verification failed. Saved as unverified
+              record.`, `data.unverified_upload: true`, `data.record_id`는 격리 레코드 ID. 같은 원본을 다시 올리면 그 행을 갱신한다.
+              사용자마다 10개까지이고, 넘으면 저장하지 않고 메시지 `Badge verification failed. Unverified record limit reached.`,
+              `data.record_id: null`.
+              이 기록은 포트폴리오·직무 비교·근거 조회를 실행할 때마다 다시 검증하지만 결과와 상관없이 근거로 쓰지 않는다
+              (제외 사유는 지금도 확인되지 않으면 `invalid`, 지금은 확인되면 `unverified_upload`). 화면은 '미검증 기록'으로 표시한다.
+            - 그 밖(수신자가 다른 DID라고 적힌 토큰, 해석할 수 없거나 수신자를 알 수 없는 토큰: NaN·Infinity·범위를 넘는 숫자,
+              NUL·짝 없는 서로게이트, dict·list가 64단계(최상위 객체 = 1단계)보다 깊게 중첩된 페이로드 포함. 검증기가 확인한
+              토큰이어도 같음)은 저장하지 않고 200 `success: false`, 메시지 `Badge verification failed.`, `data.record_id: null`.
           - 서명된 원본 VC-JWT(`raw_token`)와 점검 항목 8개(`verification_checks`)를 함께 저장한다.
           - 저장할 배지의 수신자(`credentialSubject.id`)가 토큰 사용자 DID와 다르면 403
             `Forbidden: credential was issued to a different DID` (가입하지 않은 DID도 403. 예전의 임시 사용자 자동 생성은 제거).
@@ -2811,7 +2820,7 @@ components:
 
     VerifiedCredential:
       type: object
-      required: [record_id, issuer, achievement_name, status, issued_at, raw_data]
+      required: [record_id, issuer, achievement_name, status, issued_at, raw_data, unverified_upload]
       properties:
         record_id:
           type: string
@@ -2831,6 +2840,11 @@ components:
           type: object
           additionalProperties: true
           description: 원본 VC JSON 전문
+        unverified_upload:
+          type: boolean
+          description: |
+            올릴 때 검증기가 발급자 서명·신뢰를 확인하지 못해 격리 보관한 '미검증 기록'인지 (상태는 항상 `invalid`,
+            근거로 쓰지 않음). v0.7.0
 
     CareersResponse:
       type: object
@@ -2894,14 +2908,18 @@ components:
 
     BadgeVerification:
       type: object
-      required: [record_id, status, valid, achievement_name, issuer_name, issuer_trusted, recipient_did,
-                 issued_at, expires_at, checks]
+      required: [record_id, unverified_upload, status, valid, achievement_name, issuer_name, issuer_trusted,
+                 recipient_did, issued_at, expires_at, checks]
       properties:
         record_id:
           type: [string, "null"]
           format: uuid
           description: |
-            저장된 자격증명 ID. 검증기가 발급자 서명·신뢰를 확인하지 못했거나 원본을 해석할 수 없어 저장하지 않았으면 null
+            저장된 자격증명 ID ('미검증 기록'으로 격리 보관했으면 그 레코드 ID). 저장하지 않았으면 null
+        unverified_upload:
+          type: boolean
+          description: |
+            이 요청으로 '미검증 기록'(서명·발급자 미확인, 위조·변조 의심)으로 격리 보관했는지. 이때 status는 invalid. v0.7.0
         status:
           $ref: "#/components/schemas/CredentialStatus"
         valid:
@@ -3006,7 +3024,8 @@ components:
         reason:
           type: string
           description: |
-            예: no_signed_original(서명 원본 없음), revoked, expired, invalid, verifier_error(검증기 호출 실패).
+            예: no_signed_original(서명 원본 없음), revoked, expired, invalid, verifier_error(검증기 호출 실패),
+            recipient_mismatch, record_mismatch, unverified_upload('미검증 기록'인데 지금은 검증기가 확인함. 그래도 근거로 쓰지 않음).
             포트폴리오 생성·직무 비교는 검증기 장애(설정 누락·연결 실패·시간 초과·5xx·408·429·401·403·3xx)면 저장하지 않고
             502/503으로 끝나므로, 거기서 verifier_error는 특정 자격증명에 대한 거절(400·404·422 등 그 밖의 4xx)이나 형식이 맞지 않는
             2xx 응답(JSON이 아니거나 너무 깊게 중첩된 본문 등)일 때만 나온다. 재검증 한 건(`POST .../reverify`)도 같은 분류다.

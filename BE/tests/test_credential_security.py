@@ -31,6 +31,8 @@ from tests.test_domain import make_raw_jwt, make_vc_jwt_with
 
 SERVICE = {"X-Service-Key": "test-service-key"}
 NOT_SAVED = "Badge verification failed."
+SAVED_AS_UNVERIFIED = "Badge verification failed. Saved as unverified record."
+UNVERIFIED_LIMIT_REACHED = "Badge verification failed. Unverified record limit reached."
 
 
 def verify(client, user, token: str, headers: dict | None = None):
@@ -76,7 +78,8 @@ def test_same_badge_after_revocation_refreshes_in_place(client, register, fake_d
                       (first["record_id"],)).fetchone()["status"] == "revoked"
 
 
-# ── 배지 검증: 검증기가 확인하지 못한 토큰은 저장하지 않는다 ───────────────
+# ── 배지 검증: 검증기가 확인하지 못한 토큰은 진짜 배지로 저장하지 않는다 ────────
+# 본인 DID에 발급됐다고 적힌 VC는 '미검증 기록'으로 격리 보관한다 (키 = 사용자 + 원본 해시, 상태 invalid, 근거로 안 씀).
 
 NOT_CONFIRMED = [
     pytest.param({"valid": False}, None, "invalid", id="rejected"),
@@ -85,7 +88,7 @@ NOT_CONFIRMED = [
     pytest.param({"valid": False, "credential_status": "SUSPENDED"}, None, "invalid", id="suspended"),
     pytest.param({"valid": False, "signature_ok": False, "credential_status": "REVOKED"}, None, "revoked",
                  id="bad-signature-revoked"),
-    # 검증기 응답에 서명·신뢰 결과가 없으면 만료일이 지난 위조 토큰은 expired로 판정된다. 그래도 저장하지 않는다.
+    # 검증기 응답에 서명·신뢰 결과가 없으면 만료일이 지난 위조 토큰은 expired로 판정된다. 그래도 진짜로 저장하지 않는다.
     pytest.param({"valid": False, "signature_ok": None, "issuer_trusted": None, "credential_status": None},
                  "2020-01-01T00:00:00Z", "expired", id="no-proof-result-expired"),
     # 자기 키로 서명한(신뢰되지 않은 발급자) 만료 토큰
@@ -94,21 +97,36 @@ NOT_CONFIRMED = [
 ]
 
 
+def quarantine_id(user, token: str) -> str:
+    digest = "sha256:" + hashlib.sha256(token.encode()).hexdigest()
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"unverified_upload:{user['id']}:{digest}"))
+
+
 @pytest.mark.parametrize("result,valid_until,status", NOT_CONFIRMED)
-def test_token_not_confirmed_by_verifier_is_not_saved(client, register, fake_dx, db, result, valid_until, status):
+def test_token_not_confirmed_by_verifier_is_quarantined(client, register, fake_dx, db, result, valid_until, status):
     user = register()
     token = make_vc_jwt(user["did"], valid_until=valid_until)
     fake_dx.set_badge_result(token, **result)
     res = verify(client, user, token)
     assert res.status_code == 200
     body = res.json()
-    assert body["success"] is False and body["message"] == NOT_SAVED
-    assert body["data"]["status"] == status and body["data"]["record_id"] is None
-    assert credential_count(db, user) == 0
+    assert body["success"] is False and body["message"] == SAVED_AS_UNVERIFIED
+    # 본문의 폐기·만료 표시도 확인되지 않은 값이므로 상태는 항상 invalid다.
+    assert body["data"]["status"] == "invalid" and body["data"]["unverified_upload"] is True
+    assert body["data"]["record_id"] == quarantine_id(user, token)
+    row = db.execute("SELECT source_provider, source_external_id, status, raw_token, issuer_trust_level"
+                     " FROM credentials WHERE user_id = %s", (user["id"],)).fetchall()
+    assert row == [{"source_provider": "unverified_upload",
+                    "source_external_id": "sha256:" + hashlib.sha256(token.encode()).hexdigest(),
+                    "status": "invalid", "raw_token": token, "issuer_trust_level": "unknown"}]
+    wallet = client.get(f"/api/v1/subjects/{user['did']}/careers", headers=user["headers"]).json()
+    [item] = wallet["verified_credentials"]
+    assert item["status"] == "invalid" and item["unverified_upload"] is True
 
 
-def test_unconfirmed_token_never_touches_the_database(client, register, fake_dx, monkeypatch):
-    # 확인되지 않은 토큰의 본문(자격증명 ID·수신자)으로는 DB를 조회하지도 않는다 (소유 여부 409·수신자 403 판단 전).
+def test_unconfirmed_token_never_looks_up_owners_or_saves_as_genuine(client, register, fake_dx, monkeypatch):
+    # 확인되지 않은 토큰의 본문(자격증명 ID·수신자)으로는 소유자를 찾거나 진짜 배지로 저장하지 않는다.
+    # 본인 DID라고 적힌 것만 사용자 + 원본 해시 키로 격리 보관하고, 남의 DID라고 적힌 것은 저장하지 않는다.
     from app.services.database import db_service
 
     alice, bob = register(), register()
@@ -118,11 +136,15 @@ def test_unconfirmed_token_never_touches_the_database(client, register, fake_dx,
 
     for name in ("find_credential_owner", "save_badge", "get_user_by_did"):
         monkeypatch.setattr(db_service, name, tripwire)
-    for user, recipient in ((alice, alice), (bob, alice)):  # 본인 DID, 남의 DID
+    for user, recipient, saved in ((alice, alice, True), (bob, alice, False)):  # 본인 DID, 남의 DID
         token = make_vc_jwt(recipient["did"])
         fake_dx.set_badge_result(token, valid=False, signature_ok=False)
         res = verify(client, user, token)
-        assert res.status_code == 200 and res.json()["data"]["record_id"] is None
+        assert res.status_code == 200
+        body = res.json()
+        assert (body["data"]["record_id"] is not None) is saved
+        assert body["data"]["unverified_upload"] is saved
+        assert body["message"] == (SAVED_AS_UNVERIFIED if saved else NOT_SAVED)
 
 
 def test_forged_token_does_not_overwrite_stored_original(client, register, fake_dx, db):
@@ -139,16 +161,21 @@ def test_forged_token_does_not_overwrite_stored_original(client, register, fake_
     fake_dx.set_badge_result(expired_forgery, valid=False, signature_ok=None, issuer_trusted=None,
                              credential_status=None)
     for token in (forged, expired_forgery):
-        for user in (victim, mallory):  # 훔친 세션의 본인 요청, 다른 사용자의 요청 (예전: 403으로 소유 여부 노출)
-            res = verify(client, user, token)
-            assert res.status_code == 200 and res.json()["success"] is False
-            assert res.json()["data"]["record_id"] is None
+        # 훔친 세션의 본인 요청: 원본과 다른 키의 '미검증 기록'으로만 남는다.
+        mine = verify(client, victim, token)
+        assert mine.status_code == 200 and mine.json()["success"] is False
+        assert mine.json()["data"]["record_id"] == quarantine_id(victim, token) != record_id
+        # 다른 사용자의 요청 (예전: 403으로 소유 여부 노출): 저장하지 않는다.
+        theirs = verify(client, mallory, token)
+        assert theirs.status_code == 200 and theirs.json()["success"] is False
+        assert theirs.json()["data"]["record_id"] is None
 
     row = db.execute("SELECT status, achievement_name, issuer_name, raw_token FROM credentials WHERE record_id = %s",
                      (record_id,)).fetchone()
     assert row == {"status": "verified", "achievement_name": "테스트 수료 배지", "issuer_name": "예시대학교",
                    "raw_token": genuine}
     assert credential_count(db, mallory) == 0
+    assert credential_count(db, victim) == 3  # 진짜 1 + 미검증 기록 2
     reverified = client.post(f"/api/v1/credentials/{record_id}/reverify", headers=victim["headers"])
     assert reverified.status_code == 200 and reverified.json()["success"] is True
 
@@ -158,16 +185,94 @@ def test_forged_token_cannot_claim_or_probe_a_credential_id(client, register, fa
     alice, mallory = register(), register()
     future_id, held_id = f"urn:uuid:{uuid.uuid4()}", f"urn:uuid:{uuid.uuid4()}"
     assert verify(client, alice, make_vc_jwt(alice["did"], credential_id=held_id)).json()["success"] is True
+    answers = []
     for credential_id in (future_id, held_id):
         squat = make_vc_jwt(mallory["did"], credential_id=credential_id, name="자리 선점")
         fake_dx.set_badge_result(squat, valid=False, signature_ok=False)
         res = verify(client, mallory, squat)
-        assert res.status_code == 200 and res.json()["data"]["record_id"] is None
-    assert credential_count(db, mallory) == 0
+        assert res.status_code == 200
+        body = res.json()
+        # 키는 원본 해시라서 자격증명 ID와 무관하다: 이미 있는 ID든 없는 ID든 같은 모양으로 답한다.
+        assert body["data"]["record_id"] == quarantine_id(mallory, squat)
+        assert body["data"]["record_id"] not in (credential_id.removeprefix("urn:uuid:"),)
+        answers.append((res.status_code, body["message"], body["data"]["status"], body["data"]["unverified_upload"]))
+    assert answers[0] == answers[1]
+    assert credential_count(db, mallory) == 2
 
     genuine = make_vc_jwt(alice["did"], credential_id=future_id)
     res = verify(client, alice, genuine)
     assert res.status_code == 200 and res.json()["success"] is True
+
+
+def test_unverified_upload_is_never_evidence_at_runtime(client, register, fake_dx, db):
+    """'미검증 기록'은 포트폴리오·근거 조회를 실행할 때 다시 검증하고, 결과와 상관없이 근거로 쓰지 않는다."""
+    user = register()
+    genuine = verify(client, user, make_vc_jwt(user["did"], name="Python 평가 통과")).json()["data"]["record_id"]
+    forged = make_vc_jwt(user["did"], name="Kafka 실무 경험 확인")
+    fake_dx.set_badge_result(forged, valid=False, signature_ok=False)
+    quarantined = verify(client, user, forged).json()["data"]["record_id"]
+
+    def portfolio():
+        res = client.post("/api/v1/portfolios", json={"title": "위조 점검", "source": "VC_ONLY", "record_ids": [genuine, quarantined]},
+                          headers=user["headers"])
+        assert res.status_code == 201, res.text
+        return res.json()["data"]
+
+    body = portfolio()
+    assert body["referenced_record_ids"] == [genuine]
+    assert body["excluded"] == [{"record_id": quarantined, "status": "invalid", "reason": "invalid"}]
+    assert "Kafka" not in body["content_markdown"]
+
+    # 검증기 판단이 바뀌어도(지금은 서명·신뢰가 확인돼도) 올릴 때 검증되지 않은 기록은 근거로 쓰지 않는다.
+    fake_dx.set_badge_result(forged)
+    body = portfolio()
+    assert body["referenced_record_ids"] == [genuine]
+    assert body["excluded"] == [{"record_id": quarantined, "status": "invalid", "reason": "unverified_upload"}]
+    assert db.execute("SELECT status FROM credentials WHERE record_id = %s",
+                      (quarantined,)).fetchone()["status"] == "invalid"
+
+    evidence = client.get(f"/api/v1/subjects/{user['did']}/evidence", headers=user["headers"]).json()
+    assert [e["record_id"] for e in evidence["evidence"]] == [genuine]
+    assert [e["record_id"] for e in evidence["excluded"]] == [quarantined]
+    again = client.post(f"/api/v1/credentials/{quarantined}/reverify", headers=user["headers"]).json()
+    assert again["success"] is False and again["message"] == "Re-verification failed: unverified_upload"
+
+
+def test_unverified_record_shows_what_the_upload_claims(client, register, fake_dx, db):
+    """검증기가 자기 기록의 원래 이름을 돌려줘도 '미검증 기록'에는 원본이 주장하는 이름·발급기관을 보여 준다."""
+    user = register()
+    forged = make_vc_jwt(user["did"], name="Kafka 실무 경험 확인", issuer_name="경북대학교")
+    fake_dx.set_badge_result(forged, valid=False, signature_ok=False, achievement_name="KNU Career Demo Badge",
+                             issuer_name="원래 발급기관")
+    data = verify(client, user, forged).json()["data"]
+    assert data["achievement_name"] == "Kafka 실무 경험 확인" and data["issuer_name"] == "경북대학교"
+    row = db.execute("SELECT achievement_name, issuer_name FROM credentials WHERE record_id = %s",
+                     (data["record_id"],)).fetchone()
+    assert row == {"achievement_name": "Kafka 실무 경험 확인", "issuer_name": "경북대학교"}
+
+
+def test_reupload_of_same_forgery_refreshes_and_limit_is_per_user(client, register, fake_dx, db, monkeypatch):
+    from app.services import database
+
+    monkeypatch.setattr(database, "MAX_UNVERIFIED_UPLOADS_PER_USER", 2)
+    alice, bob = register(), register()
+    tokens = [make_vc_jwt(alice["did"], name=f"위조 {i}") for i in range(3)]
+    for token in tokens:
+        fake_dx.set_badge_result(token, valid=False, signature_ok=False)
+    first = verify(client, alice, tokens[0]).json()
+    assert verify(client, alice, tokens[0]).json()["data"]["record_id"] == first["data"]["record_id"]  # 같은 원본: 갱신
+    assert verify(client, alice, tokens[1]).json()["message"] == SAVED_AS_UNVERIFIED
+    full = verify(client, alice, tokens[2]).json()
+    assert full["message"] == UNVERIFIED_LIMIT_REACHED
+    assert full["data"]["record_id"] is None and full["data"]["unverified_upload"] is False
+    assert verify(client, alice, tokens[1]).json()["message"] == SAVED_AS_UNVERIFIED  # 한도여도 같은 원본은 갱신
+    assert credential_count(db, alice) == 2
+    # 진짜 배지는 이 한도와 무관하다.
+    assert verify(client, alice, make_vc_jwt(alice["did"])).json()["success"] is True
+    # 한도는 사용자마다 따로다.
+    forged_for_bob = make_vc_jwt(bob["did"])
+    fake_dx.set_badge_result(forged_for_bob, valid=False, signature_ok=False)
+    assert verify(client, bob, forged_for_bob).json()["message"] == SAVED_AS_UNVERIFIED
 
 
 def test_confirmed_credential_of_another_user_is_409(client, register):

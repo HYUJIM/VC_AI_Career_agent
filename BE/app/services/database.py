@@ -10,7 +10,7 @@ import psycopg
 from psycopg.rows import dict_row
 
 from app.core.config import db_max_connections, db_password, db_tls_options
-from app.domain.credential import BadgeEvaluation
+from app.domain.credential import UNVERIFIED_UPLOAD, BadgeEvaluation
 from app.services.key_custody import StoredHolderKey
 
 
@@ -125,6 +125,7 @@ def app_db_connection() -> Iterator[psycopg.Connection]:
 # 그 목록(수 MiB)을 병렬로 읽어 다른 사용자의 요청까지 느리게 만든다.
 MAX_ACTIVE_SHARES_PER_USER = 100  # 철회·만료되지 않은 공유 링크
 MAX_PORTFOLIOS_PER_USER = 100
+MAX_UNVERIFIED_UPLOADS_PER_USER = 10  # 격리 보관하는 '미검증 기록'(위조·변조 의심 업로드)
 LIST_LIMIT = 200
 # 모의 발급 기록의 '진행 중' 창 (초). 모든 사용자를 합친 전체 한도(reserve_mock_issuance)는 해시가 없는 기록(아직 협력사를
 # 부르는 중인 요청, 결과를 모르는 실패)을 만든 뒤 이 시간 동안만 센다. 발급 호출 하나가 걸릴 수 있는 가장 긴 시간보다 길어야
@@ -389,48 +390,79 @@ class DatabaseService:
             cur.execute("UPDATE users SET token_version = token_version + 1 WHERE id = %s", (user_id,))
 
     # ── 자격증명 ──────────────────────────────────────────────
+    @staticmethod
+    def _upsert_credential(cur, *, user_id: str, provider: str, evaluation: BadgeEvaluation, vc_jwt: str,
+                           now: datetime) -> dict:
+        """credentials 한 행과 그 verification_checks를 넣는다 (같은 사용자·출처·원본 ID면 갱신). 트랜잭션은 부른 쪽이 연다."""
+        cur.execute(
+            """
+            INSERT INTO credentials (
+                record_id, user_id, source_provider, source_external_id, format,
+                achievement_name, issuer_name, issuer_trust_level, status,
+                issued_at, expires_at, raw_data, created_at, raw_token, last_verified_at
+            )
+            VALUES (%s, %s, %s, %s, 'OB3.0', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (user_id, source_provider, source_external_id)
+            DO UPDATE SET
+                achievement_name = EXCLUDED.achievement_name,
+                issuer_name = EXCLUDED.issuer_name,
+                issuer_trust_level = EXCLUDED.issuer_trust_level,
+                status = EXCLUDED.status,
+                expires_at = EXCLUDED.expires_at,
+                raw_data = EXCLUDED.raw_data,
+                raw_token = EXCLUDED.raw_token,
+                last_verified_at = EXCLUDED.last_verified_at
+            RETURNING record_id, status
+            """,
+            (
+                evaluation.record_id, user_id, provider, evaluation.external_id,
+                evaluation.achievement_name, evaluation.issuer_name, evaluation.issuer_trust_level,
+                evaluation.status, evaluation.issued_at, evaluation.expires_at,
+                json.dumps(evaluation.vc), now, vc_jwt, now,
+            ),
+        )
+        saved = cur.fetchone()
+        cur.execute("DELETE FROM verification_checks WHERE record_id = %s", (saved["record_id"],))
+        cur.executemany(
+            """
+            INSERT INTO verification_checks (record_id, check_name, result, detail, checked_at)
+            VALUES (%s, %s, %s, %s, %s)
+            """,
+            [(saved["record_id"], c.name, c.result, c.detail, now) for c in evaluation.checks],
+        )
+        return {"record_id": str(saved["record_id"]), "status": saved["status"]}
+
     def save_badge(self, *, user_id: str, provider: str, evaluation: BadgeEvaluation, vc_jwt: str) -> dict:
         """검증 결과를 credentials(원본 vcJwt 포함)와 verification_checks에 한 트랜잭션으로 저장한다."""
         now = datetime.now(timezone.utc)
         with app_db_connection() as conn:
             with conn.transaction(), conn.cursor() as cur:
+                return self._upsert_credential(cur, user_id=user_id, provider=provider, evaluation=evaluation,
+                                               vc_jwt=vc_jwt, now=now)
+
+    def save_unverified_upload(self, *, user_id: str, evaluation: BadgeEvaluation, vc_jwt: str) -> Optional[dict]:
+        """검증기가 발급자 서명·신뢰를 확인하지 못한 업로드를 '미검증 기록'으로 격리 보관한다.
+
+        evaluation은 credential.quarantine_evaluation의 결과다 (키 = 사용자 + 원본 해시, 상태 invalid). 출처는
+        UNVERIFIED_UPLOAD로 따로 두어 진짜 배지 레코드와 겹치지 않는다. 사용자마다 MAX_UNVERIFIED_UPLOADS_PER_USER개까지
+        보관하고(같은 원본을 다시 올리면 그 행을 갱신), 한도면 저장하지 않고 None을 돌려준다.
+        같은 사용자의 동시 업로드는 create_portfolio처럼 advisory lock으로 줄을 세운다.
+        """
+        now = datetime.now(timezone.utc)
+        with app_db_connection() as conn:
+            with conn.transaction(), conn.cursor() as cur:
+                cur.execute("SET TRANSACTION ISOLATION LEVEL READ COMMITTED")
+                cur.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"unverified_uploads:{user_id}",))
                 cur.execute(
-                    """
-                    INSERT INTO credentials (
-                        record_id, user_id, source_provider, source_external_id, format,
-                        achievement_name, issuer_name, issuer_trust_level, status,
-                        issued_at, expires_at, raw_data, created_at, raw_token, last_verified_at
-                    )
-                    VALUES (%s, %s, %s, %s, 'OB3.0', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (user_id, source_provider, source_external_id)
-                    DO UPDATE SET
-                        achievement_name = EXCLUDED.achievement_name,
-                        issuer_name = EXCLUDED.issuer_name,
-                        issuer_trust_level = EXCLUDED.issuer_trust_level,
-                        status = EXCLUDED.status,
-                        expires_at = EXCLUDED.expires_at,
-                        raw_data = EXCLUDED.raw_data,
-                        raw_token = EXCLUDED.raw_token,
-                        last_verified_at = EXCLUDED.last_verified_at
-                    RETURNING record_id, status
-                    """,
-                    (
-                        evaluation.record_id, user_id, provider, evaluation.external_id,
-                        evaluation.achievement_name, evaluation.issuer_name, evaluation.issuer_trust_level,
-                        evaluation.status, evaluation.issued_at, evaluation.expires_at,
-                        json.dumps(evaluation.vc), now, vc_jwt, now,
-                    ),
+                    "SELECT count(*) AS n, count(*) FILTER (WHERE source_external_id = %s) AS same"
+                    " FROM credentials WHERE user_id = %s AND source_provider = %s",
+                    (evaluation.external_id, user_id, UNVERIFIED_UPLOAD),
                 )
-                saved = cur.fetchone()
-                cur.execute("DELETE FROM verification_checks WHERE record_id = %s", (saved["record_id"],))
-                cur.executemany(
-                    """
-                    INSERT INTO verification_checks (record_id, check_name, result, detail, checked_at)
-                    VALUES (%s, %s, %s, %s, %s)
-                    """,
-                    [(saved["record_id"], c.name, c.result, c.detail, now) for c in evaluation.checks],
-                )
-        return {"record_id": str(saved["record_id"]), "status": saved["status"]}
+                counts = cur.fetchone()
+                if not counts["same"] and counts["n"] >= MAX_UNVERIFIED_UPLOADS_PER_USER:
+                    return None
+                return self._upsert_credential(cur, user_id=user_id, provider=UNVERIFIED_UPLOAD,
+                                               evaluation=evaluation, vc_jwt=vc_jwt, now=now)
 
     def find_credential_owner(self, record_id: str) -> Optional[str]:
         with app_db_connection() as conn, conn.cursor() as cur:
@@ -439,7 +471,10 @@ class DatabaseService:
             return str(row["user_id"]) if row else None
 
     def get_user_and_credentials(self, user_did: str):
-        """FE 대시보드가 쓰는 careers 응답. 응답 형식은 FE `CareersResponse` 계약이므로 바꾸지 않는다."""
+        """FE 대시보드가 쓰는 careers 응답. 응답 형식은 FE `CareersResponse` 계약이므로 기존 필드는 바꾸지 않는다.
+
+        unverified_upload: 올릴 때 검증되지 않아 격리 보관한 '미검증 기록'인지 (근거로 쓰지 않는다).
+        """
         with app_db_connection() as conn, conn.cursor() as cur:
             cur.execute("SELECT * FROM users WHERE subject_did = %s", (user_did,))
             user = cur.fetchone()
@@ -464,6 +499,7 @@ class DatabaseService:
                     "status": c["status"],
                     "issued_at": c["issued_at"].isoformat() if isinstance(c["issued_at"], datetime) else str(c["issued_at"]),
                     "raw_data": c["raw_data"],
+                    "unverified_upload": c["source_provider"] == UNVERIFIED_UPLOAD,
                 }
                 for c in credentials
             ],
@@ -473,7 +509,7 @@ class DatabaseService:
     # ── 실행 시점 재검증 ──────────────────────────────────────
     _CREDENTIAL_ROW = """
         SELECT c.record_id, c.user_id, c.raw_token, c.raw_data, c.status, c.issuer_name, c.achievement_name,
-               c.issued_at, c.expires_at, u.subject_did
+               c.issued_at, c.expires_at, c.source_provider, u.subject_did
         FROM credentials c JOIN users u ON u.id = c.user_id
     """
 

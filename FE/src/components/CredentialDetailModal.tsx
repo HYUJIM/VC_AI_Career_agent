@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { isVerifierErrorResult, reverifyCredential } from '@/api/credentials';
 import { IssuerAvatar } from '@/components/IssuerAvatar';
-import { StatusBadge } from '@/components/StatusBadge';
+import { StatusBadge, UnverifiedRecordTag } from '@/components/StatusBadge';
 import { VerificationChecks } from '@/components/VerificationChecks';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
@@ -79,11 +79,17 @@ export function CredentialDetailModal({ credential, onClose }: Props) {
             <p className="text-[19px] font-bold leading-snug">{credential.achievement_name}</p>
             <p className="truncate text-[13px] text-[var(--color-text-muted)]">{credential.issuer}</p>
           </div>
-          <StatusBadge status={status} />
+          <div className="flex flex-col items-end gap-1">
+            {credential.unverified_upload && <UnverifiedRecordTag />}
+            <StatusBadge status={status} />
+          </div>
         </div>
 
         <p className={`rounded-2xl px-4 py-3 text-[13px] leading-relaxed text-[var(--color-text-sub)] ${descBox}`}>
-          {getStatusDescription(status)}
+          {credential.unverified_upload
+            ? '올릴 때 검증 서버가 발급 기관의 서명·신뢰를 확인하지 못해(위조·변조 의심) 격리 보관한 기록이에요. ' +
+              'AI 포트폴리오·직무 비교를 실행할 때마다 다시 검증하지만 근거로는 쓰지 않고 "미검증 기록"으로 표시해요.'
+            : getStatusDescription(status)}
         </p>
 
         <div className="flex flex-col gap-3">

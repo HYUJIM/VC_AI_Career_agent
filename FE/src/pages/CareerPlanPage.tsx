@@ -1,8 +1,10 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createCareerAnalysis, createCurriculum, getJobPostings, getSkillCatalog } from '@/api/career';
+import { getCareersByDid } from '@/api/credentials';
 import { MarketTrendsCard } from '@/components/MarketTrendsCard';
+import { StatusBadge, UnverifiedRecordTag } from '@/components/StatusBadge';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -11,6 +13,7 @@ import { isPreviewSession } from '@/lib/preview';
 import { safeExternalHref } from '@/lib/text';
 import { randomUUID } from '@/lib/uuid';
 import { useAuthStore } from '@/store/authStore';
+import type { CredentialStatus } from '@/types/api';
 import type {
   CareerAnalysis,
   ComparisonStatus,
@@ -164,8 +167,61 @@ function WarningList({ codes }: { codes: string[] }) {
   );
 }
 
+/** 비교 결과의 '미검증 기록': 비교할 때 서명 원본을 다시 검증했더니 통과하지 못해 근거에서 뺀 자격증명 */
+type WalletEntry = { name: string; status: CredentialStatus; upload: boolean };
+
+function UnverifiedRecords({ ids, wallet }: { ids: string[]; wallet: Map<string, WalletEntry> }) {
+  return (
+    <div className="flex flex-col gap-2 rounded-2xl border border-[#f5c2c7] bg-[#fff8f8] px-4 py-3">
+      <p className="text-[13px] font-semibold text-[#d22030]">
+        ⚠ 미검증 기록 {ids.length}개 — 비교할 때 다시 검증했더니 통과하지 못해 근거로 쓰지 않았어요
+      </p>
+      <ul className="flex flex-col gap-1.5">
+        {ids.map((id) => {
+          const item = wallet.get(id);
+          return (
+            <li key={id} className="flex items-center justify-between gap-2 text-[13px]">
+              <span className="flex min-w-0 items-center gap-1.5">
+                <UnverifiedRecordTag />
+                <span className="min-w-0 truncate text-[var(--color-text-sub)]">
+                  {item?.name ?? id}
+                  {item?.upload && (
+                    <span className="ml-1.5 text-[var(--color-text-muted)]">· 올릴 때 서명·발급자 확인 실패 (위조·변조 의심)</span>
+                  )}
+                </span>
+              </span>
+              {item && <StatusBadge status={item.status} />}
+            </li>
+          );
+        })}
+      </ul>
+      <Link to="/dashboard" className="text-[13px] font-semibold text-[var(--color-primary)] hover:underline">
+        지갑에서 확인
+      </Link>
+    </div>
+  );
+}
+
 export function CareerPlanPage() {
   const preview = import.meta.env.DEV && isPreviewSession();
+  const user = useAuthStore((state) => state.user);
+  const queryClient = useQueryClient();
+  // 비교 결과의 제외 목록에 이름·상태를 붙이려고 지갑을 읽는다 (비교가 재검증 결과를 저장하므로 비교 뒤 다시 불러온다).
+  const careers = useQuery({
+    queryKey: ['careers', user?.did],
+    queryFn: () => getCareersByDid(user!.did),
+    enabled: Boolean(user?.did),
+  });
+  const wallet = useMemo(
+    () =>
+      new Map(
+        (careers.data?.verified_credentials ?? []).map((c) => [
+          c.record_id,
+          { name: c.achievement_name, status: c.status, upload: Boolean(c.unverified_upload) },
+        ]),
+      ),
+    [careers.data],
+  );
   const [target, setTarget] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<CareerAnalysis | null>(null);
   const [alternatives, setAlternatives] = useState<Record<string, SkillId>>({});
@@ -188,6 +244,7 @@ export function CareerPlanPage() {
     mutationFn: () => createCareerAnalysis(target),
     onSuccess: (result) => {
       setAnalysis(result);
+      queryClient.invalidateQueries({ queryKey: ['careers'] });
       setAlternatives({});
       setActions({});
       setPlan(null);
@@ -337,12 +394,7 @@ export function CareerPlanPage() {
             </span>
           </div>
           {analysis.excluded_record_ids.length > 0 && (
-            <Alert variant="warning" title="검증을 통과하지 못한 자격증명은 근거에서 뺐어요">
-              폐기·만료되었거나 서명 원본으로 다시 검증할 수 없는 자격증명이에요.{' '}
-              <Link to="/dashboard" className="font-semibold hover:underline">
-                지갑에서 확인
-              </Link>
-            </Alert>
+            <UnverifiedRecords ids={analysis.excluded_record_ids} wallet={wallet} />
           )}
           <ul className="flex flex-col divide-y divide-[var(--color-border)]">
             {analysis.comparisons.map((c) => {
@@ -372,6 +424,12 @@ export function CareerPlanPage() {
       {analysis && (
         <Card className="flex flex-col gap-4">
           <h2 className="text-[17px] font-bold">3. 학습 계획 만들기</h2>
+          {analysis.excluded_record_ids.length > 0 && (
+            <p className="flex flex-wrap items-center gap-1.5 text-[13px] text-[var(--color-text-sub)]">
+              <UnverifiedRecordTag />
+              미검증 기록 {analysis.excluded_record_ids.length}개는 이 계획의 근거에서 빠졌어요.
+            </p>
+          )}
           {alternativeComparisons(analysis).map((c) => (
             <label key={refOf(c)} className="flex flex-col gap-1 text-[14px]">
               <span>
