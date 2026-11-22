@@ -18,7 +18,7 @@ from src.career.contracts.career import (
 from src.career.contracts.verification import VerificationSnapshot
 from src.career.errors import EvidenceError, Rejection
 from src.career.gap_analyzer import (
-    CAPTURE_FRESHNESS_DAYS,
+    capture_expires_at,
     MAX_POSTINGS,
     MINIMUM_SAMPLE_SIZE,
     compare_requirements,
@@ -146,7 +146,9 @@ def analyze(
         warnings.append("UNMAPPED_CREDENTIALS_REQUIRE_CURATED_RULE_REVIEW")
     limits = [snapshot.valid_until]
     for version in selected.values():
-        limits.append(version.posting.captured_at + timedelta(days=CAPTURE_FRESHNESS_DAYS))
+        expires = capture_expires_at(version.posting)
+        if expires is not None:
+            limits.append(expires)
         if version.posting.closes_at:
             limits.append(version.posting.closes_at)
         if version in market and version.posting.posted_at:

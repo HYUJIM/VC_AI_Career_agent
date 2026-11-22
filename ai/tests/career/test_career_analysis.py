@@ -131,6 +131,27 @@ def test_closed_synthetic_and_old_capture_are_not_eligible(
     assert exc.value.message == "Target posting is stale, closed, synthetic or outside filters"
 
 
+def test_market_statistics_reference_is_not_bound_by_the_capture_week(
+    mapped_snapshot, make_version, make_posting
+):
+    """시장 통계 기준(source=market_stats)은 마감이 없어 수집 7일 규칙 대신 기준 시각의 30/90일 창만 본다."""
+    stats_at = now() - timedelta(days=20)
+    stats = make_version(make_posting(source="market_stats", posted_at=stats_at, captured_at=stats_at))
+    found = search(CareerAnalysisRequest(), [stats], now())
+    assert [item.posting_id for item in found.sources] == [stats.posting_id]
+    result = analyze(mapped_snapshot, CareerAnalysisRequest(), [stats], None, now())
+    assert result.market_posting_count == 1
+    # 분석 유효 시각은 수집 7일(이미 지남)이 아니라 스냅샷·기준 시각 창으로 정해진다.
+    assert result.valid_until > now()
+    # 같은 날짜의 일반 공고는 수집 7일이 지나 쓸 수 없다.
+    stale = make_version(make_posting(posted_at=stats_at, captured_at=stats_at))
+    assert search(CareerAnalysisRequest(), [stale], now()).sources == []
+    # 90일 창을 지난 통계는 쓸 수 없다.
+    old_at = now() - timedelta(days=91)
+    old = make_version(make_posting(source="market_stats", posted_at=old_at, captured_at=old_at))
+    assert search(CareerAnalysisRequest(), [old], now()).sources == []
+
+
 def test_partial_profile_and_tampered_sources_fail_closed(mapped_snapshot, make_version):
     partial = mapped_snapshot.model_copy(update={"scope": "selected"})
     with pytest.raises(Rejection) as exc:

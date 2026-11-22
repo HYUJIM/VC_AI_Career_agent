@@ -50,7 +50,7 @@ BE도 로컬에서 실행하면 BE의 기본값 `AI_SERVICE_URL=http://127.0.0.1
 ## 3. 사용 흐름 (FE → BE → AI)
 
 1. 연구자(BE `RESEARCHER_USER_IDS`)가 원문 인용과 함께 공고·학습자료를 반입합니다: `POST /api/v1/research/job-postings`, `POST /api/v1/research/learning-resources`.
-   AI가 주석이 원문과 맞는지 검사하고, BE가 버전으로 저장합니다. `dataset_kind=real`이고 수집 7일 이내인 공고·30일 이내인 자료만 비교에 쓰입니다.
+   AI가 주석이 원문과 맞는지 검사하고, BE가 버전으로 저장합니다. `dataset_kind=real`이고 수집 7일 이내인 공고·30일 이내인 자료만 비교에 쓰입니다. 시장 통계에서 만든 기준 요구사항(`source: market_stats`, 단일 공고가 아님)은 마감·내림이 없어 수집 7일 규칙을 적용하지 않고, 집계 시각(`posted_at`)의 30/90일 창만 적용합니다 (분석 유효 시각도 수집 7일로 자르지 않음).
 2. 사용자가 FE **직무 비교·커리큘럼** 화면에서 공고를 고르고 비교합니다 (`POST /api/v1/career-analyses`).
    BE가 사용자의 모든 자격증명을 DXWorks로 **지금 다시 검증**하고, 통과한 것만 AI로 보냅니다.
 3. 같은 화면에서 학습 계획을 만듭니다 (`POST /api/v1/curricula`, 비교 후 5분 이내). 템플릿은 즉시, LLM은 최대 90초.
@@ -283,7 +283,7 @@ CURRICULUM_LOCAL_ALLOW_DOWNLOAD=true
 | LLM 모드인데 결과가 "LLM 초안 폐기 후 기본 계획"(`llm_fallback`) | 모델 초안이 검사를 2번 통과하지 못했거나 출력 한도(Claude 16,000 토큰, Gemini 4,096 토큰)에 걸림. `CURRICULUM_LLM_EFFORT`(`gemini`면 `CURRICULUM_LLM_THINKING_LEVEL`)를 비우거나 낮추고, 큰 계획은 대상 공고를 좁힘 |
 | FE에 "분석 요청이 많습니다…" (BE 503 `AI_SERVICE_BUSY`) | BE 프로세스가 AI로 동시에 보내는 공고·학습자료 묶음 요청이 BE의 `AI_MAX_CONCURRENCY`(기본 4)개로 찬 채 10초가 지남. 이 요청은 AI에 오지 않았음 → 잠시 뒤 다시 시도, 자주 나오면 AI가 느린지(CPU·메모리) 확인 |
 | `/v1/...`의 422 `REQUEST_SCHEMA_INVALID`에 보낸 값이 없음 | `detail`은 오류마다 `loc`·`msg`·`type`만 싣고(입력값 없음) 앞에서부터 20개까지, 64자를 넘는 키 이름은 `<long key>`로 나옴 |
-| 비교할 공고가 없음 | 연구자 반입 공고가 없거나, 수집 7일·게시 90일이 지났거나, `dataset_kind`가 `real`이 아님 |
+| 비교할 공고가 없음 | 연구자 반입 공고가 없거나, 수집 7일(시장 통계 기준은 제외)·게시 90일이 지났거나, `dataset_kind`가 `real`이 아님 |
 | 공고·자료 미리보기·반입이 422 `TEXT_EXPANDS_TOO_MUCH_WHEN_NORMALIZED` | 원문·인용에 NFKC 정규화로 크게 늘어나는 호환 문자(예: U+FDFA)가 많음 → 풀어 쓴 문자로 고쳐 다시 반입 |
 | 새 버전으로 올린 뒤 공고 목록·직무 비교가 409 `JOB_SOURCE_INVALID` (학습자료는 `LEARNING_SOURCE_INVALID`) | 이미 저장된 공고·자료 버전이 지금 규칙의 재검사를 통과하지 못함. 이번 버전은 결합 문자가 30개 넘게 이어진 구간을 30개에서 자르므로, 그런 구간이 든 원문·인용(실제 문장에는 없는 형태)이 저장돼 있으면 걸릴 수 있음 → `../BE/README.md`의 "결합 문자 점검"으로 찾아 고쳐서 다시 반입 |
 | 커리큘럼 409 | 비교 결과 유효시간(5분)이 지남 → 다시 비교 |
